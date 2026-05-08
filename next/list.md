@@ -3,17 +3,19 @@
 > **Philosophy:** Frontend first. You see something in the browser at every phase.  
 > Logic and backend come _after_ you already have a working visual shell.  
 > You write every line. The `videographic/main/` folder is your reference — read it, don't copy it.
+>
+> **Prioritization rule:** implement only what is required to keep the product running end-to-end; defer validation, deep typing, persistence, and tests unless they unblock runtime functionality.
 
 ---
 
 ## Phase 0 — Foundation
 
-_Teaches: Next.js App Router, TypeScript strict mode, Vitest setup_
+_Core runtime path: project setup, buildability, and a clean starting point_
 
 - [x] Run `npx create-next-app@latest ./ --typescript --tailwind --src-dir --app --import-alias "@/*" --no-git`
 - [x] Install runtime deps: `npm install zod zustand`
 - [x] Install dev deps: `npm install -D vitest @vitest/coverage-v8`
-- x Create `vitest.config.ts` with globals and `@` alias
+- [x] Create `vitest.config.ts` with globals and `@` alias
 - [x] Add `"test": "vitest run"` and `"test:watch": "vitest"` to `package.json` scripts
 - [x] Strip `src/app/page.tsx` to just `export default function Page() { return <main /> }`
 - [x] **Verify:** `npm run dev` → blank page, no errors
@@ -24,7 +26,7 @@ _Teaches: Next.js App Router, TypeScript strict mode, Vitest setup_
 
 ## Phase 1 — Layout + Design System
 
-_Teaches: Tailwind v4 `@theme`, design tokens, responsive layout, dark mode_
+_Core runtime path: shared shell, tokens, and visual foundation_
 
 - [x] Add design tokens (`--color-primary`, `--color-surface`, etc.) to `src/app/globals.css` using `@theme {}`
 - [x] Add `@utility shell` (grid layout) and `@utility card` to `globals.css`
@@ -40,7 +42,7 @@ _Teaches: Tailwind v4 `@theme`, design tokens, responsive layout, dark mode_
 
 ## Phase 2 — UI Components (Hardcoded Data)
 
-_Teaches: React components, props, composition, basic hooks, conditional rendering_
+_Core runtime path: browser-visible screens with hardcoded content_
 
 - [x] Build `src/components/generate/PromptForm.tsx` — textarea + Send button, Enter submits, Shift+Enter newlines, spinner when `isLoading`
 - [x] Build `src/components/generate/MessageBubble.tsx` — `user` (right, primary) and `assistant` (left, surface-raised) variants
@@ -58,7 +60,7 @@ _Teaches: React components, props, composition, basic hooks, conditional renderi
 
 ## Phase 3 — Canvas Renderer
 
-_Teaches: HTML5 Canvas 2D API, coordinate system, draw calls, easing, `requestAnimationFrame`_
+_Core runtime path: generate visual output and preview it in the app_
 
 - [ ] Slice 1 — scaffold `renderProjectFrame(ctx, project, t)` with `clearRect` + solid fill
 - [ ] Slice 2 — `visibleEvents(project, t)`: filter by time range, sort by layer
@@ -76,59 +78,22 @@ _Teaches: HTML5 Canvas 2D API, coordinate system, draw calls, easing, `requestAn
 
 ---
 
-## Phase 4 — Zustand Store
+## Phase 4 — Core App State
 
-_Teaches: Zustand v5, global state, localStorage persistence, optimistic UI_
+_Core runtime path: move from hardcoded UI to shared live state with basic safety_
 
 - [ ] Define types in `src/types/generate.ts`: `ChatMessage`, `Session`
 - [ ] Slice 1 — state shape + setters: `setPrompt`, `setDuration`, `setStylePreset`, `clearError`
-- [ ] Slice 2 — persistence: `persistToStorage`, `hydrateFromStorage`, `HydrateStore` client component
-- [ ] Slice 3 — `deleteSession(id)`
 - [ ] Slice 4 — `submitInitialPrompt(prompt)`: optimistic append → POST `/api/generate` → append result or error
 - [ ] Slice 5 — `submitModifyPrompt(sessionId, prompt)`: optimistic append → POST `/api/modify` → append result
 - [ ] Wire `HomeDashboard`, `ChatThread`, `PromptForm` to read from store (no more hardcoded data)
-- [ ] Add `HydrateStore` to `layout.tsx`
 - [ ] **Verify:** Submit prompt → spinner → error message in chat (API not real yet)
-- [ ] **Verify:** DevTools → Local Storage → state serialized after each action
-- [ ] **Verify:** Refresh page → state restored
 
 ---
 
-## Phase 5 — Domain Schemas
+## Phase 5 — API Routes (Stub First)
 
-_Teaches: Zod, TypeScript type inference, TDD red→green cycle_
-
-- [ ] `SupportedDurationSchema` → `z.union([z.literal(5), ...])`
-- [ ] `StylePresetSchema` → `z.enum([...])`
-- [ ] `TransitionPreset` → `z.enum([...])`
-- [ ] `BackgroundPropertiesSchema` — solid / gradient / image discriminated union
-- [ ] `TextPropertiesSchema`
-- [ ] `ShapePropertiesSchema` — discriminated union on `shapeType`
-- [ ] `AnimationSchema`
-- [ ] `TimelineEventSchema` — discriminated union on `type`
-- [ ] `VideoProjectSchema`
-- [ ] Write tests in `src/__tests__/timeline/schemas.test.ts` — valid + invalid case per schema
-- [ ] **Verify:** `npm test` → all schema tests pass
-
----
-
-## Phase 6 — Seed Project Factory
-
-_Teaches: Constructing valid typed objects programmatically, using schemas as contracts_
-
-- [ ] Build `src/lib/alpha/createSeedProject(name, duration)` with background, 2 circles, line, title text events
-- [ ] All timing calculated from `duration` param — no hardcoded `5`
-- [ ] Replace hardcoded objects in `test-canvas/page.tsx` with `createSeedProject("Test", 5)`
-- [ ] Replace hardcoded project in dummy messages with `createSeedProject`
-- [ ] Write test: `VideoProjectSchema.parse(createSeedProject("test", 5))` doesn't throw
-- [ ] **Verify:** `npm test` → seed factory tests pass
-- [ ] **Verify:** `/test-canvas` still renders correctly
-
----
-
-## Phase 7 — API Routes (Stub First)
-
-_Teaches: Next.js route handlers, HTTP methods, Zod at the API boundary, stub-first development_
+_Core runtime path: make the app loop work through real request boundaries with minimal validation_
 
 - [ ] Define `GenerateRequestSchema` and `ModifyRequestSchema` in `src/lib/schemas/api.ts`
 - [ ] Build `src/app/api/generate/route.ts` — validate body, return `createSeedProject` + summary + diagnostics
@@ -138,21 +103,9 @@ _Teaches: Next.js route handlers, HTTP methods, Zod at the API boundary, stub-fi
 
 ---
 
-## Phase 8 — WebM Exporter
+## Phase 6 — AI Integration
 
-_Teaches: MediaRecorder API, `canvas.captureStream()`, Blob, file download_
-
-- [ ] Build `src/lib/core/MediaRecorderExporter.ts` — detect MIME type, capture stream, frame loop, collect chunks → Blob
-- [ ] Build `src/lib/core/VideoExporter.ts` — call exporter, create object URL, trigger download
-- [ ] Wire Export button into `InlinePreviewCard` with `isExporting` loading state
-- [ ] **Verify:** Click Export → `.webm` file downloads
-- [ ] **Verify:** Open file in browser or VLC → plays correctly
-
----
-
-## Phase 9 — AI Integration
-
-_Teaches: Fetch API, OpenRouter structured JSON output, prompt engineering, pipeline design_
+_Core runtime path: replace stub generation with a real model-backed pipeline_
 
 - [ ] Build `src/lib/ai/prompts.ts`: `buildSystemPrompt`, `buildInitialPrompt`, `buildModifyPrompt`, `buildRepairPrompt`
 - [ ] Build `src/lib/ai/openrouter.ts`: `callOpenRouter(messages, schema)` using `json_schema` response format
@@ -166,10 +119,60 @@ _Teaches: Fetch API, OpenRouter structured JSON output, prompt engineering, pipe
 
 ---
 
-## Phase 10 — Quality Gate
+## Phase 7 — WebM Exporter
 
-_Teaches: Pure function TDD, scoring logic, systematic validation, surfacing errors in UI_
+_Core runtime path: export generated output once preview and generation are working_
 
+- [ ] Build `src/lib/core/MediaRecorderExporter.ts` — detect MIME type, capture stream, frame loop, collect chunks → Blob
+- [ ] Build `src/lib/core/VideoExporter.ts` — call exporter, create object URL, trigger download
+- [ ] Wire Export button into `InlinePreviewCard` with `isExporting` loading state
+- [ ] **Verify:** Click Export → `.webm` file downloads
+- [ ] **Verify:** Open file in browser or VLC → plays correctly
+
+---
+
+## Phase 8 — Schema + Type Hardening
+
+_Delayed hardening: richer validation, deeper typing, and schema-driven contracts_
+
+- [ ] `SupportedDurationSchema` → `z.union([z.literal(5), ...])`
+- [ ] `StylePresetSchema` → `z.enum([...])`
+- [ ] `TransitionPreset` → `z.enum([...])`
+- [ ] `BackgroundPropertiesSchema` — solid / gradient / image discriminated union
+- [ ] `TextPropertiesSchema`
+- [ ] `ShapePropertiesSchema` — discriminated union on `shapeType`
+- [ ] `AnimationSchema`
+- [ ] `TimelineEventSchema` — discriminated union on `type`
+- [ ] `VideoProjectSchema`
+- [ ] Build `src/lib/alpha/createSeedProject(name, duration)` with background, 2 circles, line, title text events
+- [ ] All timing calculated from `duration` param — no hardcoded `5`
+- [ ] Replace hardcoded objects in `test-canvas/page.tsx` with `createSeedProject("Test", 5)`
+- [ ] Replace hardcoded project in dummy messages with `createSeedProject`
+- [ ] Define app-facing schema-derived types where they materially reduce duplication
+
+---
+
+## Phase 9 — Persistence + UX Hardening
+
+_Delayed hardening: persistence, hydration, and non-essential UX improvements_
+
+- [ ] Slice 2 — persistence: `persistToStorage`, `hydrateFromStorage`, `HydrateStore` client component
+- [ ] Slice 3 — `deleteSession(id)`
+- [ ] Add `HydrateStore` to `layout.tsx`
+- [ ] **Verify:** DevTools → Local Storage → state serialized after each action
+- [ ] **Verify:** Refresh page → state restored
+- [ ] **Verify:** `/test-canvas` still renders correctly
+- [ ] **Verify:** Play/pause and scrub still work after persistence wiring
+- [ ] UI polish
+
+---
+
+## Phase 10 — Quality Gate + Test Suite
+
+_Delayed hardening: formal tests, scoring, and correctness checks after the runtime path works_
+
+- [ ] Write tests in `src/__tests__/timeline/schemas.test.ts` — valid + invalid case per schema
+- [ ] Write test: `VideoProjectSchema.parse(createSeedProject("test", 5))` doesn't throw
 - [ ] TDD: `checkBackgroundPresence` → `NO_BACKGROUND` error
 - [ ] TDD: `checkTimingBoundaries` → `EVENT_EXCEEDS_DURATION`, `EVENT_NEGATIVE_START`
 - [ ] TDD: `checkLayerOrdering` → `BACKGROUND_WRONG_LAYER` warning
@@ -180,28 +183,26 @@ _Teaches: Pure function TDD, scoring logic, systematic validation, surfacing err
 - [ ] Write tests in `src/__tests__/quality-gate.test.ts`
 - [ ] Build `src/components/generate/QualityPanel.tsx` — collapsible, score badge, issue list with icons
 - [ ] Wire `QualityPanel` into `MessageBubble` (below canvas when diagnostics present)
+- [ ] **Verify:** `npm test` → all schema tests pass
+- [ ] **Verify:** `npm test` → seed factory tests pass
 - [ ] **Verify:** `npm test` → all quality gate tests pass
 - [ ] **Verify:** Real AI response with issues → `QualityPanel` shows correct score and list
 - [ ] **Verify:** Perfect project → green score badge
-
-
-
-- [ ] ui polish 
 
 ---
 
 ## Summary
 
-| Phase | Name               | You see in browser                       | Key concept                       |
-| ----- | ------------------ | ---------------------------------------- | --------------------------------- |
-| 0     | Foundation         | Blank page                               | App Router, Vitest                |
-| 1     | Layout + Design    | Dark shell, sidebar, top bar             | Tailwind v4 `@theme`              |
-| 2     | UI Components      | Full chat UI, home grid (hardcoded)      | React components, props           |
-| 3     | Canvas Renderer    | Animated canvas inside chat              | Canvas 2D API, rAF, easing        |
-| 4     | Zustand Store      | UI reads live state, persists on refresh | Zustand, localStorage             |
-| 5     | Domain Schemas     | No visual change; types locked in        | Zod, TDD                          |
-| 6     | Seed Factory       | Hardcoded objects replaced by factory    | Typed construction                |
-| 7     | API Routes (Stubs) | Full loop: type → submit → canvas        | Route handlers, Zod at boundary   |
-| 8     | WebM Exporter      | Export button downloads a video file     | MediaRecorder, Blob               |
-| 9     | AI Integration     | Real AI generates actual videos          | OpenRouter, JSON schema, pipeline |
-| 10    | Quality Gate       | Score badge + issue list in chat         | Pure function TDD, scoring        |
+| Phase | Name                      | You see in browser                       | Priority |
+| ----- | ------------------------- | ---------------------------------------- | -------- |
+| 0     | Foundation                | Blank page                               | Required |
+| 1     | Layout + Design System    | Dark shell, sidebar, top bar             | Required |
+| 2     | UI Components             | Full chat UI, home grid (hardcoded)      | Required |
+| 3     | Canvas Renderer           | Animated canvas inside chat              | Required |
+| 4     | Core App State            | UI reads live state                      | Required |
+| 5     | API Routes (Stub First)   | Full loop: type → submit → canvas        | Required |
+| 6     | AI Integration            | Real AI generates actual videos          | Required |
+| 7     | WebM Exporter             | Export button downloads a video file     | Required |
+| 8     | Schema + Type Hardening   | No major visual change; contracts deepen | Delayed  |
+| 9     | Persistence + UX Hardening| State survives refresh, UX gets smoother | Delayed  |
+| 10    | Quality Gate + Test Suite | Score badge + formal test coverage       | Delayed  |
