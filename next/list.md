@@ -30,11 +30,11 @@ _Teaches: Tailwind v4 `@theme`, design tokens, responsive layout, dark mode_
 - [x] Add `@utility shell` (grid layout) and `@utility card` to `globals.css`
 - [x] Add Inter font via `next/font/google` in `src/app/layout.tsx`
 - [x] Build `src/components/layout/Sidebar.tsx` — app name, nav links, muted footer
-- [ ] Build `src/components/layout/TopBar.tsx` — title slot + right-side action slot
-- [ ] Update `src/app/layout.tsx` to wrap everything in `.shell` grid
-- [ ] Update `page.tsx` to show a placeholder heading in the content area
-- [ ] **Verify:** `npm run dev` → dark page with visible sidebar and top bar
-- [ ] **Verify:** Resize browser → sidebar collapses on narrow screens (`hidden md:block`)
+- [x] Build `src/components/layout/TopBar.tsx` — title slot + right-side action slot
+- [x] Update `src/app/layout.tsx` to wrap everything in `.shell` grid
+- [x] Update `page.tsx` to show a placeholder heading in the content area
+- [x] **Verify:** `npm run dev` → dark page with visible sidebar and top bar
+- [x] **Verify:** Resize browser → sidebar collapses on narrow screens (`hidden md:block`)
 
 ---
 
@@ -183,6 +183,10 @@ _Teaches: Pure function TDD, scoring logic, systematic validation, surfacing err
 - [ ] **Verify:** `npm test` → all quality gate tests pass
 - [ ] **Verify:** Real AI response with issues → `QualityPanel` shows correct score and list
 - [ ] **Verify:** Perfect project → green score badge
+
+
+
+- [ ] ui polish 
 
 ---
 
