@@ -26,7 +26,7 @@ _Teaches: Next.js App Router, TypeScript strict mode, Vitest setup_
 
 _Teaches: Tailwind v4 `@theme`, design tokens, responsive layout, dark mode_
 
-- [ ] Add design tokens (`--color-primary`, `--color-surface`, etc.) to `src/app/globals.css` using `@theme {}`
+- [x] Add design tokens (`--color-primary`, `--color-surface`, etc.) to `src/app/globals.css` using `@theme {}`
 - [ ] Add `@utility shell` (grid layout) and `@utility card` to `globals.css`
 - [ ] Add Inter font via `next/font/google` in `src/app/layout.tsx`
 - [ ] Build `src/components/layout/Sidebar.tsx` — app name, nav links, muted footer

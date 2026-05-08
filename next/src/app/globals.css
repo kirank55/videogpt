@@ -30,6 +30,25 @@
   --font-mono: var(--font-geist-mono);
 }
 
+@utility shell {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: 1fr;
+  background-color: var(--color-background);
+
+  @media (width >= 48rem) {
+    grid-template-columns: 16rem minmax(0, 1fr);
+  }
+}
+
+@utility card {
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  background-color: var(--color-surface-raised);
+  color: var(--color-foreground);
+  box-shadow: 0 18px 40px -24px rgb(15 23 42 / 0.45);
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
