@@ -42,17 +42,17 @@ _Teaches: Tailwind v4 `@theme`, design tokens, responsive layout, dark mode_
 
 _Teaches: React components, props, composition, basic hooks, conditional rendering_
 
-- [ ] Build `src/components/generate/PromptForm.tsx` — textarea + Send button, Enter submits, Shift+Enter newlines, spinner when `isLoading`
-- [ ] Build `src/components/generate/MessageBubble.tsx` — `user` (right, primary) and `assistant` (left, surface-raised) variants
-- [ ] Build `src/components/generate/ChatThread.tsx` — scrollable message list, auto-scroll to bottom, 3 dummy messages
-- [ ] Build `src/components/generate/GenerateWorkspace.tsx` — `ChatThread` (top) + `PromptForm` (sticky bottom)
-- [ ] Build `src/components/home/ProjectCard.tsx` — name, thumbnail placeholder, date, Delete button
-- [ ] Build `src/components/home/HomeDashboard.tsx` — grid of `ProjectCard`, "New Project" button, empty state
-- [ ] Create `src/app/generate/page.tsx` → renders `GenerateWorkspace`
-- [ ] Update `src/app/page.tsx` → renders `HomeDashboard`
-- [ ] **Verify:** `/` → project grid with dummy cards
-- [ ] **Verify:** `/generate` → chat thread with dummy messages + prompt form
-- [ ] **Verify:** Typing + Enter → `console.log` fires
+- [x] Build `src/components/generate/PromptForm.tsx` — textarea + Send button, Enter submits, Shift+Enter newlines, spinner when `isLoading`
+- [x] Build `src/components/generate/MessageBubble.tsx` — `user` (right, primary) and `assistant` (left, surface-raised) variants
+- [x] Build `src/components/generate/ChatThread.tsx` — scrollable message list, auto-scroll to bottom, 3 dummy messages
+- [x] Build `src/components/generate/GenerateWorkspace.tsx` — `ChatThread` (top) + `PromptForm` (sticky bottom)
+- [x] Build `src/components/home/ProjectCard.tsx` — name, thumbnail placeholder, date, Delete button
+- [x] Build `src/components/home/HomeDashboard.tsx` — grid of `ProjectCard`, "New Project" button, empty state
+- [x] Create `src/app/generate/page.tsx` → renders `GenerateWorkspace`
+- [x] Update `src/app/page.tsx` → renders `HomeDashboard`
+- [x] **Verify:** `/` → project grid with dummy cards
+- [x] **Verify:** `/generate` → chat thread with dummy messages + prompt form
+- [x] **Verify:** Typing + Enter → `console.log` fires
 
 ---
 
