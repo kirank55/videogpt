@@ -1,4 +1,4 @@
-import type { VideoProject } from "@/lib/canvas/project";
+import type { VideoProject } from "@/lib/renderer";
 
 export const demoProject: VideoProject = {
   id: "demo-launch-loop",

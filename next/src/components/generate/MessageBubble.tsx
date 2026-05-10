@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { InlinePreviewCard } from "@/components/generate/InlinePreviewCard";
-import type { VideoProject } from "@/lib/canvas/project";
+import { PlayerCard } from "@/components/player";
+import type { VideoProject } from "@/lib/renderer";
 
 type MessageBubbleProps = {
   role: "user" | "assistant";
@@ -26,7 +26,7 @@ export function MessageBubble({ role, children, project }: MessageBubbleProps) {
         </div>
         {project ? (
           <div className="mt-3">
-            <InlinePreviewCard project={project} showControls />
+            <PlayerCard project={project} showControls />
           </div>
         ) : null}
       </div>

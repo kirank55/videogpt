@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { MessageBubble } from "@/components/generate/MessageBubble";
-import type { VideoProject } from "@/lib/canvas/project";
+import type { VideoProject } from "@/lib/renderer";
 
 export type ChatMessage = {
   id: string;

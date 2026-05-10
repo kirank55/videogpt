@@ -1,4 +1,4 @@
-import { InlinePreviewCard } from "@/components/generate/InlinePreviewCard";
+import { PlayerCard } from "@/components/player";
 import { TopBar } from "@/components/layout/TopBar";
 import { demoProject } from "@/app/demo/demoProject";
 
@@ -15,7 +15,7 @@ export default function DemoPage() {
               <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
                 Frame at {time.toFixed(1)}s
               </p>
-              <InlinePreviewCard
+              <PlayerCard
                 project={demoProject}
                 autoPlay={false}
                 initialTime={time}
