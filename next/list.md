@@ -62,19 +62,19 @@ _Core runtime path: browser-visible screens with hardcoded content_
 
 _Core runtime path: generate visual output and preview it in the app_
 
-- [ ] Slice 1 — scaffold `renderProjectFrame(ctx, project, t)` with `clearRect` + solid fill
-- [ ] Slice 2 — `visibleEvents(project, t)`: filter by time range, sort by layer
-- [ ] Slice 3 — `drawBackground(ctx, event)`: solid → linear gradient → vignette overlay
-- [ ] Slice 4 — `drawText(ctx, event, opacity)` + `drawWrappedText()` helper
-- [ ] Slice 5 — `drawShape(ctx, event, opacity)`: rect, circle, triangle, line
-- [ ] Slice 6 — Easing functions: `linear`, `easeIn`, `easeOut`, `easeInOut`, `bounce`
-- [ ] Slice 7 — `animatedNumber(from, to, easingFn, progress)`, wire into draw functions
-- [ ] Build `src/app/test-canvas/page.tsx` — 3 canvases side by side at `t=0`, `t=2.5`, `t=4.9`
-- [ ] Build `src/components/generate/InlinePreviewCard.tsx` — rAF loop, play/pause, scrubber, time display
-- [ ] Update `MessageBubble` to render `<InlinePreviewCard>` when message has a `project`
-- [ ] **Verify:** `/test-canvas` → three frames with shapes/text at correct times
-- [ ] **Verify:** `/generate` → dummy assistant message shows animated canvas preview
-- [ ] **Verify:** Play/pause and scrub work
+- [x] Slice 1 — scaffold `renderProjectFrame(ctx, project, t)` with `clearRect` + solid fill
+- [x] Slice 2 — `visibleEvents(project, t)`: filter by time range, sort by layer
+- [x] Slice 3 — `drawBackground(ctx, event)`: solid → linear gradient → vignette overlay
+- [x] Slice 4 — `drawText(ctx, event, opacity)` + `drawWrappedText()` helper
+- [x] Slice 5 — `drawShape(ctx, event, opacity)`: rect, circle, triangle, line
+- [x] Slice 6 — Easing functions: `linear`, `easeIn`, `easeOut`, `easeInOut`, `bounce`
+- [x] Slice 7 — `animatedNumber(from, to, easingFn, progress)`, wire into draw functions
+- [x] Build `src/app/demo/page.tsx` — 3 canvases side by side at `t=0`, `t=2.5`, `t=4.9`
+- [x] Build `src/components/generate/InlinePreviewCard.tsx` — rAF loop, play/pause, scrubber, time display
+- [x] Update `MessageBubble` to render `<InlinePreviewCard>` when message has a `project`
+- [x] **Verify:** `/demo` → three frames with shapes/text at correct times
+- [x] **Verify:** `/generate` → dummy assistant message shows animated canvas preview
+- [x] **Verify:** Play/pause and scrub work
 
 ---
 
@@ -146,7 +146,7 @@ _Delayed hardening: richer validation, deeper typing, and schema-driven contract
 - [ ] `VideoProjectSchema`
 - [ ] Build `src/lib/alpha/createSeedProject(name, duration)` with background, 2 circles, line, title text events
 - [ ] All timing calculated from `duration` param — no hardcoded `5`
-- [ ] Replace hardcoded objects in `test-canvas/page.tsx` with `createSeedProject("Test", 5)`
+- [ ] Replace hardcoded objects in `demo/page.tsx` with `createSeedProject("Test", 5)`
 - [ ] Replace hardcoded project in dummy messages with `createSeedProject`
 - [ ] Define app-facing schema-derived types where they materially reduce duplication
 
@@ -161,7 +161,7 @@ _Delayed hardening: persistence, hydration, and non-essential UX improvements_
 - [ ] Add `HydrateStore` to `layout.tsx`
 - [ ] **Verify:** DevTools → Local Storage → state serialized after each action
 - [ ] **Verify:** Refresh page → state restored
-- [ ] **Verify:** `/test-canvas` still renders correctly
+- [ ] **Verify:** `/demo` still renders correctly
 - [ ] **Verify:** Play/pause and scrub still work after persistence wiring
 - [ ] UI polish
 

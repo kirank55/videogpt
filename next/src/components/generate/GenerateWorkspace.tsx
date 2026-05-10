@@ -5,6 +5,7 @@ import {
   ChatThread,
   type ChatMessage,
 } from "@/components/generate/ChatThread";
+import { demoProject } from "@/app/demo/demoProject";
 import { PromptForm } from "@/components/generate/PromptForm";
 import { TopBar } from "@/components/layout/TopBar";
 
@@ -26,6 +27,7 @@ const initialMessages: ChatMessage[] = [
     role: "assistant",
     content:
       "Great direction. I would start with a dramatic title card, then cut into three feature moments with short punchy captions.",
+    project: demoProject,
   },
 ];
 
@@ -53,6 +55,7 @@ export function GenerateWorkspace() {
           role: "assistant",
           content:
             "Nice. I would turn that into a quick opening hook, a paced middle sequence, and a final branded close.",
+          project: demoProject,
         },
       ]);
       setIsLoading(false);

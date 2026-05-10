@@ -3,7 +3,7 @@ import Link from "next/link";
 const navItems = [
   { href: "/", label: "Projects" },
   { href: "/generate", label: "Generate" },
-  { href: "/test-canvas", label: "Canvas Lab" },
+  { href: "/demo", label: "Demo" },
 ];
 
 export function Sidebar() {

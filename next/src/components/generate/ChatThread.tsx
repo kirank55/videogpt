@@ -2,11 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import { MessageBubble } from "@/components/generate/MessageBubble";
+import type { VideoProject } from "@/lib/canvas/project";
 
 export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  project?: VideoProject;
 };
 
 type ChatThreadProps = {
@@ -50,7 +52,11 @@ export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
       </div>
       <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
         {messages.map((message) => (
-          <MessageBubble key={message.id} role={message.role}>
+          <MessageBubble
+            key={message.id}
+            role={message.role}
+            project={message.project}
+          >
             {message.content}
           </MessageBubble>
         ))}
