@@ -8,6 +8,7 @@ import {
 import { demoProject } from "@/app/demo/demoProject";
 import { PromptForm } from "@/components/generate/PromptForm";
 import { TopBar } from "@/components/layout/TopBar";
+import { bigDemoProject } from "@/app/demo/bigDemoProject";
 
 const initialMessages: ChatMessage[] = [
   {
@@ -27,7 +28,7 @@ const initialMessages: ChatMessage[] = [
     role: "assistant",
     content:
       "Great direction. I would start with a dramatic title card, then cut into three feature moments with short punchy captions.",
-    project: demoProject,
+    project: bigDemoProject,
   },
 ];
 
