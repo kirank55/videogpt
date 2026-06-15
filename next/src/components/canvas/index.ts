@@ -1,0 +1,1 @@
+export { PlayerCanvas } from "./PlayerCanvas";

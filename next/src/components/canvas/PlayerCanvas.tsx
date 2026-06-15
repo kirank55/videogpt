@@ -1,18 +1,20 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePlayerContext } from "@/components/player/PlayerProvider";
-import { renderProjectFrame } from "@/lib/renderer";
+import { renderProjectFrame, type VideoProject } from "@/lib/renderer";
 
 type PlayerCanvasProps = {
+  project: VideoProject;
+  currentTime: number;
   className?: string;
 };
 
 export function PlayerCanvas({
+  project,
+  currentTime,
   className = "w-full h-auto rounded-2xl border border-border bg-black/20",
 }: PlayerCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const { project, currentTime } = usePlayerContext();
 
   useEffect(() => {
     const canvas = canvasRef.current;

@@ -1,6 +1,6 @@
 "use client";
 
-import { PlayerCanvas } from "@/components/player/PlayerCanvas";
+import { PlayerCanvas } from "@/components/canvas";
 import { PlayerControls } from "@/components/player/PlayerControls";
 import type { VideoProject } from "@/lib/renderer";
 import {
@@ -44,7 +44,7 @@ function PlayerCardFrame({
         </div>
       </div>
 
-      <PlayerCanvas />
+      <PlayerCanvas project={project} currentTime={currentTime} />
       {showControls ? <PlayerControls /> : null}
     </div>
   );
