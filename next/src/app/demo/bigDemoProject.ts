@@ -120,30 +120,91 @@ export const bigDemoProject: VideoProject = {
       translateY: { from: 40, to: 0, easing: "easeOut" },
     },
 
-    // Subtitle — arcs in from bottom-left, lands below title
+    // Subtitle — words appear one by one
     {
-      id: "subtitle",
+      id: "sub-client",
       type: "text",
       start: 0.5, end: 2.8, layer: 5,
-      text: "Client  →  Server  →  Response",
-      x: 540, y: 570, maxWidth: 900,
+      text: "Client",
+      x: 545, y: 570, maxWidth: 200,
       fontSize: 36, fontWeight: 400, color: MUTED,
-      path: {
-        points: [
-          { x: 200, y: 750 },
-          { x: 420, y: 600 },
-          { x: 540, y: 570 },
-        ],
-        easing: "easeOut",
-      },
       opacity: {
         keyframes: [
           { time: 0.5, value: 0, easing: "easeOut" },
+          { time: 0.8, value: 1, easing: "easeOut" },
+          { time: 1.8, value: 1, easing: "easeInOut" },
+          { time: 2.8, value: 0, easing: "easeIn" },
+        ],
+      },
+      translateY: { from: 12, to: 0, easing: "easeOut" },
+    },
+    {
+      id: "sub-arrow-1",
+      type: "text",
+      start: 0.8, end: 2.8, layer: 5,
+      text: "→",
+      x: 665, y: 570, maxWidth: 60,
+      fontSize: 36, fontWeight: 400, color: MUTED,
+      opacity: {
+        keyframes: [
+          { time: 0.8, value: 0, easing: "easeOut" },
+          { time: 1.0, value: 1, easing: "easeOut" },
+          { time: 1.8, value: 1, easing: "easeInOut" },
+          { time: 2.8, value: 0, easing: "easeIn" },
+        ],
+      },
+      translateX: { from: -10, to: 0, easing: "easeOut" },
+    },
+    {
+      id: "sub-server",
+      type: "text",
+      start: 1.0, end: 2.8, layer: 5,
+      text: "Server",
+      x: 720, y: 570, maxWidth: 200,
+      fontSize: 36, fontWeight: 400, color: MUTED,
+      opacity: {
+        keyframes: [
+          { time: 1.0, value: 0, easing: "easeOut" },
           { time: 1.2, value: 1, easing: "easeOut" },
           { time: 1.8, value: 1, easing: "easeInOut" },
           { time: 2.8, value: 0, easing: "easeIn" },
         ],
       },
+      translateY: { from: 12, to: 0, easing: "easeOut" },
+    },
+    {
+      id: "sub-arrow-2",
+      type: "text",
+      start: 1.2, end: 2.8, layer: 5,
+      text: "→",
+      x: 840, y: 570, maxWidth: 60,
+      fontSize: 36, fontWeight: 400, color: MUTED,
+      opacity: {
+        keyframes: [
+          { time: 1.2, value: 0, easing: "easeOut" },
+          { time: 1.4, value: 1, easing: "easeOut" },
+          { time: 1.8, value: 1, easing: "easeInOut" },
+          { time: 2.8, value: 0, easing: "easeIn" },
+        ],
+      },
+      translateX: { from: -10, to: 0, easing: "easeOut" },
+    },
+    {
+      id: "sub-response",
+      type: "text",
+      start: 1.4, end: 2.8, layer: 5,
+      text: "Response",
+      x: 895, y: 570, maxWidth: 250,
+      fontSize: 36, fontWeight: 400, color: MUTED,
+      opacity: {
+        keyframes: [
+          { time: 1.4, value: 0, easing: "easeOut" },
+          { time: 1.6, value: 1, easing: "easeOut" },
+          { time: 1.8, value: 1, easing: "easeInOut" },
+          { time: 2.8, value: 0, easing: "easeIn" },
+        ],
+      },
+      translateY: { from: 12, to: 0, easing: "easeOut" },
     },
 
     // Decorative dashed baseline with arrowheads
@@ -397,7 +458,7 @@ export const bigDemoProject: VideoProject = {
       translateY: { from: -15, to: 0, easing: "easeOut" },
     },
 
-    // Request packet — arcs from client Network → above stacks → server API
+    // Request packet — arcs from client Browser → above stacks → server API
     {
       id: "req-packet",
       type: "shape", shapeType: "circle",
@@ -407,7 +468,7 @@ export const bigDemoProject: VideoProject = {
       shadow: { color: "rgb(96 165 250 / 0.9)", blur: 24 },
       path: {
         points: [
-          { x: GAP_L, y: REQ_START_Y },           // client Network center
+          { x: GAP_L, y: REQ_START_Y },           // client Browser center
           { x: GAP_CX, y: R1Y - 40 },             // arc UP above stacks
           { x: GAP_R, y: REQ_END_Y },              // server API center
         ],
@@ -471,55 +532,73 @@ export const bigDemoProject: VideoProject = {
       },
     },
 
-    // Step: Validate — right side of API rect
+    // Step: Validate — arrow slides in from left, then text appears
     {
-      id: "step-validate",
+      id: "step-validate-arrow",
       type: "text",
       start: 7.8, end: 10.2, layer: 5,
-      text: "→ Validate",
-      x: SL + SW - 180, y: L1Y, maxWidth: 160,
+      text: "→",
+      x: SL + SW - 180, y: L1Y, maxWidth: 30,
       fontSize: 22, fontWeight: 600, color: GREEN,
       shadow: { color: GREEN_GLOW, blur: 12 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateX: { from: 24, to: 0, easing: "easeOut" },
+      translateX: { from: -24, to: 0, easing: "easeOut" },
+    },
+    {
+      id: "step-validate-text",
+      type: "text",
+      start: 8.1, end: 10.2, layer: 5,
+      text: "Validate",
+      x: SL + SW - 150, y: L1Y, maxWidth: 130,
+      fontSize: 22, fontWeight: 600, color: GREEN,
+      shadow: { color: GREEN_GLOW, blur: 12 },
+      opacity: { from: 0, to: 1, easing: "easeOut" },
     },
 
-    // Step: Hash Password — right side of Logic rect
+    // Step: Hash Password — arrow slides in from left, then text appears
     {
-      id: "step-hash",
+      id: "step-hash-arrow",
       type: "text",
       start: 8.3, end: 10.2, layer: 5,
-      text: "→ Hash Password",
-      x: SL + SW - 220, y: L2Y, maxWidth: 200,
+      text: "→",
+      x: SL + SW - 220, y: L2Y, maxWidth: 30,
       fontSize: 22, fontWeight: 600, color: GREEN,
       shadow: { color: GREEN_GLOW, blur: 12 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateX: { from: 24, to: 0, easing: "easeOut" },
+      translateX: { from: -24, to: 0, easing: "easeOut" },
+    },
+    {
+      id: "step-hash-text",
+      type: "text",
+      start: 8.6, end: 10.2, layer: 5,
+      text: "Hash Password",
+      x: SL + SW - 190, y: L2Y, maxWidth: 170,
+      fontSize: 22, fontWeight: 600, color: GREEN,
+      shadow: { color: GREEN_GLOW, blur: 12 },
+      opacity: { from: 0, to: 1, easing: "easeOut" },
     },
 
-    // Step: INSERT INTO users — right side of DB rect
+    // Step: INSERT INTO users — arrow slides in from left, then text appears
     {
-      id: "step-store",
+      id: "step-store-arrow",
       type: "text",
       start: 8.8, end: 10.2, layer: 5,
-      text: "→ INSERT INTO users",
-      x: SL + SW - 255, y: L3Y, maxWidth: 235,
+      text: "→",
+      x: SL + SW - 255, y: L3Y, maxWidth: 30,
       fontSize: 22, fontWeight: 600, color: GREEN,
       shadow: { color: GREEN_GLOW, blur: 12 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateX: { from: 24, to: 0, easing: "easeOut" },
+      translateX: { from: -24, to: 0, easing: "easeOut" },
     },
-
-    // DB write indicator — bounce + glow
     {
-      id: "db-indicator",
-      type: "shape", shapeType: "circle",
-      start: 9.0, end: 10.5, layer: 5,
-      x: SL + 50, y: R3Y + R3H / 2, radius: 20,
-      fill: "rgb(251 191 36 / 0.9)",
-      shadow: { color: "rgb(251 191 36 / 0.6)", blur: 20 },
+      id: "step-store-text",
+      type: "text",
+      start: 9.1, end: 10.2, layer: 5,
+      text: "INSERT INTO users",
+      x: SL + SW - 225, y: L3Y, maxWidth: 205,
+      fontSize: 22, fontWeight: 600, color: GREEN,
+      shadow: { color: GREEN_GLOW, blur: 12 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      scale: { from: 0.3, to: 1, easing: "bounce" },
     },
 
     // Particle burst on DB write (amber, visible)
@@ -555,24 +634,24 @@ export const bigDemoProject: VideoProject = {
       translateY: { from: 15, to: 0, easing: "easeOut" },
     },
 
-    // Response packet — arcs from server API → dips down → client Browser
+    // Response packet — arcs from server API → above stacks → client Browser
     {
       id: "res-packet",
       type: "shape", shapeType: "circle",
       start: 10.3, end: 12.0, layer: 3,
-      x: GAP_CX, y: R2Y, radius: 22,
+      x: GAP_CX, y: R1Y, radius: 22,
       fill: "rgb(52 211 153 / 0.95)",
       shadow: { color: "rgb(52 211 153 / 0.9)", blur: 24 },
       path: {
         points: [
           { x: GAP_R, y: RES_START_Y },             // server API center
-          { x: GAP_CX, y: STACK_BOTTOM + 40 },      // dips DOWN below stacks
+          { x: GAP_CX, y: R1Y - 40 },               // arc UP above stacks
           { x: GAP_L, y: RES_END_Y },               // client Browser center
         ],
         easing: "easeInOut",
       },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      scale: { from: 1.3, to: 0.7, easing: "easeOut" },
+      scale: { from: 0.5, to: 1.2, easing: "easeInOut" },
     },
 
     // Response body text
@@ -580,8 +659,8 @@ export const bigDemoProject: VideoProject = {
       id: "res-body",
       type: "text",
       start: 10.8, end: 12.2, layer: 4,
-      text: '{ id: 42, status: "ok" }',
-      x: GAP_CX - 130, y: STACK_BOTTOM + 60, maxWidth: 420,
+      text: "ok",
+      x: GAP_CX - 30, y: R1Y - 60, maxWidth: 200,
       fontSize: 24, fontWeight: 500, color: MUTED,
       opacity: { from: 0, to: 1, easing: "easeInOut" },
     },
@@ -640,10 +719,17 @@ export const bigDemoProject: VideoProject = {
       type: "text",
       start: 13.0, end: DUR, layer: 5,
       text: "Every click. Every scroll. Every tap.",
-      x: 380, y: 800, maxWidth: 1200,
+      x: 570, y: 800, maxWidth: 1000,
       fontSize: 48, fontWeight: 700, color: WHITE,
       shadow: { color: "rgb(96 165 250 / 0.6)", blur: 40 },
-      opacity: { from: 0, to: 1, easing: "easeOut" },
+      opacity: {
+        keyframes: [
+          { time: 13.0, value: 0, easing: "easeOut" },
+          { time: 13.6, value: 1, easing: "easeOut" },
+          { time: 14.5, value: 1, easing: "easeInOut" },
+          { time: DUR, value: 0, easing: "easeIn" },
+        ],
+      },
       translateY: { from: 20, to: 0, easing: "easeOut" },
     },
 
@@ -655,7 +741,14 @@ export const bigDemoProject: VideoProject = {
       x: 80, y: 890, width: 120, height: 100,
       fill: { kind: "gradient", from: "rgb(59 130 246 / 0.5)", to: "rgb(96 165 250 / 0.15)", angle: 135 },
       stroke: "rgb(96 165 250 / 0.5)", strokeWidth: 2,
-      opacity: { from: 0, to: 0.9, easing: "easeOut" },
+      opacity: {
+        keyframes: [
+          { time: 13.5, value: 0, easing: "easeOut" },
+          { time: 14.0, value: 0.9, easing: "easeOut" },
+          { time: 14.5, value: 0.9, easing: "easeInOut" },
+          { time: DUR, value: 0, easing: "easeIn" },
+        ],
+      },
       rotate: { from: -15, to: 0, easing: "easeOut" },
     },
     {
@@ -665,7 +758,14 @@ export const bigDemoProject: VideoProject = {
       x: W - 200, y: 890, width: 120, height: 100,
       fill: { kind: "gradient", from: "rgb(52 211 153 / 0.5)", to: "rgb(52 211 153 / 0.15)", angle: 45 },
       stroke: "rgb(52 211 153 / 0.5)", strokeWidth: 2,
-      opacity: { from: 0, to: 0.9, easing: "easeOut" },
+      opacity: {
+        keyframes: [
+          { time: 13.6, value: 0, easing: "easeOut" },
+          { time: 14.1, value: 0.9, easing: "easeOut" },
+          { time: 14.5, value: 0.9, easing: "easeInOut" },
+          { time: DUR, value: 0, easing: "easeIn" },
+        ],
+      },
       rotate: { from: 15, to: 0, easing: "easeOut" },
     },
 
