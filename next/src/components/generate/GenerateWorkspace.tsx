@@ -15,6 +15,7 @@ import { missionControlProject } from "@/app/demo/missionControlProject";
 import { timelineProject } from "@/app/demo/timelineProject";
 import { brutalistProject } from "@/app/demo/brutalistProject";
 import { isometricProject } from "@/app/demo/isometricProject";
+import { hybridProject } from "@/app/demo/hybridProject";
 
 const initialMessages: ChatMessage[] = [
   {
@@ -69,6 +70,12 @@ const initialMessages: ChatMessage[] = [
     role: "assistant",
     content: "8 · Isometric 3D — depth-card illusion, diagonal offset shadows, iso-angle packet arc.",
     project: isometricProject,
+  },
+  {
+    id: "demo-hybrid",
+    role: "assistant",
+    content: "9 · Hybrid — Iso Title · Brutalist Stacks · Blueprint Animation · BigDemo Flow.",
+    project: hybridProject,
   },
 ];
 
