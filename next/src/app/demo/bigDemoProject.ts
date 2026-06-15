@@ -45,7 +45,7 @@ const L2Y = R2Y + (R2H - L2_FS) / 2;   // 477
 const L3Y = R3Y + (R3H - L2_FS) / 2;   // 617
 
 // ── Request/response anchors (from/to the correct layers) ────────────────────
-const REQ_START_Y = R3Y + R3H / 2;     // 630 — Network layer center (client)
+const REQ_START_Y = R1Y + R1H / 2;     // 340 — Browser layer center (client)
 const REQ_END_Y = R1Y + R1H / 2;       // 340 — API layer center (server)
 const RES_START_Y = R1Y + R1H / 2;     // 340 — API layer center (server)
 const RES_END_Y = R1Y + R1H / 2;       // 340 — Browser layer center (client)
