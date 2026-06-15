@@ -4,7 +4,7 @@ import { demoProject } from "@/app/demo/demoProject";
 import { bigDemoProject } from "@/app/demo/bigDemoProject";
 
 const frameTimes = [0, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.9];
-const bigFrameTimes = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 9.9];
+const bigFrameTimes = [0, 1, 2, 3, 4.5, 6, 8, 10, 12, 14, 14.9];
 
 export default function DemoPage() {
   return (

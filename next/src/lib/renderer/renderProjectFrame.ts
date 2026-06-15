@@ -2,6 +2,7 @@ import {
   drawBackground,
   fillFallbackBackground,
 } from "@/lib/renderer/background";
+import { drawParticles } from "@/lib/renderer/particle";
 import { drawShape } from "@/lib/renderer/shape";
 import { drawText } from "@/lib/renderer/text";
 import { visibleEvents } from "@/lib/renderer/visibleEvents";
@@ -14,6 +15,11 @@ function drawForegroundEvent(
 ) {
   if (event.type === "text") {
     drawText(context, event, time);
+    return;
+  }
+
+  if (event.type === "particle") {
+    drawParticles(context, event, time);
     return;
   }
 

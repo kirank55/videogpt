@@ -38,6 +38,15 @@ function drawTextLines(
 ) {
   context.save();
   context.globalAlpha = opacity;
+
+  // Shadow / glow
+  if (event.shadow) {
+    context.shadowColor = event.shadow.color;
+    context.shadowBlur = event.shadow.blur;
+    context.shadowOffsetX = event.shadow.offsetX ?? 0;
+    context.shadowOffsetY = event.shadow.offsetY ?? 0;
+  }
+
   context.fillStyle = event.color;
   context.textAlign = event.align ?? "left";
   context.textBaseline = "top";
@@ -60,6 +69,11 @@ export function drawText(
   event: TextEvent,
   time: number,
 ) {
-  const { opacity, offsetX, offsetY } = getAnimatedStyle(event, time);
-  drawTextLines(context, event, opacity, offsetX, offsetY);
+  const { opacity, offsetX, offsetY, pathOffset } = getAnimatedStyle(event, time);
+
+  // Path offset overrides translateX/Y
+  const finalOffsetX = pathOffset ? pathOffset.x - event.x : offsetX;
+  const finalOffsetY = pathOffset ? pathOffset.y - event.y : offsetY;
+
+  drawTextLines(context, event, opacity, finalOffsetX, finalOffsetY);
 }

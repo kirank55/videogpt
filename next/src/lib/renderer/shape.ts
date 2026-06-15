@@ -1,5 +1,7 @@
 import { getAnimatedStyle } from "@/lib/renderer/animation";
-import type { ShapeEvent } from "@/lib/renderer/types";
+import type { GradientFill, ShapeFill, ShapeEvent } from "@/lib/renderer/types";
+
+// ── Geometry helpers ─────────────────────────────────────────────────────────
 
 function getShapeCenter(event: ShapeEvent) {
   switch (event.shapeType) {
@@ -13,6 +15,42 @@ function getShapeCenter(event: ShapeEvent) {
       return { x: (event.x1 + event.x2) / 2, y: (event.y1 + event.y2) / 2 };
   }
 }
+
+// ── Fill resolution ──────────────────────────────────────────────────────────
+
+function isGradientFill(fill: ShapeFill): fill is GradientFill {
+  return typeof fill === "object" && fill.kind === "gradient";
+}
+
+function resolveShapeFill(
+  context: CanvasRenderingContext2D,
+  fill: ShapeFill,
+  bounds: { x: number; y: number; width: number; height: number },
+): string | CanvasGradient {
+  if (!isGradientFill(fill)) {
+    return fill;
+  }
+
+  const radians = (fill.angle * Math.PI) / 180;
+  const cx = bounds.x + bounds.width / 2;
+  const cy = bounds.y + bounds.height / 2;
+  const halfDiag = Math.sqrt(bounds.width ** 2 + bounds.height ** 2) / 2;
+
+  const dx = Math.cos(radians) * halfDiag;
+  const dy = Math.sin(radians) * halfDiag;
+
+  const gradient = context.createLinearGradient(
+    cx - dx,
+    cy - dy,
+    cx + dx,
+    cy + dy,
+  );
+  gradient.addColorStop(0, fill.from);
+  gradient.addColorStop(1, fill.to);
+  return gradient;
+}
+
+// ── Rounded rect path ────────────────────────────────────────────────────────
 
 function buildRoundedRectPath(
   context: CanvasRenderingContext2D,
@@ -35,51 +73,94 @@ function buildRoundedRectPath(
   context.closePath();
 }
 
-function drawRectShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
-  if (event.shapeType !== "rect") {
-    return;
-  }
+// ── Individual shape draw functions ──────────────────────────────────────────
 
-  context.fillStyle = event.fill;
-  buildRoundedRectPath(
-    context,
-    event.x,
-    event.y,
-    event.width,
-    event.height,
-    event.radius ?? 0,
-  );
+function drawRectShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
+  if (event.shapeType !== "rect") return;
+
+  const bounds = { x: event.x, y: event.y, width: event.width, height: event.height };
+  context.fillStyle = resolveShapeFill(context, event.fill, bounds);
+  buildRoundedRectPath(context, event.x, event.y, event.width, event.height, event.radius ?? 0);
   context.fill();
+
+  if (event.stroke && event.strokeWidth) {
+    context.strokeStyle = event.stroke;
+    context.lineWidth = event.strokeWidth;
+    context.stroke();
+  }
 }
 
 function drawCircleShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
-  if (event.shapeType !== "circle") {
-    return;
-  }
+  if (event.shapeType !== "circle") return;
+
+  const bounds = {
+    x: event.x - event.radius,
+    y: event.y - event.radius,
+    width: event.radius * 2,
+    height: event.radius * 2,
+  };
 
   context.beginPath();
-  context.fillStyle = event.fill;
+  context.fillStyle = resolveShapeFill(context, event.fill, bounds);
   context.arc(event.x, event.y, event.radius, 0, Math.PI * 2);
   context.fill();
+
+  if (event.stroke && event.strokeWidth) {
+    context.strokeStyle = event.stroke;
+    context.lineWidth = event.strokeWidth;
+    context.stroke();
+  }
 }
 
 function drawTriangleShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
-  if (event.shapeType !== "triangle") {
-    return;
-  }
+  if (event.shapeType !== "triangle") return;
+
+  const bounds = { x: event.x, y: event.y, width: event.width, height: event.height };
 
   context.beginPath();
-  context.fillStyle = event.fill;
+  context.fillStyle = resolveShapeFill(context, event.fill, bounds);
   context.moveTo(event.x + event.width / 2, event.y);
   context.lineTo(event.x + event.width, event.y + event.height);
   context.lineTo(event.x, event.y + event.height);
   context.closePath();
   context.fill();
+
+  if (event.stroke && event.strokeWidth) {
+    context.strokeStyle = event.stroke;
+    context.lineWidth = event.strokeWidth;
+    context.stroke();
+  }
+}
+
+// ── Arrowhead drawing ────────────────────────────────────────────────────────
+
+function drawArrowhead(
+  context: CanvasRenderingContext2D,
+  tipX: number,
+  tipY: number,
+  angle: number,
+  size: number,
+  color: string,
+) {
+  context.save();
+  context.fillStyle = color;
+  context.translate(tipX, tipY);
+  context.rotate(angle);
+  context.beginPath();
+  context.moveTo(0, 0);
+  context.lineTo(-size, -size / 2);
+  context.lineTo(-size, size / 2);
+  context.closePath();
+  context.fill();
+  context.restore();
 }
 
 function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
-  if (event.shapeType !== "line") {
-    return;
+  if (event.shapeType !== "line") return;
+
+  // Dashed lines
+  if (event.lineDash) {
+    context.setLineDash(event.lineDash);
   }
 
   context.beginPath();
@@ -89,7 +170,26 @@ function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
   context.moveTo(event.x1, event.y1);
   context.lineTo(event.x2, event.y2);
   context.stroke();
+
+  // Reset dash
+  if (event.lineDash) {
+    context.setLineDash([]);
+  }
+
+  // Arrowheads
+  const angle = Math.atan2(event.y2 - event.y1, event.x2 - event.x1);
+  const size = event.arrowSize ?? event.lineWidth * 3;
+
+  if (event.arrowEnd) {
+    drawArrowhead(context, event.x2, event.y2, angle, size, event.stroke);
+  }
+
+  if (event.arrowStart) {
+    drawArrowhead(context, event.x1, event.y1, angle + Math.PI, size, event.stroke);
+  }
 }
+
+// ── Shape body dispatch ──────────────────────────────────────────────────────
 
 function drawShapeBody(context: CanvasRenderingContext2D, event: ShapeEvent) {
   switch (event.shapeType) {
@@ -108,20 +208,33 @@ function drawShapeBody(context: CanvasRenderingContext2D, event: ShapeEvent) {
   }
 }
 
+// ── Transform + shadow application ───────────────────────────────────────────
+
 function applyShapeTransform(
   context: CanvasRenderingContext2D,
   event: ShapeEvent,
   time: number,
 ) {
-  const { opacity, offsetX, offsetY, scale, rotation } = getAnimatedStyle(
-    event,
-    time,
-  );
+  const { opacity, offsetX, offsetY, scale, rotation, pathOffset } =
+    getAnimatedStyle(event, time);
   const center = getShapeCenter(event);
+
+  // Path offset overrides translateX/Y
+  const finalOffsetX = pathOffset ? pathOffset.x - center.x : offsetX;
+  const finalOffsetY = pathOffset ? pathOffset.y - center.y : offsetY;
 
   context.save();
   context.globalAlpha = opacity;
-  context.translate(center.x + offsetX, center.y + offsetY);
+
+  // Shadow / glow
+  if (event.shadow) {
+    context.shadowColor = event.shadow.color;
+    context.shadowBlur = event.shadow.blur;
+    context.shadowOffsetX = event.shadow.offsetX ?? 0;
+    context.shadowOffsetY = event.shadow.offsetY ?? 0;
+  }
+
+  context.translate(center.x + finalOffsetX, center.y + finalOffsetY);
   context.rotate((rotation * Math.PI) / 180);
   context.scale(scale, scale);
   context.translate(-center.x, -center.y);

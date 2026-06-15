@@ -1,144 +1,228 @@
 import type { VideoProject } from "@/lib/renderer";
 
 /**
- * A dense, multi-act explainer of client–server architecture.
- * 10 seconds · 1920×1080 · ~42 events across 5 layers
+ * Client–Server Architecture — Rebuilt v3
+ * 15 seconds · 1920×1080 · stress-tests all 8 renderer capabilities
  *
- * Acts:
- *   0–2.8s   Cold Open          – title + subtitle + decorative line
- *   1.5–3.2s The Stacks         – client layers (left) + server layers (right)
- *   3.2–5.5s The Request        – POST packet flies client → server
- *   5.0–5.8s Server Processing  – validate → hash → store
- *   5.8–7.8s The Response       – 201 packet flies server → client
- *   7.5–8.8s Full Picture       – overlay + round-trip summary
- *   8.3–10s  Outro              – closing line + corner accents
+ * Fixes from v2:
+ *   ✓ Vertically centered layout (stacks at Y:270–690, not crammed at top)
+ *   ✓ Brighter rect fills with visible contrast
+ *   ✓ Larger text (labels 30–34px, body 24px)
+ *   ✓ Coherent request/response — no conflicting diagonal lines
+ *   ✓ Visible particles (larger radius, higher opacity)
  */
 
-// ── Layout constants ─────────────────────────────────────────────────────────
-// Client stack: x=100, width=520  → spans 100–620
-// Server stack: x=1300, width=520 → spans 1300–1820
-// Center gap:   620–1300 = 680px (used for request/response paths)
+// ── Canvas ───────────────────────────────────────────────────────────────────
+const W = 1920;
+const H = 1080;
+const DUR = 15;
 
-const CL = 100;   // client stack left edge
-const SW = 520;   // stack width
-const SL = 1300;  // server stack left edge
-const PAD = 40;   // text padding inside rects
+// ── Stack layout ─────────────────────────────────────────────────────────────
+const CL = 100;                      // client stack left edge
+const SW = 500;                      // stack width
+const SL = W - CL - SW;             // server stack left edge = 1320
+const GAP_L = CL + SW;              // gap left = 600
+const GAP_R = SL;                    // gap right = 1320
+const GAP_CX = (GAP_L + GAP_R) / 2; // gap center X = 960
+const PAD = 44;                      // text padding inside rects
 
-// Rect heights
-const R1H = 140;  // top rect height
-const R2H = 115;  // middle rect height
-const R3H = 115;  // bottom rect height
-const RG = 20;    // gap between rects
+// ── Row layout (vertically centered) ─────────────────────────────────────────
+const HEADER_Y = 240;
+const R1Y = 270;
+const R1H = 140;
+const RG = 20;                       // gap between rows
+const R2Y = R1Y + R1H + RG;         // 430
+const R2H = 120;
+const R3Y = R2Y + R2H + RG;         // 570
+const R3H = 120;
+const STACK_BOTTOM = R3Y + R3H;     // 690
 
-// Rect y positions
-const R1Y = 210;
-const R2Y = R1Y + R1H + RG;  // 370
-const R3Y = R2Y + R2H + RG;  // 505
+// ── Label Y positions (vertically centered in each rect) ─────────────────────
+const L1_FS = 32;  // row 1 font size
+const L2_FS = 26;  // row 2/3 font size
+const L1Y = R1Y + (R1H - L1_FS) / 2;   // 324
+const L2Y = R2Y + (R2H - L2_FS) / 2;   // 477
+const L3Y = R3Y + (R3H - L2_FS) / 2;   // 617
 
-// Label y (vertically centered): rect.y + (rect.height - fontSize) / 2
-// fontSize=28 in R1: 210 + (140-28)/2 = 266
-// fontSize=24 in R2: 370 + (115-24)/2 = 415.5 ≈ 416
-// fontSize=24 in R3: 505 + (115-24)/2 = 550.5 ≈ 551
+// ── Request/response anchors (from/to the correct layers) ────────────────────
+const REQ_START_Y = R3Y + R3H / 2;     // 630 — Network layer center (client)
+const REQ_END_Y = R1Y + R1H / 2;       // 340 — API layer center (server)
+const RES_START_Y = R1Y + R1H / 2;     // 340 — API layer center (server)
+const RES_END_Y = R1Y + R1H / 2;       // 340 — Browser layer center (client)
+
+// ── Colors ───────────────────────────────────────────────────────────────────
+const BLUE = "rgb(96 165 250)";
+const BLUE_DIM = "rgb(96 165 250 / 0.45)";
+const BLUE_GLOW = "rgb(96 165 250 / 0.7)";
+const GREEN = "rgb(52 211 153)";
+const GREEN_DIM = "rgb(52 211 153 / 0.4)";
+const GREEN_GLOW = "rgb(52 211 153 / 0.7)";
+const AMBER = "rgb(251 191 36)";
+const WHITE = "#f1f5f9";
+const MUTED = "rgb(178 190 205 / 0.95)";
+const MUTED_DIM = "rgb(160 175 195 / 0.8)";
 
 export const bigDemoProject: VideoProject = {
-  id: "big-demo-client-server",
+  id: "big-demo-client-server-v3",
   name: "Client–Server Architecture",
-  width: 1920,
-  height: 1080,
-  duration: 10,
+  width: W,
+  height: H,
+  duration: DUR,
   events: [
 
-    // ── Background ────────────────────────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // BACKGROUND
+    // ══════════════════════════════════════════════════════════════════════════
     {
       id: "bg",
       type: "background",
-      start: 0, end: 10, layer: 0,
-      background: { kind: "gradient", from: "#020617", to: "#0f1d3a", angle: 160 },
+      start: 0, end: DUR, layer: 0,
+      background: { kind: "gradient", from: "#020617", to: "#0f172a", angle: 160 },
     },
 
-    // ── Decorative baseline (persists all scene) ──────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // ACT 1: COLD OPEN (0–3s)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // Ambient particles — visible, slow drift
     {
-      id: "deco-line",
-      type: "shape", shapeType: "line",
-      start: 0.2, end: 9.5, layer: 1,
-      x1: 100, y1: 700, x2: 1820, y2: 700,
-      stroke: "rgb(59 130 246 / 0.35)", lineWidth: 3,
-      opacity: { from: 0, to: 0.8, easing: "linear" },
-      translateX: { from: -120, to: 0, easing: "easeOut" },
+      id: "ambient-particles",
+      type: "particle",
+      start: 0.2, end: DUR, layer: 1,
+      count: 40,
+      seed: 42,
+      origin: { x: W / 2, y: H / 2 },
+      spread: { x: W / 2 - 80, y: H / 2 - 80 },
+      drift: { x: 6, y: -2 },
+      particleRadius: { min: 2, max: 6 },
+      color: "rgb(96 165 250 / 0.6)",
+      particleOpacity: { min: 0.25, max: 0.65 },
+      opacity: { from: 0, to: 1, easing: "easeOut" },
     },
 
-    // ── Act 1: Cold Open (0–2.8s) ────────────────────────────────────────────
+    // Title — fades in, holds, fades out BEFORE stacks arrive
     {
       id: "title",
       type: "text",
-      start: 0.0, end: 2.8, layer: 4,
+      start: 0.0, end: 2.8, layer: 5,
       text: "How the Web Works",
-      x: 360, y: 380, maxWidth: 1200,
-      fontSize: 88, fontWeight: 800, color: "#f1f5f9",
-      opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateY: { from: 30, to: 0, easing: "easeOut" },
+      x: 320, y: 420, maxWidth: 1300,
+      fontSize: 96, fontWeight: 800, color: WHITE,
+      shadow: { color: "rgb(96 165 250 / 0.8)", blur: 50 },
+      opacity: {
+        keyframes: [
+          { time: 0.0, value: 0, easing: "easeOut" },
+          { time: 0.6, value: 1, easing: "easeOut" },
+          { time: 1.8, value: 1, easing: "easeInOut" },
+          { time: 2.8, value: 0, easing: "easeIn" },
+        ],
+      },
+      translateY: { from: 40, to: 0, easing: "easeOut" },
     },
+
+    // Subtitle — arcs in from bottom-left, lands below title
     {
       id: "subtitle",
       type: "text",
-      start: 0.4, end: 2.8, layer: 4,
+      start: 0.5, end: 2.8, layer: 5,
       text: "Client  →  Server  →  Response",
-      x: 560, y: 490, maxWidth: 800,
-      fontSize: 32, fontWeight: 400, color: "rgb(148 163 184 / 0.9)",
-      opacity: { from: 0, to: 1, easing: "easeInOut" },
-      translateY: { from: 16, to: 0, easing: "easeOut" },
+      x: 540, y: 570, maxWidth: 900,
+      fontSize: 36, fontWeight: 400, color: MUTED,
+      path: {
+        points: [
+          { x: 200, y: 750 },
+          { x: 420, y: 600 },
+          { x: 540, y: 570 },
+        ],
+        easing: "easeOut",
+      },
+      opacity: {
+        keyframes: [
+          { time: 0.5, value: 0, easing: "easeOut" },
+          { time: 1.2, value: 1, easing: "easeOut" },
+          { time: 1.8, value: 1, easing: "easeInOut" },
+          { time: 2.8, value: 0, easing: "easeIn" },
+        ],
+      },
     },
 
-    // ── Act 2: The Stacks (1.5–3.2s) ─────────────────────────────────────────
-    // CLIENT header
+    // Decorative dashed baseline with arrowheads
+    {
+      id: "deco-line",
+      type: "shape", shapeType: "line",
+      start: 0.3, end: 14.5, layer: 1,
+      x1: 100, y1: 750, x2: 1820, y2: 750,
+      stroke: BLUE_DIM, lineWidth: 2,
+      lineDash: [14, 10],
+      arrowStart: true, arrowEnd: true, arrowSize: 10,
+      opacity: { from: 0, to: 0.7, easing: "easeOut" },
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ACT 2: THE STACKS (2–5s)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // ── CLIENT STACK ──────────────────────────────────────────────────────────
+
+    // Client header with glow
     {
       id: "client-header",
       type: "text",
-      start: 1.5, end: 9.5, layer: 4,
+      start: 2.8, end: 14.5, layer: 5,
       text: "CLIENT",
-      x: CL + PAD, y: 170, maxWidth: 300,
-      fontSize: 18, fontWeight: 700, color: "rgb(96 165 250 / 0.9)",
+      x: CL + PAD, y: HEADER_Y, maxWidth: 300,
+      fontSize: 18, fontWeight: 700, color: BLUE,
+      shadow: { color: BLUE_GLOW, blur: 15 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
     },
 
-    // Browser rect + label
+    // Browser rect — bright gradient fill + visible stroke + keyframed pulse
     {
       id: "browser-rect",
       type: "shape", shapeType: "rect",
-      start: 1.6, end: 9.5, layer: 2,
+      start: 2.9, end: 14.5, layer: 2,
       x: CL, y: R1Y, width: SW, height: R1H, radius: 16,
-      fill: "rgb(30 41 59 / 0.85)",
-      opacity: { from: 0, to: 1, easing: "easeOut" },
+      fill: { kind: "gradient", from: "rgb(38 52 78 / 0.95)", to: "rgb(25 38 60 / 0.9)", angle: 180 },
+      stroke: "rgb(96 165 250 / 0.5)", strokeWidth: 1.5,
+      opacity: {
+        keyframes: [
+          { time: 2.9, value: 0, easing: "easeOut" },
+          { time: 3.5, value: 1, easing: "easeOut" },
+          { time: 3.9, value: 0.7, easing: "easeInOut" },
+          { time: 4.3, value: 1, easing: "easeOut" },
+        ],
+      },
       translateY: { from: 40, to: 0, easing: "easeOut" },
     },
     {
       id: "browser-label",
       type: "text",
-      start: 1.7, end: 9.5, layer: 4,
+      start: 3.0, end: 14.5, layer: 4,
       text: "Browser",
-      x: CL + PAD, y: 266, maxWidth: SW - PAD * 2,
-      fontSize: 28, fontWeight: 600, color: "#e2e8f0",
+      x: CL + PAD, y: L1Y, maxWidth: SW - PAD * 2,
+      fontSize: L1_FS, fontWeight: 600, color: "#e2e8f0",
       opacity: { from: 0, to: 1, easing: "easeOut" },
       translateY: { from: 24, to: 0, easing: "easeOut" },
     },
 
-    // HTTP rect + label
+    // HTTP Layer rect + label
     {
       id: "http-rect",
       type: "shape", shapeType: "rect",
-      start: 1.9, end: 9.5, layer: 2,
+      start: 3.2, end: 14.5, layer: 2,
       x: CL, y: R2Y, width: SW, height: R2H, radius: 14,
-      fill: "rgb(30 41 59 / 0.65)",
+      fill: { kind: "gradient", from: "rgb(32 45 70 / 0.9)", to: "rgb(22 32 55 / 0.85)", angle: 180 },
+      stroke: "rgb(96 165 250 / 0.3)", strokeWidth: 1,
       opacity: { from: 0, to: 1, easing: "easeInOut" },
       translateY: { from: 40, to: 0, easing: "easeInOut" },
     },
     {
       id: "http-label",
       type: "text",
-      start: 2.0, end: 9.5, layer: 4,
+      start: 3.3, end: 14.5, layer: 4,
       text: "HTTP Layer",
-      x: CL + PAD, y: 416, maxWidth: SW - PAD * 2,
-      fontSize: 24, fontWeight: 600, color: "rgb(203 213 225 / 0.9)",
+      x: CL + PAD, y: L2Y, maxWidth: SW - PAD * 2,
+      fontSize: L2_FS, fontWeight: 600, color: "rgb(210 220 235 / 0.95)",
       opacity: { from: 0, to: 1, easing: "easeInOut" },
     },
 
@@ -146,70 +230,86 @@ export const bigDemoProject: VideoProject = {
     {
       id: "network-rect",
       type: "shape", shapeType: "rect",
-      start: 2.1, end: 9.5, layer: 2,
+      start: 3.4, end: 14.5, layer: 2,
       x: CL, y: R3Y, width: SW, height: R3H, radius: 14,
-      fill: "rgb(30 41 59 / 0.45)",
+      fill: { kind: "gradient", from: "rgb(28 40 62 / 0.8)", to: "rgb(18 28 48 / 0.75)", angle: 180 },
+      stroke: "rgb(96 165 250 / 0.2)", strokeWidth: 1,
       opacity: { from: 0, to: 1, easing: "easeOut" },
       translateY: { from: 40, to: 0, easing: "easeOut" },
     },
     {
       id: "network-label",
       type: "text",
-      start: 2.2, end: 9.5, layer: 4,
+      start: 3.5, end: 14.5, layer: 4,
       text: "Network",
-      x: CL + PAD, y: 551, maxWidth: SW - PAD * 2,
-      fontSize: 24, fontWeight: 600, color: "rgb(203 213 225 / 0.65)",
+      x: CL + PAD, y: L3Y, maxWidth: SW - PAD * 2,
+      fontSize: L2_FS, fontWeight: 600, color: MUTED_DIM,
       opacity: { from: 0, to: 1, easing: "easeOut" },
     },
 
-    // Client vertical connector
+    // Client vertical connectors — dashed with arrowheads
     {
-      id: "client-connector",
+      id: "client-conn-1",
       type: "shape", shapeType: "line",
-      start: 2.6, end: 9.5, layer: 1,
+      start: 3.8, end: 14.5, layer: 1,
       x1: CL + SW / 2, y1: R1Y + R1H,
       x2: CL + SW / 2, y2: R2Y,
-      stroke: "rgb(96 165 250 / 0.3)", lineWidth: 2,
+      stroke: "rgb(96 165 250 / 0.4)", lineWidth: 2,
+      lineDash: [6, 5],
+      arrowEnd: true, arrowSize: 8,
       opacity: { from: 0, to: 1, easing: "easeOut" },
     },
     {
-      id: "client-connector-2",
+      id: "client-conn-2",
       type: "shape", shapeType: "line",
-      start: 2.7, end: 9.5, layer: 1,
+      start: 3.9, end: 14.5, layer: 1,
       x1: CL + SW / 2, y1: R2Y + R2H,
       x2: CL + SW / 2, y2: R3Y,
-      stroke: "rgb(96 165 250 / 0.2)", lineWidth: 2,
+      stroke: "rgb(96 165 250 / 0.3)", lineWidth: 2,
+      lineDash: [6, 5],
+      arrowEnd: true, arrowSize: 8,
       opacity: { from: 0, to: 1, easing: "easeOut" },
     },
 
-    // SERVER header
+    // ── SERVER STACK ──────────────────────────────────────────────────────────
+
+    // Server header with glow
     {
       id: "server-header",
       type: "text",
-      start: 1.8, end: 9.5, layer: 4,
+      start: 3.1, end: 14.5, layer: 5,
       text: "SERVER",
-      x: SL + PAD, y: 170, maxWidth: 300,
-      fontSize: 18, fontWeight: 700, color: "rgb(52 211 153 / 0.9)",
+      x: SL + PAD, y: HEADER_Y, maxWidth: 300,
+      fontSize: 18, fontWeight: 700, color: GREEN,
+      shadow: { color: GREEN_GLOW, blur: 15 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
     },
 
-    // REST API rect + label
+    // REST API rect — bright gradient fill + stroke + keyframed pulse
     {
       id: "api-rect",
       type: "shape", shapeType: "rect",
-      start: 1.9, end: 9.5, layer: 2,
+      start: 3.2, end: 14.5, layer: 2,
       x: SL, y: R1Y, width: SW, height: R1H, radius: 16,
-      fill: "rgb(30 41 59 / 0.85)",
-      opacity: { from: 0, to: 1, easing: "easeOut" },
+      fill: { kind: "gradient", from: "rgb(38 52 78 / 0.95)", to: "rgb(25 38 60 / 0.9)", angle: 180 },
+      stroke: "rgb(52 211 153 / 0.5)", strokeWidth: 1.5,
+      opacity: {
+        keyframes: [
+          { time: 3.2, value: 0, easing: "easeOut" },
+          { time: 3.8, value: 1, easing: "easeOut" },
+          { time: 4.2, value: 0.7, easing: "easeInOut" },
+          { time: 4.6, value: 1, easing: "easeOut" },
+        ],
+      },
       translateY: { from: 40, to: 0, easing: "easeOut" },
     },
     {
       id: "api-label",
       type: "text",
-      start: 2.0, end: 9.5, layer: 4,
+      start: 3.3, end: 14.5, layer: 4,
       text: "REST API",
-      x: SL + PAD, y: 266, maxWidth: SW - PAD * 2,
-      fontSize: 28, fontWeight: 600, color: "#e2e8f0",
+      x: SL + PAD, y: L1Y, maxWidth: SW - PAD * 2,
+      fontSize: L1_FS, fontWeight: 600, color: "#e2e8f0",
       opacity: { from: 0, to: 1, easing: "easeOut" },
       translateY: { from: 24, to: 0, easing: "easeOut" },
     },
@@ -218,19 +318,20 @@ export const bigDemoProject: VideoProject = {
     {
       id: "logic-rect",
       type: "shape", shapeType: "rect",
-      start: 2.1, end: 9.5, layer: 2,
+      start: 3.4, end: 14.5, layer: 2,
       x: SL, y: R2Y, width: SW, height: R2H, radius: 14,
-      fill: "rgb(30 41 59 / 0.65)",
+      fill: { kind: "gradient", from: "rgb(32 45 70 / 0.9)", to: "rgb(22 32 55 / 0.85)", angle: 180 },
+      stroke: "rgb(52 211 153 / 0.3)", strokeWidth: 1,
       opacity: { from: 0, to: 1, easing: "easeInOut" },
       translateY: { from: 40, to: 0, easing: "easeInOut" },
     },
     {
       id: "logic-label",
       type: "text",
-      start: 2.2, end: 9.5, layer: 4,
+      start: 3.5, end: 14.5, layer: 4,
       text: "Business Logic",
-      x: SL + PAD, y: 416, maxWidth: SW - PAD * 2,
-      fontSize: 24, fontWeight: 600, color: "rgb(203 213 225 / 0.9)",
+      x: SL + PAD, y: L2Y, maxWidth: SW - PAD * 2,
+      fontSize: L2_FS, fontWeight: 600, color: "rgb(210 220 235 / 0.95)",
       opacity: { from: 0, to: 1, easing: "easeInOut" },
     },
 
@@ -238,239 +339,350 @@ export const bigDemoProject: VideoProject = {
     {
       id: "db-rect",
       type: "shape", shapeType: "rect",
-      start: 2.3, end: 9.5, layer: 2,
+      start: 3.6, end: 14.5, layer: 2,
       x: SL, y: R3Y, width: SW, height: R3H, radius: 14,
-      fill: "rgb(30 41 59 / 0.45)",
+      fill: { kind: "gradient", from: "rgb(28 40 62 / 0.8)", to: "rgb(18 28 48 / 0.75)", angle: 180 },
+      stroke: "rgb(52 211 153 / 0.2)", strokeWidth: 1,
       opacity: { from: 0, to: 1, easing: "easeOut" },
       translateY: { from: 40, to: 0, easing: "easeOut" },
     },
     {
       id: "db-label",
       type: "text",
-      start: 2.4, end: 9.5, layer: 4,
+      start: 3.7, end: 14.5, layer: 4,
       text: "PostgreSQL",
-      x: SL + PAD, y: 551, maxWidth: SW - PAD * 2,
-      fontSize: 24, fontWeight: 600, color: "rgb(203 213 225 / 0.65)",
+      x: SL + PAD, y: L3Y, maxWidth: SW - PAD * 2,
+      fontSize: L2_FS, fontWeight: 600, color: MUTED_DIM,
       opacity: { from: 0, to: 1, easing: "easeOut" },
     },
 
-    // Server vertical connectors
+    // Server vertical connectors — dashed with arrowheads
     {
-      id: "server-connector",
+      id: "server-conn-1",
       type: "shape", shapeType: "line",
-      start: 2.9, end: 9.5, layer: 1,
+      start: 4.0, end: 14.5, layer: 1,
       x1: SL + SW / 2, y1: R1Y + R1H,
       x2: SL + SW / 2, y2: R2Y,
-      stroke: "rgb(52 211 153 / 0.3)", lineWidth: 2,
+      stroke: "rgb(52 211 153 / 0.4)", lineWidth: 2,
+      lineDash: [6, 5],
+      arrowEnd: true, arrowSize: 8,
       opacity: { from: 0, to: 1, easing: "easeOut" },
     },
     {
-      id: "server-connector-2",
+      id: "server-conn-2",
       type: "shape", shapeType: "line",
-      start: 3.0, end: 9.5, layer: 1,
+      start: 4.1, end: 14.5, layer: 1,
       x1: SL + SW / 2, y1: R2Y + R2H,
       x2: SL + SW / 2, y2: R3Y,
-      stroke: "rgb(52 211 153 / 0.2)", lineWidth: 2,
+      stroke: "rgb(52 211 153 / 0.3)", lineWidth: 2,
+      lineDash: [6, 5],
+      arrowEnd: true, arrowSize: 8,
       opacity: { from: 0, to: 1, easing: "easeOut" },
     },
 
-    // ── Act 3: The Request (3.2–5.5s) ────────────────────────────────────────
+    // ══════════════════════════════════════════════════════════════════════════
+    // ACT 3: THE REQUEST (4.5–8s)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // "POST /api/users" label with glow — centered above the gap
     {
       id: "req-label",
       type: "text",
-      start: 3.2, end: 5.5, layer: 4,
+      start: 4.5, end: 7.5, layer: 5,
       text: "POST /api/users",
-      x: 700, y: 295, maxWidth: 520,
-      fontSize: 28, fontWeight: 700, color: "rgb(96 165 250 / 1)",
-      opacity: { from: 0, to: 1, easing: "easeIn" },
-      translateY: { from: -16, to: 0, easing: "easeOut" },
+      x: GAP_CX - 150, y: R1Y - 60, maxWidth: 450,
+      fontSize: 30, fontWeight: 700, color: BLUE,
+      shadow: { color: BLUE_GLOW, blur: 25 },
+      opacity: { from: 0, to: 1, easing: "easeOut" },
+      translateY: { from: -15, to: 0, easing: "easeOut" },
     },
-    {
-      id: "req-line",
-      type: "shape", shapeType: "line",
-      start: 3.4, end: 5.5, layer: 3,
-      x1: CL + SW, y1: 340, x2: SL, y2: 340,
-      stroke: "rgb(96 165 250 / 0.7)", lineWidth: 4,
-      opacity: { from: 0, to: 1, easing: "linear" },
-      translateX: { from: -220, to: 0, easing: "easeOut" },
-    },
-    {
-      id: "req-body",
-      type: "text",
-      start: 3.7, end: 5.3, layer: 4,
-      text: "{ name, email, password }",
-      x: 720, y: 360, maxWidth: 480,
-      fontSize: 22, fontWeight: 500, color: "rgb(148 163 184 / 0.8)",
-      opacity: { from: 0, to: 1, easing: "easeInOut" },
-    },
+
+    // Request packet — arcs from client Network → above stacks → server API
     {
       id: "req-packet",
       type: "shape", shapeType: "circle",
-      start: 3.5, end: 5.0, layer: 3,
-      x: 960, y: 340, radius: 20,
+      start: 5.0, end: 7.2, layer: 3,
+      x: GAP_CX, y: R1Y, radius: 22,
       fill: "rgb(96 165 250 / 0.95)",
+      shadow: { color: "rgb(96 165 250 / 0.9)", blur: 24 },
+      path: {
+        points: [
+          { x: GAP_L, y: REQ_START_Y },           // client Network center
+          { x: GAP_CX, y: R1Y - 40 },             // arc UP above stacks
+          { x: GAP_R, y: REQ_END_Y },              // server API center
+        ],
+        easing: "easeInOut",
+      },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateX: { from: -340, to: 340, easing: "linear" },
-      scale: { from: 0.6, to: 1.1, easing: "easeInOut" },
+      scale: { from: 0.5, to: 1.2, easing: "easeInOut" },
     },
 
-    // ── Act 4: Server Processing (5.0–5.8s) ──────────────────────────────────
+    // Request body text — in the gap, vertically centered
+    {
+      id: "req-body",
+      type: "text",
+      start: 5.5, end: 7.2, layer: 4,
+      text: "{ name, email, password }",
+      x: GAP_CX - 140, y: R2Y + 15, maxWidth: 420,
+      fontSize: 24, fontWeight: 500, color: MUTED,
+      opacity: { from: 0, to: 1, easing: "easeInOut" },
+    },
+
+    // Particle burst at launch point (blue, visible)
+    {
+      id: "req-burst",
+      type: "particle",
+      start: 5.0, end: 6.8, layer: 3,
+      count: 25,
+      seed: 101,
+      origin: { x: GAP_L, y: REQ_START_Y },
+      spread: { x: 40, y: 35 },
+      drift: { x: 50, y: -20 },
+      particleRadius: { min: 2, max: 5 },
+      color: "rgb(96 165 250 / 0.8)",
+      particleOpacity: { min: 0.4, max: 0.85 },
+      opacity: { from: 0, to: 1, easing: "easeOut" },
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ACT 4: SERVER PROCESSING (7.5–10.5s)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // Processing glow rect — keyframed scale pulse
     {
       id: "processing-glow",
       type: "shape", shapeType: "rect",
-      start: 5.0, end: 5.8, layer: 3,   // layer 3 — renders ABOVE stack rects
-      x: SL - 8, y: R1Y - 8, width: SW + 16, height: R1H + R2H + R3H + RG * 2 + 16, radius: 22,
-      fill: "rgb(52 211 153 / 0.1)",
+      start: 7.5, end: 10.5, layer: 1,
+      x: SL - 8, y: R1Y - 8,
+      width: SW + 16,
+      height: R1H + R2H + R3H + RG * 2 + 16,
+      radius: 22,
+      fill: "rgb(52 211 153 / 0.08)",
+      shadow: { color: "rgb(52 211 153 / 0.5)", blur: 30 },
       opacity: { from: 0, to: 1, easing: "easeIn" },
-      scale: { from: 0.97, to: 1.02, easing: "bounce" },
+      scale: {
+        keyframes: [
+          { time: 7.5, value: 0.97, easing: "easeOut" },
+          { time: 8.3, value: 1.03, easing: "easeInOut" },
+          { time: 9.2, value: 0.99, easing: "easeInOut" },
+          { time: 10.0, value: 1.02, easing: "easeInOut" },
+          { time: 10.5, value: 1.0, easing: "easeOut" },
+        ],
+      },
     },
+
+    // Step: Validate — right side of API rect
     {
       id: "step-validate",
       type: "text",
-      start: 4.5, end: 5.8, layer: 4,
+      start: 7.8, end: 10.2, layer: 5,
       text: "→ Validate",
-      x: SL - 180, y: 266, maxWidth: 200,
-      fontSize: 20, fontWeight: 600, color: "rgb(52 211 153 / 0.95)",
+      x: SL + SW - 180, y: L1Y, maxWidth: 160,
+      fontSize: 22, fontWeight: 600, color: GREEN,
+      shadow: { color: GREEN_GLOW, blur: 12 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateX: { from: -24, to: 0, easing: "easeOut" },
+      translateX: { from: 24, to: 0, easing: "easeOut" },
     },
+
+    // Step: Hash Password — right side of Logic rect
     {
       id: "step-hash",
       type: "text",
-      start: 4.7, end: 5.8, layer: 4,
+      start: 8.3, end: 10.2, layer: 5,
       text: "→ Hash Password",
-      x: SL - 210, y: 416, maxWidth: 230,
-      fontSize: 20, fontWeight: 600, color: "rgb(52 211 153 / 0.95)",
+      x: SL + SW - 220, y: L2Y, maxWidth: 200,
+      fontSize: 22, fontWeight: 600, color: GREEN,
+      shadow: { color: GREEN_GLOW, blur: 12 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateX: { from: -24, to: 0, easing: "easeOut" },
+      translateX: { from: 24, to: 0, easing: "easeOut" },
     },
+
+    // Step: INSERT INTO users — right side of DB rect
     {
       id: "step-store",
       type: "text",
-      start: 4.9, end: 5.8, layer: 4,
+      start: 8.8, end: 10.2, layer: 5,
       text: "→ INSERT INTO users",
-      x: SL - 240, y: 551, maxWidth: 260,
-      fontSize: 20, fontWeight: 600, color: "rgb(52 211 153 / 0.95)",
+      x: SL + SW - 255, y: L3Y, maxWidth: 235,
+      fontSize: 22, fontWeight: 600, color: GREEN,
+      shadow: { color: GREEN_GLOW, blur: 12 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateX: { from: -24, to: 0, easing: "easeOut" },
+      translateX: { from: 24, to: 0, easing: "easeOut" },
     },
+
+    // DB write indicator — bounce + glow
     {
       id: "db-indicator",
       type: "shape", shapeType: "circle",
-      start: 5.0, end: 6.0, layer: 3,
-      x: SL + SW - 50, y: R3Y + R3H / 2, radius: 22,
-      fill: "rgb(251 191 36 / 0.8)",
+      start: 9.0, end: 10.5, layer: 5,
+      x: SL + 50, y: R3Y + R3H / 2, radius: 20,
+      fill: "rgb(251 191 36 / 0.9)",
+      shadow: { color: "rgb(251 191 36 / 0.6)", blur: 20 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      scale: { from: 0.5, to: 1, easing: "bounce" },
+      scale: { from: 0.3, to: 1, easing: "bounce" },
     },
 
-    // ── Act 5: The Response (5.8–7.8s) ───────────────────────────────────────
+    // Particle burst on DB write (amber, visible)
+    {
+      id: "db-burst",
+      type: "particle",
+      start: 9.0, end: 10.5, layer: 3,
+      count: 20,
+      seed: 202,
+      origin: { x: SL + SW / 2, y: R3Y + R3H / 2 },
+      spread: { x: 70, y: 40 },
+      drift: { x: 5, y: -15 },
+      particleRadius: { min: 2, max: 5 },
+      color: "rgb(251 191 36 / 0.7)",
+      particleOpacity: { min: 0.3, max: 0.8 },
+      opacity: { from: 0, to: 1, easing: "easeOut" },
+    },
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // ACT 5: THE RESPONSE + OUTRO (10–15s)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // "201 Created" label — in the gap, between stacks
     {
       id: "res-label",
       type: "text",
-      start: 5.8, end: 7.8, layer: 4,
+      start: 10.0, end: 12.5, layer: 5,
       text: "201 Created",
-      x: 710, y: 430, maxWidth: 500,
-      fontSize: 28, fontWeight: 700, color: "rgb(52 211 153 / 1)",
+      x: GAP_CX - 110, y: R3Y + 15, maxWidth: 400,
+      fontSize: 30, fontWeight: 700, color: GREEN,
+      shadow: { color: GREEN_GLOW, blur: 25 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateY: { from: 16, to: 0, easing: "easeOut" },
+      translateY: { from: 15, to: 0, easing: "easeOut" },
     },
-    {
-      id: "res-line",
-      type: "shape", shapeType: "line",
-      start: 6.0, end: 7.8, layer: 3,
-      x1: SL, y1: 475, x2: CL + SW, y2: 475,
-      stroke: "rgb(52 211 153 / 0.65)", lineWidth: 3,
-      opacity: { from: 0, to: 1, easing: "linear" },
-      translateX: { from: 220, to: 0, easing: "easeOut" },
-    },
-    {
-      id: "res-body",
-      type: "text",
-      start: 6.3, end: 7.6, layer: 4,
-      text: '{ id: 42, status: "ok" }',
-      x: 720, y: 495, maxWidth: 480,
-      fontSize: 22, fontWeight: 500, color: "rgb(148 163 184 / 0.8)",
-      opacity: { from: 0, to: 1, easing: "easeInOut" },
-    },
+
+    // Response packet — arcs from server API → dips down → client Browser
     {
       id: "res-packet",
       type: "shape", shapeType: "circle",
-      start: 6.1, end: 7.6, layer: 3,
-      x: 960, y: 475, radius: 20,
+      start: 10.3, end: 12.0, layer: 3,
+      x: GAP_CX, y: R2Y, radius: 22,
       fill: "rgb(52 211 153 / 0.95)",
+      shadow: { color: "rgb(52 211 153 / 0.9)", blur: 24 },
+      path: {
+        points: [
+          { x: GAP_R, y: RES_START_Y },             // server API center
+          { x: GAP_CX, y: STACK_BOTTOM + 40 },      // dips DOWN below stacks
+          { x: GAP_L, y: RES_END_Y },               // client Browser center
+        ],
+        easing: "easeInOut",
+      },
       opacity: { from: 0, to: 1, easing: "easeOut" },
-      translateX: { from: 340, to: -340, easing: "linear" },
-      scale: { from: 1.2, to: 0.8, easing: "easeOut" },   // shrinks = delivered
+      scale: { from: 1.3, to: 0.7, easing: "easeOut" },
     },
 
-    // ── Act 6: Full Picture (7.5–8.8s) ───────────────────────────────────────
+    // Response body text
+    {
+      id: "res-body",
+      type: "text",
+      start: 10.8, end: 12.2, layer: 4,
+      text: '{ id: 42, status: "ok" }',
+      x: GAP_CX - 130, y: STACK_BOTTOM + 60, maxWidth: 420,
+      fontSize: 24, fontWeight: 500, color: MUTED,
+      opacity: { from: 0, to: 1, easing: "easeInOut" },
+    },
+
+    // Round-trip overlay — gradient rect with stroke
     {
       id: "roundtrip-overlay",
       type: "shape", shapeType: "rect",
-      start: 7.5, end: 8.8, layer: 1,
-      x: 80, y: 150, width: 1760, height: 560, radius: 28,
-      fill: "rgb(15 23 42 / 0.55)",
-      opacity: { from: 0, to: 0.75, easing: "easeInOut" },
+      start: 12.0, end: 13.8, layer: 3,
+      x: 70, y: HEADER_Y - 10,
+      width: W - 140,
+      height: STACK_BOTTOM - HEADER_Y + 50,
+      radius: 24,
+      fill: { kind: "gradient", from: "rgb(10 18 35 / 0.7)", to: "rgb(10 18 35 / 0.5)", angle: 90 },
+      stroke: "rgb(148 163 184 / 0.25)", strokeWidth: 1,
+      opacity: { from: 0, to: 0.9, easing: "easeInOut" },
     },
+
+    // Round-trip summary labels
     {
-      id: "roundtrip-req-label",
+      id: "rt-req-label",
       type: "text",
-      start: 7.8, end: 8.8, layer: 4,
+      start: 12.3, end: 13.8, layer: 5,
       text: "Request  →",
-      x: 790, y: 290, maxWidth: 340,
-      fontSize: 24, fontWeight: 600, color: "rgb(96 165 250 / 0.9)",
+      x: GAP_CX - 70, y: R1Y + 30, maxWidth: 300,
+      fontSize: 26, fontWeight: 600, color: "rgb(96 165 250 / 0.95)",
+      shadow: { color: BLUE_GLOW, blur: 10 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
       translateY: { from: -10, to: 0, easing: "easeOut" },
     },
     {
-      id: "latency-label",
+      id: "rt-latency",
       type: "text",
-      start: 8.0, end: 8.8, layer: 4,
+      start: 12.5, end: 13.8, layer: 5,
       text: "~200ms round trip",
-      x: 790, y: 390, maxWidth: 340,
-      fontSize: 20, fontWeight: 500, color: "rgb(251 191 36 / 0.9)",
+      x: GAP_CX - 70, y: R2Y + 15, maxWidth: 300,
+      fontSize: 22, fontWeight: 500, color: "rgb(251 191 36 / 0.95)",
+      shadow: { color: "rgb(251 191 36 / 0.5)", blur: 14 },
       opacity: { from: 0, to: 1, easing: "easeInOut" },
     },
     {
-      id: "roundtrip-res-label",
+      id: "rt-res-label",
       type: "text",
-      start: 8.2, end: 8.8, layer: 4,
+      start: 12.7, end: 13.8, layer: 5,
       text: "←  Response",
-      x: 790, y: 490, maxWidth: 340,
-      fontSize: 24, fontWeight: 600, color: "rgb(52 211 153 / 0.9)",
+      x: GAP_CX - 70, y: R3Y, maxWidth: 300,
+      fontSize: 26, fontWeight: 600, color: "rgb(52 211 153 / 0.95)",
+      shadow: { color: GREEN_GLOW, blur: 10 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
       translateY: { from: 10, to: 0, easing: "easeOut" },
     },
 
-    // ── Act 7: Outro (8.3–10s) ───────────────────────────────────────────────
+    // Closing line — big text with strong glow
     {
       id: "closing-line",
       type: "text",
-      start: 8.3, end: 10, layer: 4,
+      start: 13.0, end: DUR, layer: 5,
       text: "Every click. Every scroll. Every tap.",
-      x: 460, y: 750, maxWidth: 1000,
-      fontSize: 42, fontWeight: 700, color: "#f1f5f9",
+      x: 380, y: 800, maxWidth: 1200,
+      fontSize: 48, fontWeight: 700, color: WHITE,
+      shadow: { color: "rgb(96 165 250 / 0.6)", blur: 40 },
       opacity: { from: 0, to: 1, easing: "easeOut" },
       translateY: { from: 20, to: 0, easing: "easeOut" },
     },
+
+    // Accent triangles — stroke + gradient
     {
-      id: "accent-tri-left",
+      id: "accent-left",
       type: "shape", shapeType: "triangle",
-      start: 8.5, end: 10, layer: 1,
-      x: 80, y: 850, width: 120, height: 100,
-      fill: "rgb(59 130 246 / 0.55)",
-      opacity: { from: 0, to: 0.8, easing: "easeOut" },
+      start: 13.5, end: DUR, layer: 1,
+      x: 80, y: 890, width: 120, height: 100,
+      fill: { kind: "gradient", from: "rgb(59 130 246 / 0.5)", to: "rgb(96 165 250 / 0.15)", angle: 135 },
+      stroke: "rgb(96 165 250 / 0.5)", strokeWidth: 2,
+      opacity: { from: 0, to: 0.9, easing: "easeOut" },
       rotate: { from: -15, to: 0, easing: "easeOut" },
     },
     {
-      id: "accent-tri-right",
+      id: "accent-right",
       type: "shape", shapeType: "triangle",
-      start: 8.6, end: 10, layer: 1,
-      x: 1720, y: 850, width: 120, height: 100,
-      fill: "rgb(52 211 153 / 0.55)",
-      opacity: { from: 0, to: 0.8, easing: "easeOut" },
+      start: 13.6, end: DUR, layer: 1,
+      x: W - 200, y: 890, width: 120, height: 100,
+      fill: { kind: "gradient", from: "rgb(52 211 153 / 0.5)", to: "rgb(52 211 153 / 0.15)", angle: 45 },
+      stroke: "rgb(52 211 153 / 0.5)", strokeWidth: 2,
+      opacity: { from: 0, to: 0.9, easing: "easeOut" },
       rotate: { from: 15, to: 0, easing: "easeOut" },
+    },
+
+    // Final celebration particles (gold, wide, visible)
+    {
+      id: "celebration-burst",
+      type: "particle",
+      start: 13.2, end: DUR, layer: 3,
+      count: 35,
+      seed: 303,
+      origin: { x: W / 2, y: 820 },
+      spread: { x: 450, y: 100 },
+      drift: { x: 3, y: -15 },
+      particleRadius: { min: 2.5, max: 6 },
+      color: "rgb(251 191 36 / 0.6)",
+      particleOpacity: { min: 0.3, max: 0.7 },
+      opacity: { from: 0, to: 1, easing: "easeOut" },
     },
   ],
 };

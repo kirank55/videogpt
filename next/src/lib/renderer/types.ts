@@ -5,11 +5,46 @@ export type EasingName =
   | "easeInOut"
   | "bounce";
 
-export type AnimatedValue = {
-  from: number;
-  to: number;
+// ── Animated values ──────────────────────────────────────────────────────────
+
+/** Single keyframe in a multi-keyframe animation. `time` is absolute seconds. */
+export type Keyframe = {
+  time: number;
+  value: number;
   easing: EasingName;
 };
+
+/** Classic two-point interpolation OR multi-keyframe sequence. */
+export type AnimatedValue =
+  | { from: number; to: number; easing: EasingName }
+  | { keyframes: Keyframe[] };
+
+// ── Shared properties ────────────────────────────────────────────────────────
+
+/** Glow / depth shadow applied via Canvas shadowBlur / shadowColor. */
+export type Shadow = {
+  color: string;
+  blur: number;
+  offsetX?: number;
+  offsetY?: number;
+};
+
+/** Catmull-Rom spline path. Element follows the curve over its lifetime. */
+export type PathAnimation = {
+  points: { x: number; y: number }[];
+  easing: EasingName;
+};
+
+/** Gradient fill for shapes (not just backgrounds). */
+export type GradientFill = {
+  kind: "gradient";
+  from: string;
+  to: string;
+  angle: number;
+};
+
+/** Fill value — either a plain CSS color string or a gradient descriptor. */
+export type ShapeFill = string | GradientFill;
 
 export type BaseTimelineEvent = {
   id: string;
@@ -21,7 +56,11 @@ export type BaseTimelineEvent = {
   translateY?: AnimatedValue;
   scale?: AnimatedValue;
   rotate?: AnimatedValue;
+  shadow?: Shadow;
+  path?: PathAnimation;
 };
+
+// ── Background ───────────────────────────────────────────────────────────────
 
 export type BackgroundEvent = BaseTimelineEvent & {
   type: "background";
@@ -38,6 +77,8 @@ export type BackgroundEvent = BaseTimelineEvent & {
       };
 };
 
+// ── Text ─────────────────────────────────────────────────────────────────────
+
 export type TextEvent = BaseTimelineEvent & {
   type: "text";
   text: string;
@@ -52,6 +93,8 @@ export type TextEvent = BaseTimelineEvent & {
   align?: CanvasTextAlign;
 };
 
+// ── Shapes ───────────────────────────────────────────────────────────────────
+
 export type ShapeEvent = BaseTimelineEvent &
   (
     | {
@@ -62,7 +105,9 @@ export type ShapeEvent = BaseTimelineEvent &
         width: number;
         height: number;
         radius?: number;
-        fill: string;
+        fill: ShapeFill;
+        stroke?: string;
+        strokeWidth?: number;
       }
     | {
         type: "shape";
@@ -70,7 +115,9 @@ export type ShapeEvent = BaseTimelineEvent &
         x: number;
         y: number;
         radius: number;
-        fill: string;
+        fill: ShapeFill;
+        stroke?: string;
+        strokeWidth?: number;
       }
     | {
         type: "shape";
@@ -79,7 +126,9 @@ export type ShapeEvent = BaseTimelineEvent &
         y: number;
         width: number;
         height: number;
-        fill: string;
+        fill: ShapeFill;
+        stroke?: string;
+        strokeWidth?: number;
       }
     | {
         type: "shape";
@@ -90,10 +139,34 @@ export type ShapeEvent = BaseTimelineEvent &
         y2: number;
         stroke: string;
         lineWidth: number;
+        lineDash?: number[];
+        arrowStart?: boolean;
+        arrowEnd?: boolean;
+        arrowSize?: number;
       }
   );
 
-export type TimelineEvent = BackgroundEvent | TextEvent | ShapeEvent;
+// ── Particles ────────────────────────────────────────────────────────────────
+
+export type ParticleEvent = BaseTimelineEvent & {
+  type: "particle";
+  count: number;
+  seed: number;
+  origin: { x: number; y: number };
+  spread: { x: number; y: number };
+  drift: { x: number; y: number };
+  particleRadius: { min: number; max: number };
+  color: string;
+  particleOpacity?: { min: number; max: number };
+};
+
+// ── Union ────────────────────────────────────────────────────────────────────
+
+export type TimelineEvent =
+  | BackgroundEvent
+  | TextEvent
+  | ShapeEvent
+  | ParticleEvent;
 
 export type VideoProject = {
   id: string;
