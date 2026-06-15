@@ -25,7 +25,7 @@ export function MessageBubble({ role, children, project }: MessageBubbleProps) {
           {children}
         </div>
         {project ? (
-          <div className="mt-3">
+          <div className="mt-3 max-w-xl w-full">
             <PlayerCard project={project} showControls />
           </div>
         ) : null}

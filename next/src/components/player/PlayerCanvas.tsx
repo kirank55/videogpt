@@ -9,7 +9,7 @@ type PlayerCanvasProps = {
 };
 
 export function PlayerCanvas({
-  className = "w-full rounded-2xl border border-border bg-black/20",
+  className = "w-full h-auto rounded-2xl border border-border bg-black/20",
 }: PlayerCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { project, currentTime } = usePlayerContext();

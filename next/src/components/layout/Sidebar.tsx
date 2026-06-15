@@ -4,6 +4,7 @@ const navItems = [
   { href: "/", label: "Projects" },
   { href: "/generate", label: "Generate" },
   { href: "/demo", label: "Demo" },
+  { href: "/chat", label: "Chat" },
 ];
 
 export function Sidebar() {

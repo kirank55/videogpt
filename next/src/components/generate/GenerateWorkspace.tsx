@@ -79,8 +79,16 @@ const initialMessages: ChatMessage[] = [
   },
 ];
 
-export function GenerateWorkspace() {
-  const [messages, setMessages] = useState(initialMessages);
+type GenerateWorkspaceProps = {
+  initialMessages?: ChatMessage[];
+  title?: string;
+};
+
+export function GenerateWorkspace({
+  initialMessages: initialMessagesProp = initialMessages,
+  title = "Generate",
+}: GenerateWorkspaceProps) {
+  const [messages, setMessages] = useState(initialMessagesProp);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = (prompt: string) => {
@@ -113,7 +121,7 @@ export function GenerateWorkspace() {
   return (
     <>
       <TopBar
-        title="Generate"
+        title={title}
         actions={
           <button
             type="button"
