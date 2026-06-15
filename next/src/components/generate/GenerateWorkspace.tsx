@@ -5,7 +5,7 @@ import {
   ChatThread,
   type ChatMessage,
 } from "@/components/generate/ChatThread";
-import { demoProject } from "@/app/demo/demoProject";
+// import { demoProject } from "@/app/demo/demoProject";
 import { PromptForm } from "@/components/generate/PromptForm";
 import { TopBar } from "@/components/layout/TopBar";
 import { bigDemoProject } from "@/app/demo/bigDemoProject";
@@ -39,28 +39,28 @@ export function GenerateWorkspace() {
   const handleSubmit = (prompt: string) => {
     console.log("Prompt submitted:", prompt);
 
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: prompt,
-    };
+    // const userMessage: ChatMessage = {
+    //   id: `user-${Date.now()}`,
+    //   role: "user",
+    //   content: prompt,
+    // };
 
-    setMessages((current) => [...current, userMessage]);
-    setIsLoading(true);
+    // setMessages((current) => [...current, userMessage]);
+    // setIsLoading(true);
 
-    window.setTimeout(() => {
-      setMessages((current) => [
-        ...current,
-        {
-          id: `assistant-${Date.now()}`,
-          role: "assistant",
-          content:
-            "Nice. I would turn that into a quick opening hook, a paced middle sequence, and a final branded close.",
-          project: demoProject,
-        },
-      ]);
-      setIsLoading(false);
-    }, 700);
+    // window.setTimeout(() => {
+    //   setMessages((current) => [
+    //     ...current,
+    //     {
+    //       id: `assistant-${Date.now()}`,
+    //       role: "assistant",
+    //       content:
+    //         "Nice. I would turn that into a quick opening hook, a paced middle sequence, and a final branded close.",
+    //       project: demoProject,
+    //     },
+    //   ]);
+    //   setIsLoading(false);
+    // }, 700);
   };
 
   return (
