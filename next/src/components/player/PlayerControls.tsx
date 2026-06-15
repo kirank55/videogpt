@@ -1,35 +1,281 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { usePlayerContext } from "@/components/player/PlayerProvider";
 
+type Chapter = {
+  name: string;
+  time: number;
+};
+
+function getChapters(project: any): Chapter[] {
+  const chapters: Chapter[] = [];
+  const events = [...(project.events || [])].sort((a, b) => a.start - b.start);
+
+  const titleEvent = events.find(e => e.id === "title" || e.id === "intro-title");
+  if (titleEvent) {
+    chapters.push({ name: "Title", time: titleEvent.start });
+  } else {
+    chapters.push({ name: "Title", time: 0 });
+  }
+
+  const clientEvent = events.find(e => e.id === "client-header" || e.id === "client-rect" || e.id?.includes("browser"));
+  if (clientEvent) {
+    chapters.push({ name: "Client Setup", time: clientEvent.start });
+  }
+
+  const reqEvent = events.find(e => e.id === "req-label" || e.id === "req-packet" || e.id?.includes("request") || e.id?.includes("req"));
+  if (reqEvent) {
+    chapters.push({ name: "Request Flow", time: reqEvent.start });
+  }
+
+  const procEvent = events.find(e => e.id === "processing-glow" || e.id?.includes("processing") || e.id?.includes("logic") || e.id?.includes("api"));
+  if (procEvent) {
+    if (!chapters.some(c => Math.abs(c.time - procEvent.start) < 0.5)) {
+      chapters.push({ name: "Processing", time: procEvent.start });
+    }
+  }
+
+  const resEvent = events.find(e => e.id === "res-label" || e.id === "res-packet" || e.id?.includes("response") || e.id?.includes("res"));
+  if (resEvent) {
+    if (!chapters.some(c => Math.abs(c.time - resEvent.start) < 0.5)) {
+      chapters.push({ name: "Response Flow", time: resEvent.start });
+    }
+  }
+
+  const outroEvent = events.find(e => e.id === "closing-line" || e.id === "outro-separator" || e.id?.includes("outro") || e.id?.includes("closing"));
+  if (outroEvent) {
+    if (!chapters.some(c => Math.abs(c.time - outroEvent.start) < 0.5)) {
+      chapters.push({ name: "Conclusion", time: outroEvent.start });
+    }
+  }
+
+  const uniqueChapters = chapters
+    .filter((v, i, a) => a.findIndex(t => t.name === v.name) === i)
+    .sort((a, b) => a.time - b.time);
+
+  if (uniqueChapters.length <= 1) {
+    const d = project.duration || 15;
+    return [
+      { name: "Start", time: 0 },
+      { name: "Setup", time: d * 0.2 },
+      { name: "Flow", time: d * 0.5 },
+      { name: "Outro", time: d * 0.8 },
+    ];
+  }
+
+  if (uniqueChapters.length > 0 && uniqueChapters[0].time > 0) {
+    uniqueChapters.unshift({ name: "Start", time: 0 });
+  }
+
+  return uniqueChapters;
+}
+
+function getChapterAtTime(time: number, chapters: Chapter[]) {
+  let activeChapter = chapters[0]?.name || "Intro";
+  for (const ch of chapters) {
+    if (time >= ch.time) {
+      activeChapter = ch.name;
+    } else {
+      break;
+    }
+  }
+  return activeChapter;
+}
+
 export function PlayerControls() {
-  const { currentTime, isPlaying, project, scrubTo, togglePlayback } =
-    usePlayerContext();
+  const {
+    currentTime,
+    isPlaying,
+    project,
+    speed,
+    setSpeed,
+    scrubTo,
+    togglePlayback,
+    isFullscreen,
+    toggleFullscreen,
+  } = usePlayerContext();
+
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  const [hoverPct, setHoverPct] = useState<number | null>(null);
+  const [hoverTime, setHoverTime] = useState<number>(0);
+  const [hoverX, setHoverX] = useState<number>(0);
+
+  const chapters = getChapters(project);
+  const currentChapter = getChapterAtTime(currentTime, chapters);
+  const hoverChapter = getChapterAtTime(hoverTime, chapters);
+
+  const handleTrackClickOrDrag = (clientX: number) => {
+    if (!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    scrubTo(percentage * project.duration);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    handleTrackClickOrDrag(e.clientX);
+    const handleMouseMoveGlobal = (moveEvent: MouseEvent) => {
+      handleTrackClickOrDrag(moveEvent.clientX);
+    };
+    const handleMouseUpGlobal = () => {
+      document.removeEventListener("mousemove", handleMouseMoveGlobal);
+      document.removeEventListener("mouseup", handleMouseUpGlobal);
+    };
+    document.addEventListener("mousemove", handleMouseMoveGlobal);
+    document.addEventListener("mouseup", handleMouseUpGlobal);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches[0]) handleTrackClickOrDrag(e.touches[0].clientX);
+    const handleTouchMoveGlobal = (moveEvent: TouchEvent) => {
+      if (moveEvent.touches[0]) handleTrackClickOrDrag(moveEvent.touches[0].clientX);
+    };
+    const handleTouchEndGlobal = () => {
+      document.removeEventListener("touchmove", handleTouchMoveGlobal);
+      document.removeEventListener("touchend", handleTouchEndGlobal);
+    };
+    document.addEventListener("touchmove", handleTouchMoveGlobal, { passive: true });
+    document.addEventListener("touchend", handleTouchEndGlobal);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!trackRef.current) return;
+    const rect = trackRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const pct = Math.max(0, Math.min(1, x / rect.width));
+    setHoverPct(pct);
+    setHoverTime(pct * project.duration);
+    setHoverX(x);
+  };
+
+  const handleMouseLeave = () => {
+    setHoverPct(null);
+  };
+
+  const cycleSpeed = () => {
+    const speeds = [1.0, 1.5, 2.0, 0.5];
+    const nextIdx = (speeds.indexOf(speed) + 1) % speeds.length;
+    setSpeed(speeds[nextIdx]);
+  };
 
   return (
-    <div className="flex items-center gap-3 border-t border-border px-4 py-3">
-      <button
-        type="button"
-        className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-        onClick={togglePlayback}
-      >
-        {isPlaying
-          ? "Pause"
-          : currentTime >= project.duration
-            ? "Replay"
-            : "Play"}
-      </button>
-      <input
-        type="range"
-        min={0}
-        max={project.duration}
-        step={0.01}
-        value={currentTime}
-        className="w-full accent-primary"
-        onChange={(event) => {
-          scrubTo(Number(event.target.value));
-        }}
-      />
+    <div
+      className={`border-t border-border px-5 py-4 bg-surface/30 backdrop-blur-md flex flex-col gap-3.5 transition-all select-none ${isFullscreen ? "w-full max-w-4xl mx-auto mb-4 rounded-2xl border border-border/40 bg-[#070e1b]/80 shadow-2xl" : ""
+        }`}
+    >
+      {/* Progress Bar Row */}
+      <div className="relative w-full group/timeline pt-1.5 pb-1">
+        {/* Hover Tooltip */}
+        {hoverPct !== null && (
+          <div
+            className="absolute bottom-7 -translate-x-1/2 z-30 rounded-lg bg-slate-900/95 border border-slate-700 px-2.5 py-1.5 shadow-2xl text-[11px] font-mono text-slate-100 select-none pointer-events-none flex flex-col items-center min-w-[100px] backdrop-blur-sm"
+            style={{ left: `${hoverX}px` }}
+          >
+            <span className="text-[9px] uppercase tracking-wider font-extrabold text-primary/90 mb-0.5 whitespace-nowrap">
+              {hoverChapter}
+            </span>
+            <span className="font-semibold">{hoverTime.toFixed(1)}s</span>
+          </div>
+        )}
+
+        {/* Custom Track */}
+        <div
+          ref={trackRef}
+          className="relative w-full h-1.5 cursor-pointer rounded-full bg-border/40 hover:h-2.5 transition-all duration-150 flex items-center group/bar"
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+        >
+          {/* Played Fill Progress */}
+          <div
+            className="absolute top-0 left-0 h-full rounded-full bg-primary"
+            style={{ width: `${(currentTime / project.duration) * 100}%` }}
+          />
+
+          {/* Chapter Tick Marks */}
+          {chapters.map((ch, idx) => {
+            const pct = (ch.time / project.duration) * 100;
+            return (
+              <div
+                key={idx}
+                className="absolute top-0 w-[3px] h-full bg-background/90 hover:w-[5px] hover:bg-white transition-all cursor-pointer z-10"
+                style={{ left: `${pct}%` }}
+                title={`${ch.name} (${ch.time.toFixed(1)}s)`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  scrubTo(ch.time);
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Control Buttons Row */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3.5">
+          {/* Play/Pause Button */}
+          <button
+            type="button"
+            className="p-1.5 rounded-lg hover:bg-foreground/5 text-foreground transition-all duration-150 active:scale-95"
+            onClick={togglePlayback}
+            title={isPlaying ? "Pause (Space)" : currentTime >= project.duration ? "Replay" : "Play (Space)"}
+          >
+            {isPlaying ? (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-primary">
+                <path fillRule="evenodd" d="M6.75 5.25a.75.75 0 0 1 .75-.75H9a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H7.5a.75.75 0 0 1-.75-.75V5.25Zm7.5 0A.75.75 0 0 1 15 4.5h1.5a.75.75 0 0 1 .75.75v13.5a.75.75 0 0 1-.75.75H15a.75.75 0 0 1-.75-.75V5.25Z" clipRule="evenodd" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <path fillRule="evenodd" d="M4.5 5.653c0-1.427 1.529-2.33 2.779-1.643l11.54 6.347c1.295.712 1.295 2.573 0 3.286L7.28 19.99c-1.25.687-2.779-.217-2.779-1.643V5.653Z" clipRule="evenodd" />
+              </svg>
+            )}
+          </button>
+
+          {/* Time text */}
+          <span className="text-xs font-mono text-muted-foreground select-none">
+            {currentTime.toFixed(1)}s / {project.duration.toFixed(1)}s
+          </span>
+
+          {/* Chapter Status */}
+          <div className="hidden xs:flex items-center gap-1.5 px-3 py-1 rounded-full bg-border/20 text-[11px] font-medium text-foreground/85">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            <span className="tracking-wide">{currentChapter}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Speed cycle button */}
+          <button
+            type="button"
+            className="px-2.5 py-1 text-xs font-bold rounded-lg border border-border hover:bg-foreground/5 hover:border-foreground/20 text-foreground transition-all duration-150 active:scale-95"
+            onClick={cycleSpeed}
+            title="Playback Speed"
+          >
+            {speed.toFixed(1)}x
+          </button>
+
+          {/* Fullscreen Button */}
+          <button
+            type="button"
+            className="p-1.5 rounded-lg hover:bg-foreground/5 text-foreground transition-all duration-150 active:scale-95"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? "Exit Fullscreen (F)" : "Enter Fullscreen (F)"}
+          >
+            {isFullscreen ? (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M15 9V4.5M15 9h4.5M15 9l5.25-5.25M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 15v4.5M15 15h4.5M15 15l5.25 5.25" />
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2.5" stroke="currentColor" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75h4.5m-4.5 0v4.5m0-4.5L9 9M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9M3.75 20.25h4.5m-4.5 0v-4.5m0 4.5L9 15M20.25 20.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

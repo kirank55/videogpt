@@ -15,6 +15,8 @@ type UsePlayerArgs = {
 export type PlayerState = {
   currentTime: number;
   isPlaying: boolean;
+  speed: number;
+  setSpeed: (value: number) => void;
   scrubTo: (value: number) => void;
   togglePlayback: () => void;
 };
@@ -30,6 +32,7 @@ export function usePlayer({
     clamp(initialTime, 0, duration),
   );
   const [isPlaying, setIsPlaying] = useState(autoPlay);
+  const [speed, setSpeed] = useState(1.0);
 
   useEffect(() => {
     setCurrentTime(clamp(initialTime, 0, duration));
@@ -53,7 +56,7 @@ export function usePlayer({
         lastTimestampRef.current = timestamp;
       }
 
-      const deltaSeconds = (timestamp - lastTimestampRef.current) / 1000;
+      const deltaSeconds = ((timestamp - lastTimestampRef.current) / 1000) * speed;
       lastTimestampRef.current = timestamp;
       let reachedEnd = false;
 
@@ -83,7 +86,7 @@ export function usePlayer({
       }
       lastTimestampRef.current = null;
     };
-  }, [duration, isPlaying]);
+  }, [duration, isPlaying, speed]);
 
   const togglePlayback = () => {
     if (currentTime >= duration) {
@@ -101,6 +104,8 @@ export function usePlayer({
   return {
     currentTime,
     isPlaying,
+    speed,
+    setSpeed,
     scrubTo,
     togglePlayback,
   };
