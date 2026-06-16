@@ -3,6 +3,7 @@
 import { ChatThread } from "@/components/generate/ChatThread";
 import { PromptForm } from "@/components/generate/PromptForm";
 import { TopBar } from "@/components/layout/TopBar";
+import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import type { ChatMessage } from "@/types/generate";
 
@@ -34,6 +35,13 @@ export function GenerateWorkspace({
   const setDuration = useStore((s) => s.setDuration);
   const submitInitialPrompt = useStore((s) => s.submitInitialPrompt);
   const submitModifyPrompt = useStore((s) => s.submitModifyPrompt);
+  const setActiveSessionId = useStore((s) => s.setActiveSessionId);
+  const router = useRouter();
+
+  const handleNewProject = () => {
+    setActiveSessionId(null);
+    router.push("/generate");
+  };
 
   const activeSession = !ignoreActiveSession && activeSessionId
     ? sessions.find((s) => s.id === activeSessionId)
@@ -55,9 +63,10 @@ export function GenerateWorkspace({
         actions={
           <button
             type="button"
-            className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-muted-foreground transition-all duration-150 hover:bg-foreground/3 hover:text-foreground active:scale-95 cursor-pointer"
+            onClick={handleNewProject}
+            className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-95 cursor-pointer shadow-sm"
           >
-            Prompt Guide
+            New Project
           </button>
         }
       />
