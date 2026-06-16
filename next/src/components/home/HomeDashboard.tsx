@@ -57,6 +57,7 @@ export function HomeDashboard() {
                 id={session.id}
                 name={session.name}
                 updatedAt={session.updatedAt}
+                project={session.project}
                 onClick={() => handleProjectClick(session.id)}
                 onDelete={() => deleteSession(session.id)}
               />

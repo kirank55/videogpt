@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import type { ChatMessage, Session } from "@/types/generate";
 import { initialSessions } from "./demoData";
+import { persistToStorage } from "./persistence";
+import type { PersistedState } from "./persistence";
 
 function generateId(prefix: string): string {
   const rand = Math.random().toString(36).substring(2, 8);
@@ -27,6 +29,8 @@ interface StoreState {
   submitInitialPrompt: (prompt: string) => Promise<void>;
   submitModifyPrompt: (sessionId: string, prompt: string) => Promise<void>;
   deleteSession: (id: string) => void;
+  /** Called once on mount by HydrateStore to restore persisted state. */
+  hydrate: (persisted: Partial<PersistedState>) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -215,4 +219,26 @@ export const useStore = create<StoreState>((set, get) => ({
       activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
     }));
   },
+
+  hydrate: (persisted) => {
+    set((state) => ({
+      sessions: persisted.sessions ?? state.sessions,
+      activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
+      duration: persisted.duration ?? state.duration,
+      stylePreset: persisted.stylePreset ?? state.stylePreset,
+    }));
+  },
 }));
+
+// ── Auto-persist after every state change ────────────────────────────────────
+// Subscribe outside the store factory so we have access to the created store.
+// Only the serialisable slice is written; functions and transient flags are
+// intentionally excluded.
+useStore.subscribe((state) => {
+  persistToStorage({
+    sessions: state.sessions,
+    activeSessionId: state.activeSessionId,
+    duration: state.duration,
+    stylePreset: state.stylePreset,
+  });
+});

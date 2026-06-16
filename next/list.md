@@ -216,14 +216,14 @@ _Delayed hardening: richer validation, deeper typing, and schema-driven contract
 
 _Delayed hardening: persistence, hydration, and non-essential UX improvements_
 
-- [ ] Slice 2 — persistence: `persistToStorage`, `hydrateFromStorage`, `HydrateStore` client component
-- [ ] Slice 3 — `deleteSession(id)`
-- [ ] Add `HydrateStore` to `layout.tsx`
-- [ ] **Verify:** DevTools → Local Storage → state serialized after each action
-- [ ] **Verify:** Refresh page → state restored
-- [ ] **Verify:** `/demo` still renders correctly
-- [ ] **Verify:** Play/pause and scrub still work after persistence wiring
-- [ ] UI polish
+- [x] Slice 2 — persistence: `persistToStorage`, `hydrateFromStorage`, `HydrateStore` client component
+- [x] Slice 3 — `deleteSession(id)`
+- [x] Add `HydrateStore` to `layout.tsx`
+- [x] **Verify:** DevTools → Local Storage → state serialized after each action
+- [x] **Verify:** Refresh page → state restored
+- [x] **Verify:** `/demo` still renders correctly
+- [x] **Verify:** Play/pause and scrub still work after persistence wiring
+- [x] UI polish
 
 ---
 
