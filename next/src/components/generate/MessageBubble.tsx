@@ -9,9 +9,11 @@ type MessageBubbleProps = {
   children: ReactNode;
   project?: VideoProject;
   diagnostics?: QualityResult;
+  sessionId?: string;
+  messageId?: string;
 };
 
-export function MessageBubble({ role, children, project, diagnostics }: MessageBubbleProps) {
+export function MessageBubble({ role, children, project, diagnostics, sessionId, messageId }: MessageBubbleProps) {
   const isUser = role === "user";
 
   return (
@@ -29,7 +31,7 @@ export function MessageBubble({ role, children, project, diagnostics }: MessageB
         </div>
         {project ? (
           <div className="mt-3 max-w-xl w-full">
-            <PlayerCard project={project} showControls />
+            <PlayerCard project={project} showControls sessionId={sessionId} messageId={messageId} />
           </div>
         ) : null}
         {/* Quality panel — shown below canvas when diagnostics present */}

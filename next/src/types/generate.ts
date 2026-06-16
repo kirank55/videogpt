@@ -6,6 +6,7 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   project?: VideoProject;
+  brief?: any;
   /** Quality gate result from the server pipeline, if present. */
   diagnostics?: QualityResult;
 };

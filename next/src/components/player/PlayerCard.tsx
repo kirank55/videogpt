@@ -3,6 +3,7 @@
 import { PlayerCanvas } from "@/components/canvas";
 import { PlayerControls } from "@/components/player/PlayerControls";
 import type { VideoProject } from "@/lib/renderer";
+import { useRouter } from "next/navigation";
 import {
   PlayerProvider,
   usePlayerContext,
@@ -13,6 +14,8 @@ type PlayerCardProps = {
   autoPlay?: boolean;
   initialTime?: number;
   showControls?: boolean;
+  sessionId?: string;
+  messageId?: string;
 };
 
 function formatSeconds(value: number) {
@@ -21,11 +24,16 @@ function formatSeconds(value: number) {
 
 type PlayerCardFrameProps = {
   showControls: boolean;
+  sessionId?: string;
+  messageId?: string;
 };
 
 function PlayerCardFrame({
   showControls,
+  sessionId,
+  messageId,
 }: PlayerCardFrameProps) {
+  const router = useRouter();
   const {
     currentTime,
     project,
@@ -80,9 +88,20 @@ function PlayerCardFrame({
               {isFullscreen ? "Fullscreen mode" : "Inline preview"}
             </p>
           </div>
-          <span className="text-sm font-mono text-muted-foreground">
-            {formatSeconds(currentTime)} / {formatSeconds(project.duration)}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-mono text-muted-foreground">
+              {formatSeconds(currentTime)} / {formatSeconds(project.duration)}
+            </span>
+            {sessionId && messageId && (
+              <button
+                type="button"
+                onClick={() => router.push(`/advance?sessionId=${sessionId}&messageId=${messageId}`)}
+                className="rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all duration-150 active:scale-95 cursor-pointer"
+              >
+                Advanced Mode
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -107,6 +126,8 @@ export function PlayerCard({
   autoPlay = true,
   initialTime = 0,
   showControls = false,
+  sessionId,
+  messageId,
 }: PlayerCardProps) {
   return (
     <PlayerProvider
@@ -114,7 +135,7 @@ export function PlayerCard({
       autoPlay={autoPlay}
       initialTime={initialTime}
     >
-      <PlayerCardFrame showControls={showControls} />
+      <PlayerCardFrame showControls={showControls} sessionId={sessionId} messageId={messageId} />
     </PlayerProvider>
   );
 }

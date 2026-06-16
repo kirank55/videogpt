@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { MessageBubble } from "@/components/generate/MessageBubble";
+import { useStore } from "@/lib/store";
 import type { ChatMessage } from "@/types/generate";
 
 type ChatThreadProps = {
@@ -20,8 +21,10 @@ const defaultMessages: ChatMessage[] = [
 
 export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
   const endRef = useRef<HTMLDivElement | null>(null);
+  const activeSessionId = useStore((s) => s.activeSessionId);
 
   useEffect(() => {
+    // Scroll the parent container down when messages are added
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
@@ -39,6 +42,8 @@ export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
             role={message.role}
             project={message.project}
             diagnostics={message.diagnostics}
+            sessionId={activeSessionId || undefined}
+            messageId={message.id}
           >
             {message.content}
           </MessageBubble>
