@@ -109,6 +109,7 @@ export const useStore = create<StoreState>((set, get) => ({
         role: "assistant",
         content: data.summary || "Project generated successfully.",
         project: data.project,
+        diagnostics: data.diagnostics?.qualityResult,
       };
 
       set((state) => ({
@@ -181,6 +182,7 @@ export const useStore = create<StoreState>((set, get) => ({
         role: "assistant",
         content: data.summary || "Project modified successfully.",
         project: data.project,
+        diagnostics: data.diagnostics?.qualityResult,
       };
 
       set((state) => ({

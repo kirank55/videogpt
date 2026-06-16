@@ -18,7 +18,8 @@ import { callOpenRouter }        from "@/lib/ai/openrouter";
 import { buildSystemPrompt, buildModifyPrompt } from "@/lib/ai/prompts";
 import { validateBrief }         from "@/lib/brief/validateBrief";
 import { buildProjectFromBrief } from "@/lib/brief/buildProjectFromBrief";
-import { validateProject }       from "@/lib/renderer";
+import { validateProject, runQualityGate } from "@/lib/renderer";
+import type { QualityResult }    from "@/lib/renderer";
 import type { VideoBrief, SupportedDuration } from "@/lib/schemas/brief";
 import type { VideoProject }     from "@/lib/renderer";
 
@@ -31,6 +32,8 @@ export interface PipelineDiagnostics {
   issues: ReturnType<typeof validateProject>;
   errorCount:   number;
   warningCount: number;
+  /** Full quality gate result (score, passed, all issues). */
+  qualityResult: QualityResult;
   /** Set if the LLM call failed.  Project will be a deterministic fallback. */
   llmError?: string;
   /** Raw value returned by OpenRouter, before validateBrief normalises it. */
@@ -49,10 +52,11 @@ function qualityDiagnostics(
   project: VideoProject,
   extras: Partial<PipelineDiagnostics> = {},
 ): PipelineDiagnostics {
+  const qualityResult = runQualityGate(project);
   const issues       = validateProject(project);
   const errorCount   = issues.filter((d) => d.severity === "error").length;
   const warningCount = issues.filter((d) => d.severity === "warning").length;
-  return { phase: "6b-llm", issues, errorCount, warningCount, ...extras };
+  return { phase: "6b-llm", issues, errorCount, warningCount, qualityResult, ...extras };
 }
 
 /** Minimal fallback brief used when the LLM call completely fails. */

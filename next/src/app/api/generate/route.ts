@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
       ...diagnostics,
       errorCount,
       warningCount,
+      qualityResult: diagnostics.qualityResult,
     },
   });
 }

@@ -233,53 +233,53 @@ _Delayed hardening: formal tests, scoring, and correctness checks after the runt
 
 ### VideoBrief layer tests
 
-- [ ] Tests in `src/__tests__/brief/validateBrief.test.ts`:
-  - [ ] Valid brief passes through unchanged
-  - [ ] Unknown palette → falls back to `"midnight"`; unknown style → falls back to `"modern"`
-  - [ ] `leftRows` with 7 items → truncated to 4
-  - [ ] Missing title → defaults to `"Untitled"`
-  - [ ] Completely garbage input → returns a valid default brief
-- [ ] Tests in `src/__tests__/brief/buildProjectFromBrief.test.ts`:
-  - [ ] Two-Column brief → correct rect count, centered labels, connectors, particles, packet paths
-  - [ ] Single-Column brief → correct content block count and positions
-  - [ ] Variable row counts (2, 3, 4) → non-overlapping on-canvas rects
-  - [ ] `flow: true` → adds packets, processing steps, bursts; `flow: false` → omits them
-  - [ ] Every expanded project passes `validateProject()` (no errors, no off-canvas events)
-  - [ ] Different palettes → different colors in output events
-  - [ ] Different styles → different radii, easing, glow intensities
-- [ ] Tests in `src/__tests__/catalog/catalog.test.ts`:
-  - [ ] Every named palette resolves to a complete color set
-  - [ ] Every named style resolves to a complete style set
-  - [ ] Every supported duration has an act timing table
-  - [ ] Default palette (`"midnight"`) and default style (`"modern"`) exist
+- [x] Tests in `src/__tests__/brief/validateBrief.test.ts`:
+  - [x] Valid brief passes through unchanged
+  - [x] Unknown palette → falls back to `"midnight"`; unknown style → falls back to `"modern"`
+  - [x] `leftRows` with 7 items → truncated to 4
+  - [x] Missing title → defaults to `"Untitled"`
+  - [x] Completely garbage input → returns a valid default brief
+- [x] Tests in `src/__tests__/brief/buildProjectFromBrief.test.ts`:
+  - [x] Two-Column brief → correct rect count, centered labels, connectors, particles, packet paths
+  - [x] Single-Column brief → correct content block count and positions
+  - [x] Variable row counts (2, 3, 4) → non-overlapping on-canvas rects
+  - [x] `flow: true` → adds packets, processing steps, bursts; `flow: false` → omits them
+  - [x] Every expanded project passes `validateProject()` (no errors, no off-canvas events)
+  - [x] Different palettes → different colors in output events
+  - [x] Different styles → different radii, easing, glow intensities
+- [x] Tests in `src/__tests__/catalog/catalog.test.ts`:
+  - [x] Every named palette resolves to a complete color set
+  - [x] Every named style resolves to a complete style set
+  - [x] Every supported duration has an act timing table
+  - [x] Default palette (`"midnight"`) and default style (`"modern"`) exist
 
 ### Renderer quality gate tests
 
-- [ ] TDD: `checkBackgroundPresence` → `NO_BACKGROUND` error
-- [ ] TDD: `checkTimingBoundaries` → `EVENT_EXCEEDS_DURATION`, `EVENT_NEGATIVE_START`
-- [ ] TDD: `checkLayerOrdering` → `BACKGROUND_WRONG_LAYER` warning
-- [ ] TDD: `checkTextReadability` → `TEXT_TOO_SMALL`, `TEXT_OUT_OF_SAFE_ZONE`
-- [ ] TDD: `checkContentDensity` → `NO_TEXT_CONTENT`, `TOO_MANY_TEXT_EVENTS`, `NO_TITLE`
-- [ ] TDD: `calculateScore` → `100 - (20×errors) - (8×warnings) - (2×info)`, floor 0
-- [ ] TDD: `runQualityGate` → wires all checks, returns `{ score, passed, issues }`
-- [ ] Write tests in `src/__tests__/quality-gate.test.ts`
+- [x] TDD: `checkBackgroundPresence` → `NO_BACKGROUND` error
+- [x] TDD: `checkTimingBoundaries` → `EVENT_EXCEEDS_DURATION`, `EVENT_NEGATIVE_START`
+- [x] TDD: `checkLayerOrdering` → `BACKGROUND_WRONG_LAYER` warning
+- [x] TDD: `checkTextReadability` → `TEXT_TOO_SMALL`, `TEXT_OUT_OF_SAFE_ZONE`
+- [x] TDD: `checkContentDensity` → `NO_TEXT_CONTENT`, `TOO_MANY_TEXT_EVENTS`, `NO_TITLE`
+- [x] TDD: `calculateScore` → `100 - (20×errors) - (8×warnings) - (2×info)`, floor 0
+- [x] TDD: `runQualityGate` → wires all checks, returns `{ score, passed, issues }`
+- [x] Write tests in `src/__tests__/quality-gate.test.ts`
 
 ### Schema tests
 
-- [ ] Write tests in `src/__tests__/timeline/schemas.test.ts` — valid + invalid case per schema
+- [x] Write tests in `src/__tests__/timeline/schemas.test.ts` — valid + invalid case per schema
 
 ### UI
 
-- [ ] Build `src/components/generate/QualityPanel.tsx` — collapsible, score badge, issue list with icons
-- [ ] Wire `QualityPanel` into `MessageBubble` (below canvas when diagnostics present)
+- [x] Build `src/components/generate/QualityPanel.tsx` — collapsible, score badge, issue list with icons
+- [x] Wire `QualityPanel` into `MessageBubble` (below canvas when diagnostics present)
 
 ### Verify
 
-- [ ] **Verify:** `npm test` → all brief/expander/catalog tests pass
-- [ ] **Verify:** `npm test` → all quality gate tests pass
-- [ ] **Verify:** `npm test` → all schema tests pass
-- [ ] **Verify:** Real AI response with issues → `QualityPanel` shows correct score and list
-- [ ] **Verify:** Perfect project → green score badge
+- [x] **Verify:** `npm test` → all brief/expander/catalog tests pass
+- [x] **Verify:** `npm test` → all quality gate tests pass
+- [x] **Verify:** `npm test` → all schema tests pass
+- [x] **Verify:** Real AI response with issues → `QualityPanel` shows correct score and list
+- [x] **Verify:** Perfect project → green score badge
 
 ---
 

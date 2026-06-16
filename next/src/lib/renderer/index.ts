@@ -1,7 +1,18 @@
 export { renderProjectFrame } from "./renderProjectFrame";
 export { DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_DURATION } from "./constants";
-export { validateProject } from "./validateProject";
-export type { ValidationResult } from "./validateProject";
+export {
+  validateProject,
+  runQualityGate,
+  calculateScore,
+  checkBackgroundPresence,
+  checkTimingBoundaries,
+  checkLayerOrdering,
+  checkTextReadability,
+  checkContentDensity,
+  checkOffCanvas,
+  checkLayerCollisions,
+} from "./validateProject";
+export type { ValidationResult, QualityIssue, QualityResult } from "./validateProject";
 
 export type {
   AnimatedValue,

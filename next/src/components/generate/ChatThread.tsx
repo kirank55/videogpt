@@ -38,6 +38,7 @@ export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
             key={message.id}
             role={message.role}
             project={message.project}
+            diagnostics={message.diagnostics}
           >
             {message.content}
           </MessageBubble>
