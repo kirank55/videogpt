@@ -112,17 +112,21 @@ _Build and test all deterministic modules first. No OpenRouter calls yet — pip
 > particles, and path animations. See `.scratch/video-brief-architecture/PRD.md` and `docs/adr/0001-...` for full rationale.
 
 ### Catalog
+
 - [x] Build `src/lib/catalog/palettes.ts` — 6–8 Named Palettes: name → `{ bgFrom, bgTo, accent1, accent2, text, muted, glow }` exact color values
 - [x] Build `src/lib/catalog/styles.ts` — 4–5 Named Styles: name → `{ radius, easing, strokeWeight, glowIntensity, particleDensity }`
 - [x] Build `src/lib/catalog/timings.ts` — 5 Act Timing Tables (one per duration 5/10/15/20/30s), each defining act start/end boundaries and stagger offsets
 
 ### Brief Schema
+
 - [x] Build `src/lib/schemas/brief.ts` — Zod schema for `VideoBrief` (layout, title, subtitle, leftRows/rightRows 2–4, flow toggle, blocks 2–5, palette key, style key, closingLine)
 
 ### Brief Validator
+
 - [x] Build `src/lib/brief/validateBrief.ts` — `(raw: unknown) → VideoBrief`. Clamps rows to 2–4, replaces unknown palette/style with `"midnight"`/`"modern"`, fills missing fields, truncates blocks to 5. No API calls.
 
 ### Brief Expander
+
 - [x] Build `src/lib/brief/buildProjectFromBrief.ts` — `(brief: VideoBrief, duration: SupportedDuration) → VideoProject`
   - [x] Two-Column layout: dynamic row heights (`max(80, min(140, availableH / count))`), labels vertically centered, connectors between exact row edges
   - [x] Single-Column layout: content blocks at fixed Y intervals, title top, closing line bottom
@@ -142,15 +146,18 @@ _Build and test all deterministic modules first. No OpenRouter calls yet — pip
 _Core runtime path: replace hardcoded brief with real AI-generated brief via OpenRouter_
 
 ### OpenRouter Client
+
 - [x] Build `src/lib/ai/openrouter.ts` — `callOpenRouter(systemPrompt, userPrompt): Promise<unknown>` using `json_schema` response format targeting `VideoBrief` schema
 
 ### System Prompt
+
 - [x] Build `src/lib/ai/prompts.ts`:
   - [x] `buildSystemPrompt(duration)` — compositional rules + keyword layout selection + palette/style catalog + act timing table + brief JSON schema + soft palette/style compatibility guidance
   - [x] `buildModifyPrompt(currentBrief, instruction)` — sends current brief + user instruction (not VideoProject)
 - [x] Layout selection keywords in prompt: Two-Column triggers = "vs", "client", "server", "frontend", "backend", "before", "after", "request", "response", "architecture"; Single-Column is default
 
 ### Pipeline
+
 - [x] Build `src/lib/ai/pipeline.ts`:
   - [x] `runGeneratePipeline(prompt, duration)` → call OpenRouter → `validateBrief` → `buildProjectFromBrief` → `validateProject` → return `{ project, brief, diagnostics }`
   - [x] `runModifyPipeline(currentBrief, instruction, duration)` → call OpenRouter with modify prompt → `validateBrief` → `buildProjectFromBrief` → `validateProject` → return `{ project, brief, diagnostics }`
@@ -159,14 +166,16 @@ _Core runtime path: replace hardcoded brief with real AI-generated brief via Ope
 - [x] Add `OPENROUTER_API_KEY=sk-or-...` to `.env.local`
 
 ### Eval Harness
+
 - [x] Build `src/scripts/evalPrompts.ts` — CLI that runs 10–15 test prompts through the pipeline (real LLM), validates each expanded VideoProject with `validateProject()`, reports pass/fail matrix
 - [x] **Verify:** Eval harness passes ≥80% of test prompts with zero errors from `validateProject()` — **12/15 (80%) ✅** 3 misses are layout judgement calls (vs/before-after/producer-consumer), no LLM errors
 - [x] Iterate system prompt until eval passes reliably — passed on first clean run after `max_tokens=4096` fix
 
 ### End-to-end
-- [ ] **Verify:** Submit "a 15-second video about client-server architecture" → Two-Column layout, packets arc, processing steps appear, quality hybridProject-like output
-- [ ] **Verify:** Submit "explain the water cycle" → Single-Column layout, staggered content blocks
-- [ ] **Verify:** Submit follow-up "change the server to use Redis instead of PostgreSQL" → labels update, spatial layout stays correct, particles intact
+
+- [x] **Verify:** Submit "a 15-second video about client-server architecture" → Two-Column layout, packets arc, processing steps appear, quality hybridProject-like output
+- [x] **Verify:** Submit "explain the water cycle" → Single-Column layout, staggered content blocks
+- [x] **Verify:** Submit follow-up "change the server to use Redis instead of PostgreSQL" → labels update, spatial layout stays correct, particles intact
 
 ---
 
@@ -223,6 +232,7 @@ _Delayed hardening: persistence, hydration, and non-essential UX improvements_
 _Delayed hardening: formal tests, scoring, and correctness checks after the runtime path works_
 
 ### VideoBrief layer tests
+
 - [ ] Tests in `src/__tests__/brief/validateBrief.test.ts`:
   - [ ] Valid brief passes through unchanged
   - [ ] Unknown palette → falls back to `"midnight"`; unknown style → falls back to `"modern"`
@@ -244,6 +254,7 @@ _Delayed hardening: formal tests, scoring, and correctness checks after the runt
   - [ ] Default palette (`"midnight"`) and default style (`"modern"`) exist
 
 ### Renderer quality gate tests
+
 - [ ] TDD: `checkBackgroundPresence` → `NO_BACKGROUND` error
 - [ ] TDD: `checkTimingBoundaries` → `EVENT_EXCEEDS_DURATION`, `EVENT_NEGATIVE_START`
 - [ ] TDD: `checkLayerOrdering` → `BACKGROUND_WRONG_LAYER` warning
@@ -254,13 +265,16 @@ _Delayed hardening: formal tests, scoring, and correctness checks after the runt
 - [ ] Write tests in `src/__tests__/quality-gate.test.ts`
 
 ### Schema tests
+
 - [ ] Write tests in `src/__tests__/timeline/schemas.test.ts` — valid + invalid case per schema
 
 ### UI
+
 - [ ] Build `src/components/generate/QualityPanel.tsx` — collapsible, score badge, issue list with icons
 - [ ] Wire `QualityPanel` into `MessageBubble` (below canvas when diagnostics present)
 
 ### Verify
+
 - [ ] **Verify:** `npm test` → all brief/expander/catalog tests pass
 - [ ] **Verify:** `npm test` → all quality gate tests pass
 - [ ] **Verify:** `npm test` → all schema tests pass
@@ -271,20 +285,20 @@ _Delayed hardening: formal tests, scoring, and correctness checks after the runt
 
 ## Summary
 
-| Phase | Name                           | You see in browser                                      | Priority |
-| ----- | ------------------------------ | ------------------------------------------------------- | -------- |
-| 0     | Foundation                     | Blank page                                              | Required |
-| 1     | Layout + Design System         | Dark shell, sidebar, top bar                            | Required |
-| 2     | UI Components                  | Full chat UI, home grid (hardcoded)                     | Required |
-| 3     | Canvas Renderer                | Animated canvas inside chat                             | Required |
-| 4     | Core App State                 | UI reads live state                                     | Required |
-| 5     | API Routes (Stub First)        | Full loop: type → submit → canvas                       | Required |
-| 6A    | VideoBrief Layer (no LLM)      | Stub brief → hybridProject-quality canvas               | Required |
-| 6B    | LLM Wiring                     | Real AI brief → hybridProject-quality canvas            | Required |
-| 7     | WebM Exporter                  | Export button downloads a video file                    | Required |
-| 8     | Schema + Type Hardening        | No major visual change; contracts deepen                | Delayed  |
-| 9     | Persistence + UX Hardening     | State survives refresh, UX gets smoother                | Delayed  |
-| 10    | Quality Gate + Test Suite      | Score badge, brief/expander tests, quality gate tests   | Delayed  |
+| Phase | Name                       | You see in browser                                    | Priority |
+| ----- | -------------------------- | ----------------------------------------------------- | -------- |
+| 0     | Foundation                 | Blank page                                            | Required |
+| 1     | Layout + Design System     | Dark shell, sidebar, top bar                          | Required |
+| 2     | UI Components              | Full chat UI, home grid (hardcoded)                   | Required |
+| 3     | Canvas Renderer            | Animated canvas inside chat                           | Required |
+| 4     | Core App State             | UI reads live state                                   | Required |
+| 5     | API Routes (Stub First)    | Full loop: type → submit → canvas                     | Required |
+| 6A    | VideoBrief Layer (no LLM)  | Stub brief → hybridProject-quality canvas             | Required |
+| 6B    | LLM Wiring                 | Real AI brief → hybridProject-quality canvas          | Required |
+| 7     | WebM Exporter              | Export button downloads a video file                  | Required |
+| 8     | Schema + Type Hardening    | No major visual change; contracts deepen              | Delayed  |
+| 9     | Persistence + UX Hardening | State survives refresh, UX gets smoother              | Delayed  |
+| 10    | Quality Gate + Test Suite  | Score badge, brief/expander tests, quality gate tests | Delayed  |
 
 ---
 

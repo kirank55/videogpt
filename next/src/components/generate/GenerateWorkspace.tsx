@@ -30,6 +30,8 @@ export function GenerateWorkspace({
   const isLoading = useStore((s) => s.isLoading);
   const prompt = useStore((s) => s.prompt);
   const setPrompt = useStore((s) => s.setPrompt);
+  const duration = useStore((s) => s.duration);
+  const setDuration = useStore((s) => s.setDuration);
   const submitInitialPrompt = useStore((s) => s.submitInitialPrompt);
   const submitModifyPrompt = useStore((s) => s.submitModifyPrompt);
 
@@ -64,6 +66,8 @@ export function GenerateWorkspace({
         <PromptForm
           prompt={prompt}
           setPrompt={setPrompt}
+          duration={duration}
+          onChangeDuration={setDuration}
           isLoading={isLoading}
           onSubmit={handleSubmit}
         />
