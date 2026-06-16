@@ -186,8 +186,8 @@ _Core runtime path: export generated output once preview and generation are work
 - [x] Build `src/lib/core/MediaRecorderExporter.ts` — detect MIME type, capture stream, frame loop, collect chunks → Blob
 - [x] Build `src/lib/core/VideoExporter.ts` — call exporter, create object URL, trigger download
 - [x] Wire Export button into `InlinePreviewCard` with `isExporting` loading state
-- [ ] **Verify:** Click Export → `.webm` file downloads
-- [ ] **Verify:** Open file in browser or VLC → plays correctly
+- [x] **Verify:** Click Export → `.webm` file downloads
+- [x] **Verify:** Open file in browser or VLC → plays correctly
 
 ---
 
@@ -195,20 +195,20 @@ _Core runtime path: export generated output once preview and generation are work
 
 _Delayed hardening: richer validation, deeper typing, and schema-driven contracts_
 
-- [ ] `SupportedDurationSchema` → `z.union([z.literal(5), ...])`
-- [ ] `StylePresetSchema` → `z.enum([...])`
-- [ ] `TransitionPreset` → `z.enum([...])`
-- [ ] `BackgroundPropertiesSchema` — solid / gradient / image discriminated union
-- [ ] `TextPropertiesSchema`
-- [ ] `ShapePropertiesSchema` — discriminated union on `shapeType`
-- [ ] `AnimationSchema`
-- [ ] `TimelineEventSchema` — discriminated union on `type`
-- [ ] `VideoProjectSchema`
-- [ ] Build `src/lib/alpha/createSeedProject(name, duration)` with background, 2 circles, line, title text events
-- [ ] All timing calculated from `duration` param — no hardcoded `5`
-- [ ] Replace hardcoded objects in `demo/page.tsx` with `createSeedProject("Test", 5)`
-- [ ] Replace hardcoded project in dummy messages with `createSeedProject`
-- [ ] Define app-facing schema-derived types where they materially reduce duplication
+- [x] `SupportedDurationSchema` → `z.union([z.literal(5), ...])`
+- [x] `StylePresetSchema` → `z.enum([...])`
+- [x] `TransitionPreset` → `z.enum([...])`
+- [x] `BackgroundPropertiesSchema` — solid / gradient / image discriminated union
+- [x] `TextPropertiesSchema`
+- [x] `ShapePropertiesSchema` — discriminated union on `shapeType`
+- [x] `AnimationSchema`
+- [x] `TimelineEventSchema` — discriminated union on `type`
+- [x] `VideoProjectSchema`
+- [x] Build `src/lib/alpha/createSeedProject(name, duration)` with background, 2 circles, line, title text events
+- [x] All timing calculated from `duration` param — no hardcoded `5`
+- [x] Replace hardcoded objects in `demo/page.tsx` with `createSeedProject("Test", 5)`
+- [x] Replace hardcoded project in dummy messages with `createSeedProject`
+- [x] Define app-facing schema-derived types where they materially reduce duplication
 
 ---
 

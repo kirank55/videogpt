@@ -5,6 +5,53 @@ import { z } from "zod";
 export const SUPPORTED_DURATIONS = [5, 10, 15, 20, 30] as const;
 export type SupportedDuration = (typeof SUPPORTED_DURATIONS)[number];
 
+/**
+ * Zod schema for the supported duration union.
+ * Use this at API boundaries to validate duration values from user input.
+ */
+export const SupportedDurationSchema = z.union([
+  z.literal(5),
+  z.literal(10),
+  z.literal(15),
+  z.literal(20),
+  z.literal(30),
+]);
+
+// ── Style preset catalog keys ─────────────────────────────────────────────────
+//
+// Must stay in sync with the STYLES record in catalog/styles.ts.
+// Use StylePresetSchema at API boundaries to validate AI-provided style keys.
+
+export const STYLE_PRESET_KEYS = [
+  "modern",
+  "brutalist",
+  "sketch",
+  "neon-glow",
+  "minimal",
+] as const;
+
+export type StylePreset = (typeof STYLE_PRESET_KEYS)[number];
+
+export const StylePresetSchema = z.enum(STYLE_PRESET_KEYS);
+
+// ── Transition preset ─────────────────────────────────────────────────────────
+//
+// Named cuts / transitions between scenes.  Stored on timeline events or
+// at the project level.  Extend this as new renderer transitions are added.
+
+export const TRANSITION_PRESETS = [
+  "none",
+  "fade",
+  "slide-left",
+  "slide-right",
+  "zoom-in",
+  "zoom-out",
+] as const;
+
+export type TransitionPreset = (typeof TRANSITION_PRESETS)[number];
+
+export const TransitionPresetSchema = z.enum(TRANSITION_PRESETS);
+
 // ── Sub-schemas ──────────────────────────────────────────────────────────────
 
 const BlockSchema = z.object({
