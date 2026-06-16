@@ -15,10 +15,15 @@ export function PromptForm({
 }: PromptFormProps) {
   const submit = () => {
     const trimmed = prompt.trim();
-    if (!trimmed || isLoading) return;
-
+    console.log("[PromptForm] submit called", { trimmed, isLoading });
+    if (!trimmed || isLoading) {
+      console.log("[PromptForm] submit blocked", { trimmed: !!trimmed, isLoading });
+      return;
+    }
+    console.log("[PromptForm] calling onSubmit →", trimmed);
     onSubmit?.(trimmed);
     setPrompt("");
+    console.log("[PromptForm] prompt cleared, waiting for response…");
   };
 
 

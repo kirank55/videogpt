@@ -43,13 +43,30 @@ export async function POST(req: NextRequest) {
       ? (rawDur as SupportedDuration)
       : 15;
 
+  console.log(
+    `[api/modify] instruction="${prompt}" ` +
+    `currentBrief.layout=${currentBrief.layout} duration=${duration}s`,
+  );
+  const t0 = Date.now();
+
   const { project, brief, diagnostics } = await runModifyPipeline(
     currentBrief,
     prompt,
     duration,
   );
 
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   const { errorCount, llmError } = diagnostics;
+
+  if (llmError) {
+    console.warn(`[api/modify] LLM error (${elapsed}s): ${llmError}`);
+  } else {
+    console.log(
+      `[api/modify] done (${elapsed}s) layout=${brief.layout} ` +
+      `palette=${brief.palette}/${brief.style} ` +
+      `events=${project.events.length} errors=${errorCount}`,
+    );
+  }
 
   const summary =
     llmError

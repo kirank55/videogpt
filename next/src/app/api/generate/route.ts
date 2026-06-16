@@ -28,9 +28,23 @@ export async function POST(req: NextRequest) {
     ? (rawDuration as SupportedDuration)
     : 15;
 
+  console.log(`[api/generate] prompt="${prompt}" duration=${duration}s`);
+  const t0 = Date.now();
+
   const { project, brief, diagnostics } = await runGeneratePipeline(prompt, duration);
 
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   const { errorCount, warningCount, llmError } = diagnostics;
+
+  if (llmError) {
+    console.warn(`[api/generate] LLM error (${elapsed}s): ${llmError}`);
+  } else {
+    console.log(
+      `[api/generate] done (${elapsed}s) layout=${brief.layout} ` +
+      `palette=${brief.palette}/${brief.style} ` +
+      `events=${project.events.length} errors=${errorCount} warnings=${warningCount}`,
+    );
+  }
 
   const summary =
     llmError

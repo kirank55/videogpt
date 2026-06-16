@@ -45,6 +45,9 @@ export const useStore = create<StoreState>((set, get) => ({
   setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
 
   submitInitialPrompt: async (prompt) => {
+    console.group(`[store] submitInitialPrompt`);
+    console.log("prompt:", prompt);
+    console.log("duration:", get().duration, "style:", get().stylePreset);
     set({ isLoading: true, error: null });
     const sessionId = generateId("session");
     const userMsg: ChatMessage = {
@@ -69,6 +72,8 @@ export const useStore = create<StoreState>((set, get) => ({
       activeSessionId: sessionId,
     }));
 
+    console.log("→ POST /api/generate …");
+    console.time("api/generate");
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -80,11 +85,21 @@ export const useStore = create<StoreState>((set, get) => ({
         }),
       });
 
+      console.timeEnd("api/generate");
+      console.log("← HTTP", res.status, res.statusText);
+
       if (!res.ok) {
         throw new Error(`API Error: ${res.status} ${res.statusText}`);
       }
 
       const data = await res.json();
+      console.log("data.brief:", data.brief);
+      console.log("data.diagnostics:", data.diagnostics);
+      console.log("events:", data.project?.events?.length, "total");
+      if (data.diagnostics?.llmError) {
+        console.warn("LLM error:", data.diagnostics.llmError);
+      }
+
       const assistantMsg: ChatMessage = {
         id: generateId("msg"),
         role: "assistant",
@@ -105,8 +120,11 @@ export const useStore = create<StoreState>((set, get) => ({
         ),
         isLoading: false,
       }));
+      console.log("✅ done");
     } catch (err) {
+      console.timeEnd("api/generate");
       const message = err instanceof Error ? err.message : String(err);
+      console.error("❌ error:", message);
       const errorMsg: ChatMessage = {
         id: generateId("msg-err"),
         role: "assistant",
@@ -120,6 +138,7 @@ export const useStore = create<StoreState>((set, get) => ({
         isLoading: false,
       }));
     }
+    console.groupEnd();
   },
 
   submitModifyPrompt: async (sessionId, prompt) => {
