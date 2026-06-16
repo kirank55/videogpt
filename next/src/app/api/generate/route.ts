@@ -48,11 +48,18 @@ export async function POST(req: NextRequest) {
 
   const summary =
     llmError
-      ? `⚠️ AI generation failed — showing fallback layout. (${llmError.slice(0, 120)})`
+      ? `⚠️ AI generation failed: ${llmError.slice(0, 120)}`
       : `Here's a ${duration}s animation for: "${prompt}". ` +
         (errorCount === 0
           ? "Canvas looks clean — modify it or ask for changes."
           : `${errorCount} issue(s) detected — see diagnostics.`);
+
+  if (llmError) {
+    return NextResponse.json({
+      error: llmError,
+      summary,
+    }, { status: 502 });
+  }
 
   return NextResponse.json({
     project,

@@ -22,6 +22,7 @@ const defaultMessages: ChatMessage[] = [
 export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
   const endRef = useRef<HTMLDivElement | null>(null);
   const activeSessionId = useStore((s) => s.activeSessionId);
+  const retryPrompt = useStore((s) => s.retryPrompt);
 
   useEffect(() => {
     // Scroll the parent container down when messages are added
@@ -44,6 +45,12 @@ export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
             diagnostics={message.diagnostics}
             sessionId={activeSessionId || undefined}
             messageId={message.id}
+            isError={message.isError}
+            onRetry={
+              activeSessionId && message.isError
+                ? () => retryPrompt(activeSessionId)
+                : undefined
+            }
           >
             {message.content}
           </MessageBubble>

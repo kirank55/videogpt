@@ -35,11 +35,10 @@ function FrameThumbnail({
     <button
       type="button"
       onClick={onClick}
-      className={`group flex flex-col gap-1.5 p-2 rounded-xl border text-left transition-all cursor-pointer ${
-        active
+      className={`group flex flex-col gap-1.5 p-2 rounded-xl border text-left transition-all cursor-pointer ${active
           ? "border-foreground bg-foreground/5 shadow-sm font-semibold"
-          : "border-border hover:border-foreground/30 hover:bg-foreground/[0.01]"
-      }`}
+          : "border-border hover:border-foreground/30 hover:bg-foreground/1"
+        }`}
     >
       <span className="text-[10px] font-mono text-muted-foreground group-hover:text-foreground">
         {time.toFixed(1)}s
@@ -154,11 +153,10 @@ function AdvanceWorkspace() {
                   key={tab}
                   type="button"
                   onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                    activeTab === tab
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${activeTab === tab
                       ? "bg-surface-raised text-foreground shadow-xs border border-border/10"
                       : "text-muted-foreground hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   {tab === "metadata" ? "Metadata" : tab === "brief" ? "AI Brief JSON" : "Timeline JSON"}
                 </button>

@@ -56,9 +56,9 @@ export async function callOpenRouter(
     // kimi-k2.5 is a reasoning model: it generates internal chain-of-thought
     // (reasoning_tokens) before the visible content.  Those tokens do NOT count
     // against max_tokens, but the model may still time-out or return empty
-    // content if max_tokens is too small for the combined budget.  4096 gives
+    // content if max_tokens is too small for the combined budget.  8192 gives
     // ample room for the ~200-token VideoBrief output.
-    max_tokens: opts.maxTokens ?? 4096,
+    max_tokens: opts.maxTokens ?? 8192,
     temperature: opts.temperature ?? 0.7,
     messages: [
       { role: "system", content: systemPrompt },

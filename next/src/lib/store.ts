@@ -30,6 +30,7 @@ interface StoreState {
   // Actions
   submitInitialPrompt: (prompt: string) => Promise<void>;
   submitModifyPrompt: (sessionId: string, prompt: string) => Promise<void>;
+  retryPrompt: (sessionId: string) => Promise<void>;
   deleteSession: (id: string) => void;
   /** Called once on mount by HydrateStore to restore persisted state. */
   hydrate: (persisted: Partial<PersistedState>) => void;
@@ -97,7 +98,15 @@ export const useStore = create<StoreState>((set, get) => ({
       console.log("← HTTP", res.status, res.statusText);
 
       if (!res.ok) {
-        throw new Error(`API Error: ${res.status} ${res.statusText}`);
+        let errMsg = `API Error: ${res.status} ${res.statusText}`;
+        try {
+          const errData = await res.json();
+          if (errData.summary) errMsg = errData.summary;
+          else if (errData.error) errMsg = errData.error;
+        } catch {
+          // ignore
+        }
+        throw new Error(errMsg);
       }
 
       const data = await res.json();
@@ -138,7 +147,8 @@ export const useStore = create<StoreState>((set, get) => ({
       const errorMsg: ChatMessage = {
         id: generateId("msg-err"),
         role: "assistant",
-        content: `Failed to generate project: ${message}. Please try again later.`,
+        content: message,
+        isError: true,
       };
       set((state) => ({
         sessions: state.sessions.map((s) =>
@@ -178,7 +188,15 @@ export const useStore = create<StoreState>((set, get) => ({
       });
 
       if (!res.ok) {
-        throw new Error(`API Error: ${res.status} ${res.statusText}`);
+        let errMsg = `API Error: ${res.status} ${res.statusText}`;
+        try {
+          const errData = await res.json();
+          if (errData.summary) errMsg = errData.summary;
+          else if (errData.error) errMsg = errData.error;
+        } catch {
+          // ignore
+        }
+        throw new Error(errMsg);
       }
 
       const data = await res.json();
@@ -209,7 +227,8 @@ export const useStore = create<StoreState>((set, get) => ({
       const errorMsg: ChatMessage = {
         id: generateId("msg-err"),
         role: "assistant",
-        content: `Failed to modify project: ${message}. Please try again later.`,
+        content: message,
+        isError: true,
       };
       set((state) => ({
         sessions: state.sessions.map((s) =>
@@ -218,6 +237,161 @@ export const useStore = create<StoreState>((set, get) => ({
         error: message,
         isLoading: false,
       }));
+    }
+  },
+
+  retryPrompt: async (sessionId) => {
+    const session = get().sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+
+    const messages = session.messages;
+    if (messages.length < 2) return;
+
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg.isError) return;
+
+    const userMsg = messages[messages.length - 2];
+    if (userMsg.role !== "user") return;
+
+    const userPrompt = userMsg.content;
+    const cleanMessages = messages.slice(0, -1);
+
+    set((state) => ({
+      sessions: state.sessions.map((s) =>
+        s.id === sessionId ? { ...s, messages: cleanMessages } : s
+      ),
+      isLoading: true,
+      error: null,
+    }));
+
+    if (session.brief) {
+      // Re-run modify flow
+      try {
+        const res = await fetch("/api/modify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId,
+            prompt: userPrompt,
+            brief: session.brief,
+          }),
+        });
+
+        if (!res.ok) {
+          let errMsg = `API Error: ${res.status} ${res.statusText}`;
+          try {
+            const errData = await res.json();
+            if (errData.summary) errMsg = errData.summary;
+            else if (errData.error) errMsg = errData.error;
+          } catch {
+            // ignore
+          }
+          throw new Error(errMsg);
+        }
+
+        const data = await res.json();
+        const assistantMsg: ChatMessage = {
+          id: generateId("msg"),
+          role: "assistant",
+          content: data.summary || "Project modified successfully.",
+          project: data.project,
+          brief: data.brief,
+          diagnostics: data.diagnostics?.qualityResult,
+        };
+
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId
+              ? {
+                ...s,
+                messages: [...s.messages, assistantMsg],
+                project: data.project,
+                brief: data.brief,
+              }
+              : s
+          ),
+          isLoading: false,
+        }));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const errorMsg: ChatMessage = {
+          id: generateId("msg-err"),
+          role: "assistant",
+          content: message,
+          isError: true,
+        };
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId ? { ...s, messages: [...s.messages, errorMsg] } : s
+          ),
+          error: message,
+          isLoading: false,
+        }));
+      }
+    } else {
+      // Re-run initial generate flow
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: userPrompt,
+            duration: get().duration,
+            stylePreset: get().stylePreset,
+          }),
+        });
+
+        if (!res.ok) {
+          let errMsg = `API Error: ${res.status} ${res.statusText}`;
+          try {
+            const errData = await res.json();
+            if (errData.summary) errMsg = errData.summary;
+            else if (errData.error) errMsg = errData.error;
+          } catch {
+            // ignore
+          }
+          throw new Error(errMsg);
+        }
+
+        const data = await res.json();
+        const assistantMsg: ChatMessage = {
+          id: generateId("msg"),
+          role: "assistant",
+          content: data.summary || "Project generated successfully.",
+          project: data.project,
+          brief: data.brief,
+          diagnostics: data.diagnostics?.qualityResult,
+        };
+
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId
+              ? {
+                ...s,
+                messages: [...s.messages, assistantMsg],
+                project: data.project,
+                brief: data.brief,
+              }
+              : s
+          ),
+          isLoading: false,
+        }));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        const errorMsg: ChatMessage = {
+          id: generateId("msg-err"),
+          role: "assistant",
+          content: message,
+          isError: true,
+        };
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.id === sessionId ? { ...s, messages: [...s.messages, errorMsg] } : s
+          ),
+          error: message,
+          isLoading: false,
+        }));
+      }
     }
   },
 

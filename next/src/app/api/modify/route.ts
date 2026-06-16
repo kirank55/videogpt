@@ -70,9 +70,16 @@ export async function POST(req: NextRequest) {
 
   const summary =
     llmError
-      ? `⚠️ AI modification failed — brief unchanged. (${llmError.slice(0, 120)})`
+      ? `⚠️ AI modification failed: ${llmError.slice(0, 120)}`
       : `Updated: "${prompt}". Canvas has been refreshed.` +
         (errorCount > 0 ? ` (${errorCount} issue(s) — see diagnostics)` : "");
+
+  if (llmError) {
+    return NextResponse.json({
+      error: llmError,
+      summary,
+    }, { status: 502 });
+  }
 
   return NextResponse.json({
     project,
