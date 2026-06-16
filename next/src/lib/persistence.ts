@@ -20,6 +20,7 @@ export type PersistedState = {
   activeSessionId: string | null;
   duration: number;
   stylePreset: string;
+  theme: "light" | "dark" | "system";
 };
 
 // ── Write ─────────────────────────────────────────────────────────────────────

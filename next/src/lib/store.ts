@@ -17,6 +17,7 @@ interface StoreState {
   stylePreset: string;
   error: string | null;
   isLoading: boolean;
+  theme: "light" | "dark" | "system";
 
   // Setters
   setPrompt: (prompt: string) => void;
@@ -24,6 +25,7 @@ interface StoreState {
   setStylePreset: (preset: string) => void;
   clearError: () => void;
   setActiveSessionId: (id: string | null) => void;
+  setTheme: (theme: "light" | "dark" | "system") => void;
 
   // Actions
   submitInitialPrompt: (prompt: string) => Promise<void>;
@@ -41,12 +43,14 @@ export const useStore = create<StoreState>((set, get) => ({
   stylePreset: "modern",
   error: null,
   isLoading: false,
+  theme: "system",
 
   setPrompt: (prompt) => set({ prompt }),
   setDuration: (duration) => set({ duration }),
   setStylePreset: (stylePreset) => set({ stylePreset }),
   clearError: () => set({ error: null }),
   setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
+  setTheme: (theme) => set({ theme }),
 
   submitInitialPrompt: async (prompt) => {
     console.group(`[store] submitInitialPrompt`);
@@ -228,6 +232,7 @@ export const useStore = create<StoreState>((set, get) => ({
       activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
       duration: persisted.duration ?? state.duration,
       stylePreset: persisted.stylePreset ?? state.stylePreset,
+      theme: persisted.theme ?? state.theme,
     }));
   },
 }));
@@ -242,5 +247,6 @@ useStore.subscribe((state) => {
     activeSessionId: state.activeSessionId,
     duration: state.duration,
     stylePreset: state.stylePreset,
+    theme: state.theme,
   });
 });

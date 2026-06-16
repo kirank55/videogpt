@@ -69,10 +69,10 @@ function PlayerCardFrame({
       ref={playerRef}
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className={`card overflow-hidden transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 ${isFullscreen ? "fixed inset-0 z-50 w-screen! h-screen flex flex-col justify-between bg-[#030914] p-6 rounded-none border-none" : ""
+      className={`card overflow-hidden transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 ${isFullscreen ? "fixed inset-0 z-50 w-screen! h-screen flex flex-col justify-between bg-zinc-950 p-6 rounded-none border-none" : ""
         }`}
     >
-      <div className={`border-b border-border/80 px-5 py-4 ${isFullscreen ? "bg-[#061020]/50 rounded-xl mb-4" : ""}`}>
+      <div className={`border-b border-border/80 px-5 py-4 ${isFullscreen ? "bg-zinc-900/50 rounded-xl mb-4" : ""}`}>
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-bold text-foreground">{project.name}</p>

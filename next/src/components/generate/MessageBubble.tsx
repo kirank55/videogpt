@@ -18,11 +18,11 @@ export function MessageBubble({ role, children, project, diagnostics }: MessageB
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div className="max-w-[85%]">
         <div
-          className={`rounded-3xl px-5 py-4 text-sm leading-7 shadow-sm
+          className={`rounded-2xl px-5 py-3.5 text-sm leading-relaxed
            ${
              isUser
-               ? "bg-primary text-primary-foreground"
-               : "bg-surface-raised text-foreground ring-1 ring-border"
+               ? "bg-primary text-primary-foreground font-medium rounded-tr-none shadow-sm"
+               : "bg-surface-raised text-foreground border border-border/80 rounded-tl-none shadow-sm"
            }`}
         >
           {children}

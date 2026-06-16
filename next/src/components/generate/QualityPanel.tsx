@@ -57,30 +57,30 @@ function ChevronIcon({ open }: { open: boolean }) {
 // ── Score badge ───────────────────────────────────────────────────────────────
 
 function scoreBadgeStyle(score: number, passed: boolean): string {
-  if (!passed || score < 60) return "bg-danger/15 text-danger ring-1 ring-danger/30";
-  if (score >= 90) return "bg-emerald-500/15 text-emerald-500 ring-1 ring-emerald-500/30";
-  if (score >= 75) return "bg-amber-500/15 text-amber-600 ring-1 ring-amber-500/30";
-  return "bg-orange-500/15 text-orange-500 ring-1 ring-orange-500/30";
+  if (!passed || score < 60) return "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20";
+  if (score >= 90) return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20";
+  if (score >= 75) return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20";
+  return "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20";
 }
 
 // ── Issue row ─────────────────────────────────────────────────────────────────
 
 function IssueRow({ issue }: { issue: QualityIssue }) {
   const config = {
-    error:   { icon: <ErrorIcon />, color: "text-danger" },
-    warning: { icon: <WarnIcon />,  color: "text-amber-500" },
-    info:    { icon: <InfoIcon />,  color: "text-blue-400" },
+    error: { icon: <ErrorIcon />, color: "text-rose-600 dark:text-rose-400" },
+    warning: { icon: <WarnIcon />, color: "text-amber-600 dark:text-amber-400" },
+    info: { icon: <InfoIcon />, color: "text-zinc-500 dark:text-zinc-400" },
   }[issue.severity];
 
   return (
-    <li className="flex items-start gap-2.5 py-1.5">
+    <li className="flex items-start gap-2.5 py-2">
       <span className={`mt-0.5 ${config.color}`}>{config.icon}</span>
       <div className="min-w-0">
-        <span className={`text-[10px] font-bold uppercase tracking-widest ${config.color}`}>
+        <span className={`text-[9px] font-bold uppercase tracking-widest ${config.color}`}>
           {issue.code}
         </span>
         {issue.eventId !== "__project__" && (
-          <span className="ml-1.5 text-[10px] text-muted-foreground/70">
+          <span className="ml-1.5 text-[9px] font-mono text-muted-foreground/70">
             #{issue.eventId}
           </span>
         )}
@@ -109,17 +109,17 @@ export function QualityPanel({ result, defaultOpen = false }: QualityPanelProps)
   const infoCount = issues.filter((i) => i.severity === "info").length;
 
   return (
-    <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-surface-raised text-foreground shadow-sm">
+    <div className="mt-3 overflow-hidden rounded-xl border border-border bg-surface-raised text-foreground shadow-sm">
       {/* ── Header row ──────────────────────────────────────────────────────── */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/[0.03]"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-foreground/2 cursor-pointer"
         aria-expanded={open}
       >
         {/* Score badge */}
         <span
-          className={`inline-flex items-center justify-center rounded-full px-2.5 py-1 text-sm font-bold tabular-nums leading-none ${scoreBadgeStyle(score, passed)}`}
+          className={`inline-flex items-center justify-center rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums leading-none ${scoreBadgeStyle(score, passed)}`}
         >
           {score}
         </span>
@@ -128,11 +128,11 @@ export function QualityPanel({ result, defaultOpen = false }: QualityPanelProps)
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold">
             {passed ? (
-              <span className="flex items-center gap-1.5 text-emerald-500">
+              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
                 <CheckIcon /> Quality gate passed
               </span>
             ) : (
-              <span className="text-danger">Quality gate failed</span>
+              <span className="text-rose-600 dark:text-rose-400">Quality gate failed</span>
             )}
           </p>
           {issues.length > 0 && (

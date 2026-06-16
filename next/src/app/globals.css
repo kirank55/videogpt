@@ -1,17 +1,63 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --primary: #2563eb;
-  --primary-foreground: #eff6ff;
-  --surface: #f5f7fb;
+  --background: #fafafa;
+  --foreground: #09090b;
+  --primary: #09090b;
+  --primary-foreground: #ffffff;
+  --surface: #f4f4f5;
   --surface-raised: #ffffff;
-  --border: #dbe3f0;
-  --muted: #e9eef7;
-  --muted-foreground: #5b6474;
-  --accent: #14b8a6;
-  --danger: #dc2626;
+  --border: #e4e4e7;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #27272a;
+  --danger: #ef4444;
+}
+
+/* System preference fallback */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --background: #09090b;
+    --foreground: #fafafa;
+    --primary: #fafafa;
+    --primary-foreground: #09090b;
+    --surface: #18181b;
+    --surface-raised: #09090b;
+    --border: #27272a;
+    --muted: #18181b;
+    --muted-foreground: #a1a1aa;
+    --accent: #27272a;
+    --danger: #fb7185;
+  }
+}
+
+/* Explicit class-based themes */
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #09090b;
+  --surface: #18181b;
+  --surface-raised: #09090b;
+  --border: #27272a;
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --danger: #fb7185;
+}
+
+.light {
+  --background: #fafafa;
+  --foreground: #09090b;
+  --primary: #09090b;
+  --primary-foreground: #ffffff;
+  --surface: #f4f4f5;
+  --surface-raised: #ffffff;
+  --border: #e4e4e7;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #27272a;
+  --danger: #ef4444;
 }
 
 @theme {
@@ -35,6 +81,7 @@
   min-height: 100vh;
   grid-template-columns: 1fr;
   background-color: var(--color-background);
+  transition: background-color 0.2s ease, color 0.2s ease;
 
   @media (width >= 48rem) {
     grid-template-columns: 16rem minmax(0, 1fr);
@@ -43,26 +90,11 @@
 
 @utility card {
   border: 1px solid var(--color-border);
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   background-color: var(--color-surface-raised);
   color: var(--color-foreground);
-  box-shadow: 0 18px 40px -24px rgb(15 23 42 / 0.45);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --primary: #60a5fa;
-    --primary-foreground: #0f172a;
-    --surface: #111827;
-    --surface-raised: #1f2937;
-    --border: #2c3647;
-    --muted: #172033;
-    --muted-foreground: #9aa4b2;
-    --accent: #2dd4bf;
-    --danger: #f87171;
-  }
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 body {

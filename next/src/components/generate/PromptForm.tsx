@@ -47,7 +47,7 @@ export function PromptForm({
         value={prompt}
         rows={4}
         placeholder="Describe a scene, a mood, or a motion sequence..."
-        className="min-h-28 w-full resize-none rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary"
+        className="min-h-28 w-full resize-none rounded-2xl border border-border bg-surface px-4 py-3.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:border-foreground/30 focus:ring-1 focus:ring-foreground/15"
         onChange={(event) => setPrompt(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey) {
@@ -65,7 +65,7 @@ export function PromptForm({
                 key={d}
                 type="button"
                 onClick={() => onChangeDuration(d)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-all ${
+                className={`rounded-full px-3.5 py-1 text-xs font-bold transition-all cursor-pointer ${
                   duration === d
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
@@ -78,13 +78,13 @@ export function PromptForm({
         </div>
 
         <div className="flex items-center gap-4">
-          <p className="hidden sm:inline text-xs text-muted-foreground">
+          <p className="hidden sm:inline text-xs text-muted-foreground/85">
             Press Enter to send. Shift+Enter adds a new line.
           </p>
           <button
             type="submit"
             disabled={isLoading}
-            className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-all duration-150 hover:bg-primary/95 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer shadow-sm"
           >
             {isLoading ? (
               <>

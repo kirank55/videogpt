@@ -166,7 +166,7 @@ export function PlayerControls() {
 
   return (
     <div
-      className={`border-t border-border px-5 py-4 bg-surface/30 backdrop-blur-md flex flex-col gap-3.5 transition-all select-none ${isFullscreen ? "w-full max-w-4xl mx-auto mb-4 rounded-2xl border border-border/40 bg-[#070e1b]/80 shadow-2xl" : ""
+      className={`border-t border-border px-5 py-4 bg-surface/30 backdrop-blur-md flex flex-col gap-3.5 transition-all select-none ${isFullscreen ? "w-full max-w-4xl mx-auto mb-4 rounded-2xl border border-border/40 bg-zinc-900/80 shadow-2xl" : ""
         }`}
     >
       {/* Progress Bar Row */}
@@ -174,7 +174,7 @@ export function PlayerControls() {
         {/* Hover Tooltip */}
         {hoverPct !== null && (
           <div
-            className="absolute bottom-7 -translate-x-1/2 z-30 rounded-lg bg-slate-900/95 border border-slate-700 px-2.5 py-1.5 shadow-2xl text-[11px] font-mono text-slate-100 select-none pointer-events-none flex flex-col items-center min-w-[100px] backdrop-blur-sm"
+            className="absolute bottom-7 -translate-x-1/2 z-30 rounded-lg bg-zinc-950/95 border border-border px-2.5 py-1.5 shadow-2xl text-[11px] font-mono text-zinc-100 select-none pointer-events-none flex flex-col items-center min-w-[100px] backdrop-blur-sm"
             style={{ left: `${hoverX}px` }}
           >
             <span className="text-[9px] uppercase tracking-wider font-extrabold text-primary/90 mb-0.5 whitespace-nowrap">

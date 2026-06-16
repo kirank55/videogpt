@@ -35,8 +35,8 @@ export function GenerateWorkspace({
   const submitInitialPrompt = useStore((s) => s.submitInitialPrompt);
   const submitModifyPrompt = useStore((s) => s.submitModifyPrompt);
 
-  const activeSession = !ignoreActiveSession && activeSessionId 
-    ? sessions.find((s) => s.id === activeSessionId) 
+  const activeSession = !ignoreActiveSession && activeSessionId
+    ? sessions.find((s) => s.id === activeSessionId)
     : undefined;
   const messages = activeSession ? activeSession.messages : initialMessagesProp;
 
@@ -55,7 +55,7 @@ export function GenerateWorkspace({
         actions={
           <button
             type="button"
-            className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+            className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-muted-foreground transition-all duration-150 hover:bg-foreground/3 hover:text-foreground active:scale-95 cursor-pointer"
           >
             Prompt Guide
           </button>
