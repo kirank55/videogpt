@@ -96,6 +96,9 @@ export function PlayerControls() {
     togglePlayback,
     isFullscreen,
     toggleFullscreen,
+    isExporting,
+    exportProgress,
+    startExport,
   } = usePlayerContext();
 
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -257,6 +260,65 @@ export function PlayerControls() {
             title="Playback Speed"
           >
             {speed.toFixed(1)}x
+          </button>
+
+          {/* Export Button */}
+          <button
+            type="button"
+            disabled={isExporting}
+            onClick={startExport}
+            title={isExporting ? `Exporting… ${Math.round(exportProgress * 100)}%` : "Export as WebM"}
+            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg border transition-all duration-150 active:scale-95 ${
+              isExporting
+                ? "border-primary/40 bg-primary/10 text-primary cursor-wait"
+                : "border-border hover:bg-primary/10 hover:border-primary/40 hover:text-primary text-foreground"
+            }`}
+          >
+            {isExporting ? (
+              <>
+                {/* Spinner */}
+                <svg
+                  className="w-3.5 h-3.5 animate-spin text-primary"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+                <span>{Math.round(exportProgress * 100)}%</span>
+              </>
+            ) : (
+              <>
+                {/* Download icon */}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="2"
+                  stroke="currentColor"
+                  className="w-3.5 h-3.5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                  />
+                </svg>
+                <span>Export</span>
+              </>
+            )}
           </button>
 
           {/* Fullscreen Button */}

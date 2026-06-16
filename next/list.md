@@ -183,9 +183,9 @@ _Core runtime path: replace hardcoded brief with real AI-generated brief via Ope
 
 _Core runtime path: export generated output once preview and generation are working_
 
-- [ ] Build `src/lib/core/MediaRecorderExporter.ts` — detect MIME type, capture stream, frame loop, collect chunks → Blob
-- [ ] Build `src/lib/core/VideoExporter.ts` — call exporter, create object URL, trigger download
-- [ ] Wire Export button into `InlinePreviewCard` with `isExporting` loading state
+- [x] Build `src/lib/core/MediaRecorderExporter.ts` — detect MIME type, capture stream, frame loop, collect chunks → Blob
+- [x] Build `src/lib/core/VideoExporter.ts` — call exporter, create object URL, trigger download
+- [x] Wire Export button into `InlinePreviewCard` with `isExporting` loading state
 - [ ] **Verify:** Click Export → `.webm` file downloads
 - [ ] **Verify:** Open file in browser or VLC → plays correctly
 

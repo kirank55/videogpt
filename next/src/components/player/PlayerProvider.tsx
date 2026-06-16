@@ -3,6 +3,7 @@
 import {
   createContext,
   type ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useRef,
@@ -10,6 +11,7 @@ import {
 } from "react";
 import type { VideoProject } from "@/lib/renderer";
 import { usePlayer } from "@/lib/player";
+import { exportVideo } from "@/lib/core/VideoExporter";
 
 type PlayerContextValue = {
   project: VideoProject;
@@ -22,6 +24,9 @@ type PlayerContextValue = {
   isFullscreen: boolean;
   toggleFullscreen: () => void;
   playerRef: React.RefObject<HTMLDivElement | null>;
+  isExporting: boolean;
+  exportProgress: number;
+  startExport: () => Promise<void>;
 };
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -47,6 +52,8 @@ export function PlayerProvider({
 
   const playerRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -71,6 +78,23 @@ export function PlayerProvider({
     }
   };
 
+  const startExport = useCallback(async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportProgress(0);
+    try {
+      await exportVideo(project, {
+        fps: 30,
+        onProgress: setExportProgress,
+      });
+    } catch (err) {
+      console.error("Export failed:", err);
+    } finally {
+      setIsExporting(false);
+      setExportProgress(0);
+    }
+  }, [isExporting, project]);
+
   return (
     <PlayerContext.Provider
       value={{
@@ -79,6 +103,9 @@ export function PlayerProvider({
         isFullscreen,
         toggleFullscreen,
         playerRef,
+        isExporting,
+        exportProgress,
+        startExport,
       }}
     >
       {children}
