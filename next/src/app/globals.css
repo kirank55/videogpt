@@ -78,10 +78,11 @@
 
 @utility shell {
   display: grid;
-  min-height: 100vh;
+  height: 100vh;
   grid-template-columns: 1fr;
   background-color: var(--color-background);
   transition: background-color 0.2s ease, color 0.2s ease;
+  overflow: hidden;
 
   @media (width >= 48rem) {
     grid-template-columns: 16rem minmax(0, 1fr);

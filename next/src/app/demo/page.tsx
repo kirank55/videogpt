@@ -13,7 +13,7 @@ export default function DemoPage() {
   return (
     <>
       <TopBar title="Demo" />
-      <main className="mt-6 flex-1 space-y-16">
+      <main className="mt-6 flex-1 space-y-16 overflow-y-auto pr-1">
         {/* ── Big Demo: Client–Server Architecture ──────────────── */}
         <div>
           <h2 className="mb-1 text-xl font-semibold tracking-tight">

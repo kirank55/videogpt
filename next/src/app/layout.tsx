@@ -59,7 +59,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full">
+      <body className="h-full overflow-hidden">
         {/*
           HydrateStore must render before any page component that reads from
           the store.  It is a "use client" leaf — safe inside a server layout.
@@ -67,7 +67,7 @@ export default function RootLayout({
         <HydrateStore />
         <div className="shell">
           <Sidebar />
-          <section className="flex min-h-screen flex-col p-6 md:p-10">
+          <section className="flex h-screen flex-col overflow-hidden p-6 md:p-10">
             {children}
           </section>
         </div>

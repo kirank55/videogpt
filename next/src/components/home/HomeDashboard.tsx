@@ -35,7 +35,7 @@ export function HomeDashboard() {
           </button>
         }
       />
-      <main className="mt-6 flex-1">
+      <main className="mt-6 flex-1 overflow-y-auto pr-1">
         {sessions.length === 0 ? (
           <section className="card flex min-h-[400px] flex-col items-center justify-center p-8 text-center bg-surface-raised border border-border/80">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/5 text-muted-foreground/80 mb-5">

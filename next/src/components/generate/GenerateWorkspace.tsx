@@ -57,21 +57,26 @@ export function GenerateWorkspace({
   };
 
   return (
-    <>
-      <TopBar
-        title={title}
-        actions={
-          <button
-            type="button"
-            onClick={handleNewProject}
-            className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-95 cursor-pointer shadow-sm"
-          >
-            New Project
-          </button>
-        }
-      />
-      <main className="mt-6 flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col overflow-hidden h-full">
+      {/* Scrollable area containing TopBar and ChatThread */}
+      <div className="flex-1 overflow-y-auto pr-1 space-y-6 pb-4">
+        <TopBar
+          title={title}
+          actions={
+            <button
+              type="button"
+              onClick={handleNewProject}
+              className="rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-95 cursor-pointer shadow-sm"
+            >
+              New Project
+            </button>
+          }
+        />
         <ChatThread messages={messages} />
+      </div>
+
+      {/* Input area fixed at bottom */}
+      <div className="shrink-0 pt-2">
         <PromptForm
           prompt={prompt}
           setPrompt={setPrompt}
@@ -80,7 +85,7 @@ export function GenerateWorkspace({
           isLoading={isLoading}
           onSubmit={handleSubmit}
         />
-      </main>
-    </>
+      </div>
+    </div>
   );
 }

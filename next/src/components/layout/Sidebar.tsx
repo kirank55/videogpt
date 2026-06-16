@@ -42,7 +42,7 @@ export function Sidebar() {
   const setTheme = useStore((s) => s.setTheme);
 
   return (
-    <aside className="hidden border-r border-border bg-surface text-foreground md:flex md:min-h-screen md:flex-col transition-colors duration-200">
+    <aside className="hidden border-r border-border bg-surface text-foreground md:flex md:h-screen md:flex-col md:overflow-y-auto transition-colors duration-200">
       <div className="flex flex-1 flex-col px-5 py-7">
         {/* ── Brand ──────────────────────────────────────────────────── */}
         <div className="space-y-1 pb-6 border-b border-border/60">
