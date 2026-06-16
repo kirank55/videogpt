@@ -3,12 +3,14 @@
 import { useRef, useState } from "react";
 import { usePlayerContext } from "@/components/player/PlayerProvider";
 
+import type { VideoProject } from "@/lib/renderer";
+
 type Chapter = {
   name: string;
   time: number;
 };
 
-function getChapters(project: any): Chapter[] {
+function getChapters(project: VideoProject): Chapter[] {
   const chapters: Chapter[] = [];
   const events = [...(project.events || [])].sort((a, b) => a.start - b.start);
 

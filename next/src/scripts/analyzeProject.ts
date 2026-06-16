@@ -61,11 +61,6 @@ function describeAV(name: string, av: AnimatedValue | undefined): string | null 
   return `${name}:${av.from}→${av.to} [${av.easing}]`;
 }
 
-function getFillString(fill: ShapeFill): string {
-  if (typeof fill === "string") return fill;
-  return `gradient(${fill.from} → ${fill.to} @ ${fill.angle}°)`;
-}
-
 // ── Bounding box helpers ──────────────────────────────────────────────────────
 
 type BBox = { x1: number; y1: number; x2: number; y2: number };

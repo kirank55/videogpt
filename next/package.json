@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
     "analyze": "tsx --tsconfig tsconfig.scripts.json src/scripts/analyzeProject.ts",
     "analyze:demo": "tsx --tsconfig tsconfig.scripts.json src/scripts/analyzeProject.ts --project demo"

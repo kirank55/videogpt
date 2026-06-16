@@ -26,7 +26,6 @@ const CL_Y = 340;
 
 // Server stack — base position (front face)
 const SR_X = W - CL_X - CARD_W;
-const SR_Y = 340;
 
 // Gap
 const GAP_L = CL_X + CARD_W;

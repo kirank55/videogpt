@@ -2,14 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { MessageBubble } from "@/components/generate/MessageBubble";
-import type { VideoProject } from "@/lib/renderer";
-
-export type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  project?: VideoProject;
-};
+import type { ChatMessage } from "@/types/generate";
 
 type ChatThreadProps = {
   messages?: ChatMessage[];
@@ -22,19 +15,8 @@ const defaultMessages: ChatMessage[] = [
     content:
       "Welcome back. Describe the video beat you want to build and I will sketch the first scene plan.",
   },
-  {
-    id: "user-brief",
-    role: "user",
-    content:
-      "Create a fast product teaser with bold headlines, a dark backdrop, and animated feature callouts.",
-  },
-  {
-    id: "assistant-plan",
-    role: "assistant",
-    content:
-      "Great direction. I would start with a dramatic title card, then cut into three feature moments with short punchy captions.",
-  },
 ];
+
 
 export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
   const endRef = useRef<HTMLDivElement | null>(null);

@@ -60,9 +60,7 @@ const BLUE_GLOW = "rgb(96 165 250 / 0.7)";
 const BLUE_DIM  = "rgb(96 165 250 / 0.45)";
 const GREEN      = "rgb(52 211 153)";
 const GREEN_GLOW = "rgb(52 211 153 / 0.7)";
-const AMBER      = "rgb(251 191 36)";
 const MUTED      = "rgb(178 190 205 / 0.95)";
-const MUTED_DIM  = "rgb(160 175 195 / 0.8)";
 
 export const hybridProject: VideoProject = {
   id: "hybrid-iso-brutal-blueprint-bigdemo-v1",

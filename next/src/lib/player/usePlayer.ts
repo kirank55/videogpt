@@ -34,13 +34,20 @@ export function usePlayer({
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [speed, setSpeed] = useState(1.0);
 
-  useEffect(() => {
+  // Sync state from props during render phase to avoid cascading useEffect renders
+  const [prevInitialTime, setPrevInitialTime] = useState(initialTime);
+  const [prevDuration, setPrevDuration] = useState(duration);
+  if (initialTime !== prevInitialTime || duration !== prevDuration) {
+    setPrevInitialTime(initialTime);
+    setPrevDuration(duration);
     setCurrentTime(clamp(initialTime, 0, duration));
-  }, [duration, initialTime]);
+  }
 
-  useEffect(() => {
+  const [prevAutoPlay, setPrevAutoPlay] = useState(autoPlay);
+  if (autoPlay !== prevAutoPlay) {
+    setPrevAutoPlay(autoPlay);
     setIsPlaying(autoPlay);
-  }, [autoPlay]);
+  }
 
   useEffect(() => {
     if (!isPlaying) {

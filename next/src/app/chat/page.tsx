@@ -1,6 +1,6 @@
 import { GenerateWorkspace } from "@/components/generate/GenerateWorkspace";
 import { hybridProject } from "@/app/demo/hybridProject";
-import type { ChatMessage } from "@/components/generate/ChatThread";
+import type { ChatMessage } from "@/types/generate";
 
 const hybridMessages: ChatMessage[] = [
   {
@@ -21,6 +21,7 @@ export default function ChatPage() {
     <GenerateWorkspace
       initialMessages={hybridMessages}
       title="Chat"
+      ignoreActiveSession={true}
     />
   );
 }

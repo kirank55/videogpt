@@ -25,7 +25,6 @@ const R2Y = R1Y + R1H + RG;
 const R2H = 110;
 const R3Y = R2Y + R2H + RG;
 const R3H = 110;
-const STACK_BOTTOM = R3Y + R3H;
 const MID_Y = R1Y + R1H / 2; // horizontal packet travels at this Y
 
 const L1_FS = 28;

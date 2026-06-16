@@ -82,12 +82,12 @@ _Core runtime path: generate visual output and preview it in the app_
 
 _Core runtime path: move from hardcoded UI to shared live state with basic safety_
 
-- [ ] Define types in `src/types/generate.ts`: `ChatMessage`, `Session`
-- [ ] Slice 1 — state shape + setters: `setPrompt`, `setDuration`, `setStylePreset`, `clearError`
-- [ ] Slice 4 — `submitInitialPrompt(prompt)`: optimistic append → POST `/api/generate` → append result or error
-- [ ] Slice 5 — `submitModifyPrompt(sessionId, prompt)`: optimistic append → POST `/api/modify` → append result
-- [ ] Wire `HomeDashboard`, `ChatThread`, `PromptForm` to read from store (no more hardcoded data)
-- [ ] **Verify:** Submit prompt → spinner → error message in chat (API not real yet)
+- [x] Define types in `src/types/generate.ts`: `ChatMessage`, `Session`
+- [x] Slice 1 — state shape + setters: `setPrompt`, `setDuration`, `setStylePreset`, `clearError`
+- [x] Slice 4 — `submitInitialPrompt(prompt)`: optimistic append → POST `/api/generate` → append result or error
+- [x] Slice 5 — `submitModifyPrompt(sessionId, prompt)`: optimistic append → POST `/api/modify` → append result
+- [x] Wire `HomeDashboard`, `ChatThread`, `PromptForm` to read from store (no more hardcoded data)
+- [x] **Verify:** Submit prompt → spinner → error message in chat (API not real yet)
 
 ---
 

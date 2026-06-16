@@ -1,37 +1,26 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useStore } from "@/lib/store";
 import { ProjectCard } from "@/components/home/ProjectCard";
 import { TopBar } from "@/components/layout/TopBar";
 
-type Project = {
-  id: string;
-  name: string;
-  updatedAt: string;
-};
+export function HomeDashboard() {
+  const router = useRouter();
+  const sessions = useStore((s) => s.sessions);
+  const setActiveSessionId = useStore((s) => s.setActiveSessionId);
+  const deleteSession = useStore((s) => s.deleteSession);
 
-const demoProjects: Project[] = [
-  {
-    id: "launch-loop",
-    name: "Launch Loop Teaser",
-    updatedAt: "Edited May 8, 2026",
-  },
-  {
-    id: "founder-cut",
-    name: "Founder Story Cutdown",
-    updatedAt: "Edited May 6, 2026",
-  },
-  {
-    id: "product-reel",
-    name: "Product Reel V2",
-    updatedAt: "Edited May 4, 2026",
-  },
-];
+  const handleNewProject = () => {
+    setActiveSessionId(null);
+    router.push("/generate");
+  };
 
-type HomeDashboardProps = {
-  projects?: Project[];
-};
+  const handleProjectClick = (id: string) => {
+    setActiveSessionId(id);
+    router.push("/generate");
+  };
 
-export function HomeDashboard({
-  projects = demoProjects,
-}: HomeDashboardProps) {
   return (
     <>
       <TopBar
@@ -39,6 +28,7 @@ export function HomeDashboard({
         actions={
           <button
             type="button"
+            onClick={handleNewProject}
             className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
           >
             New Project
@@ -46,7 +36,7 @@ export function HomeDashboard({
         }
       />
       <main className="mt-6 flex-1">
-        {projects.length === 0 ? (
+        {sessions.length === 0 ? (
           <section className="card flex min-h-96 flex-col items-center justify-center px-6 text-center">
             <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
               No projects yet
@@ -61,11 +51,14 @@ export function HomeDashboard({
           </section>
         ) : (
           <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project) => (
+            {sessions.map((session) => (
               <ProjectCard
-                key={project.id}
-                name={project.name}
-                updatedAt={project.updatedAt}
+                key={session.id}
+                id={session.id}
+                name={session.name}
+                updatedAt={session.updatedAt}
+                onClick={() => handleProjectClick(session.id)}
+                onDelete={() => deleteSession(session.id)}
               />
             ))}
           </section>
@@ -74,3 +67,4 @@ export function HomeDashboard({
     </>
   );
 }
+

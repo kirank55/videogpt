@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
-
 type PromptFormProps = {
+  prompt: string;
+  setPrompt: (value: string) => void;
   isLoading?: boolean;
   onSubmit?: (prompt: string) => void;
 };
 
-export function PromptForm({ isLoading = false, onSubmit }: PromptFormProps) {
-  const [prompt, setPrompt] = useState("");
-
+export function PromptForm({
+  prompt,
+  setPrompt,
+  isLoading = false,
+  onSubmit,
+}: PromptFormProps) {
   const submit = () => {
     const trimmed = prompt.trim();
     if (!trimmed || isLoading) return;
@@ -17,6 +20,7 @@ export function PromptForm({ isLoading = false, onSubmit }: PromptFormProps) {
     onSubmit?.(trimmed);
     setPrompt("");
   };
+
 
   return (
     <form
