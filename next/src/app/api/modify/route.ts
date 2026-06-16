@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ModifyRequestSchema } from "@/lib/schemas/api";
-import { createSeedProject } from "@/lib/alpha/createSeedProject";
+import { buildProjectFromBrief } from "@/lib/brief/buildProjectFromBrief";
+import { validateBrief } from "@/lib/brief/validateBrief";
+import type { SupportedDuration } from "@/lib/schemas/brief";
+import { SUPPORTED_DURATIONS } from "@/lib/schemas/brief";
+import { validateProject } from "@/lib/renderer";
+
+const VALID_DURATIONS = new Set<number>(SUPPORTED_DURATIONS);
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -14,23 +20,53 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid request", details: parsed.error.flatten() },
-      { status: 422 }
+      { status: 422 },
     );
   }
 
-  const { prompt } = parsed.data;
+  const { prompt, brief: rawBrief } = parsed.data;
 
-  // Phase 5 stub — derives a new project name from the modify instruction.
-  // Phase 6B will replace this with runModifyPipeline(currentBrief, instruction, duration).
-  const modifiedName = prompt.slice(0, 40) || "Modified Project";
-  const project = createSeedProject(modifiedName, 5);
+  // Phase 6A: re-validate the stored brief (or fall back to defaults), then
+  // re-apply the modify instruction as a title update.
+  // Phase 6B replaces this with runModifyPipeline(currentBrief, instruction, duration).
+  const existingBrief = rawBrief ?? {};
+  const updatedBrief = validateBrief({
+    ...(typeof existingBrief === "object" && existingBrief !== null ? existingBrief : {}),
+    // Reflect the modify prompt in the title as a minimal stub mutation
+    title: prompt.slice(0, 60) || "Modified Project",
+  });
 
-  const summary = `Updated: "${prompt}". The canvas has been refreshed.`;
+  // Use stored duration if present, otherwise 15s
+  const rawDur =
+    typeof existingBrief === "object" &&
+    existingBrief !== null &&
+    "duration" in existingBrief
+      ? (existingBrief as Record<string, unknown>).duration
+      : 15;
+  const duration: SupportedDuration =
+    typeof rawDur === "number" && VALID_DURATIONS.has(rawDur)
+      ? (rawDur as SupportedDuration)
+      : 15;
 
-  const diagnostics = {
-    phase: "stub",
-    message: "Stub response — real modify pipeline wired in Phase 6B",
-  };
+  const project = buildProjectFromBrief(updatedBrief, duration);
 
-  return NextResponse.json({ project, summary, diagnostics });
+  const diagnostics = validateProject(project);
+  const errorCount   = diagnostics.filter((d) => d.severity === "error").length;
+  const warningCount = diagnostics.filter((d) => d.severity === "warning").length;
+
+  const summary =
+    `Updated: "${prompt}". Canvas has been refreshed.` +
+    (errorCount > 0 ? ` (${errorCount} issue(s) — see diagnostics)` : "");
+
+  return NextResponse.json({
+    project,
+    brief: updatedBrief,
+    summary,
+    diagnostics: {
+      phase: "6a-stub",
+      issues: diagnostics,
+      errorCount,
+      warningCount,
+    },
+  });
 }

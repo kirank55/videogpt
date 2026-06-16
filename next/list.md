@@ -112,28 +112,28 @@ _Build and test all deterministic modules first. No OpenRouter calls yet — pip
 > particles, and path animations. See `.scratch/video-brief-architecture/PRD.md` and `docs/adr/0001-...` for full rationale.
 
 ### Catalog
-- [ ] Build `src/lib/catalog/palettes.ts` — 6–8 Named Palettes: name → `{ bgFrom, bgTo, accent1, accent2, text, muted, glow }` exact color values
-- [ ] Build `src/lib/catalog/styles.ts` — 4–5 Named Styles: name → `{ radius, easing, strokeWeight, glowIntensity, particleDensity }`
-- [ ] Build `src/lib/catalog/timings.ts` — 5 Act Timing Tables (one per duration 5/10/15/20/30s), each defining act start/end boundaries and stagger offsets
+- [x] Build `src/lib/catalog/palettes.ts` — 6–8 Named Palettes: name → `{ bgFrom, bgTo, accent1, accent2, text, muted, glow }` exact color values
+- [x] Build `src/lib/catalog/styles.ts` — 4–5 Named Styles: name → `{ radius, easing, strokeWeight, glowIntensity, particleDensity }`
+- [x] Build `src/lib/catalog/timings.ts` — 5 Act Timing Tables (one per duration 5/10/15/20/30s), each defining act start/end boundaries and stagger offsets
 
 ### Brief Schema
-- [ ] Build `src/lib/schemas/brief.ts` — Zod schema for `VideoBrief` (layout, title, subtitle, leftRows/rightRows 2–4, flow toggle, blocks 2–5, palette key, style key, closingLine)
+- [x] Build `src/lib/schemas/brief.ts` — Zod schema for `VideoBrief` (layout, title, subtitle, leftRows/rightRows 2–4, flow toggle, blocks 2–5, palette key, style key, closingLine)
 
 ### Brief Validator
-- [ ] Build `src/lib/brief/validateBrief.ts` — `(raw: unknown) → VideoBrief`. Clamps rows to 2–4, replaces unknown palette/style with `"midnight"`/`"modern"`, fills missing fields, truncates blocks to 5. No API calls.
+- [x] Build `src/lib/brief/validateBrief.ts` — `(raw: unknown) → VideoBrief`. Clamps rows to 2–4, replaces unknown palette/style with `"midnight"`/`"modern"`, fills missing fields, truncates blocks to 5. No API calls.
 
 ### Brief Expander
-- [ ] Build `src/lib/brief/buildProjectFromBrief.ts` — `(brief: VideoBrief, duration: SupportedDuration) → VideoProject`
-  - [ ] Two-Column layout: dynamic row heights (`max(80, min(140, availableH / count))`), labels vertically centered, connectors between exact row edges
-  - [ ] Single-Column layout: content blocks at fixed Y intervals, title top, closing line bottom
-  - [ ] Pipeline injection (Two-Column flow=true): ambient particles, request packet + arc path, request burst, processing glow + keyframed scale, response packet + arc path, response burst, celebration burst, deco baseline
-  - [ ] Pipeline injection (Two-Column flow=false): staggered stacks only, no packets
-  - [ ] Palette resolver: maps Named Palette key → colors on all events
-  - [ ] Style resolver: maps Named Style key → radius, easing, glow on all events
-  - [ ] Act timing: all event start/end values derived from Act Timing Table, never hardcoded
-- [ ] Wire `buildProjectFromBrief` into `/api/generate` stub (replace hardcoded `createSeedProject` with a hardcoded brief → expander call)
-- [ ] **Verify:** `/demo` still renders correctly
-- [ ] **Verify:** `/generate` → submit prompt → spinner → assistant message shows canvas from expanded brief
+- [x] Build `src/lib/brief/buildProjectFromBrief.ts` — `(brief: VideoBrief, duration: SupportedDuration) → VideoProject`
+  - [x] Two-Column layout: dynamic row heights (`max(80, min(140, availableH / count))`), labels vertically centered, connectors between exact row edges
+  - [x] Single-Column layout: content blocks at fixed Y intervals, title top, closing line bottom
+  - [x] Pipeline injection (Two-Column flow=true): ambient particles, request packet + arc path, request burst, processing glow + keyframed scale, response packet + arc path, response burst, celebration burst, deco baseline
+  - [x] Pipeline injection (Two-Column flow=false): staggered stacks only, no packets
+  - [x] Palette resolver: maps Named Palette key → colors on all events
+  - [x] Style resolver: maps Named Style key → radius, easing, glow on all events
+  - [x] Act timing: all event start/end values derived from Act Timing Table, never hardcoded
+- [x] Wire `buildProjectFromBrief` into `/api/generate` stub (replace hardcoded `createSeedProject` with a hardcoded brief → expander call)
+- [x] **Verify:** `/demo` still renders correctly
+- [x] **Verify:** `/generate` → submit prompt → spinner → assistant message shows canvas from expanded brief
 
 ---
 
