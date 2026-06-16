@@ -142,24 +142,24 @@ _Build and test all deterministic modules first. No OpenRouter calls yet — pip
 _Core runtime path: replace hardcoded brief with real AI-generated brief via OpenRouter_
 
 ### OpenRouter Client
-- [ ] Build `src/lib/ai/openrouter.ts` — `callOpenRouter(systemPrompt, userPrompt): Promise<unknown>` using `json_schema` response format targeting `VideoBrief` schema
+- [x] Build `src/lib/ai/openrouter.ts` — `callOpenRouter(systemPrompt, userPrompt): Promise<unknown>` using `json_schema` response format targeting `VideoBrief` schema
 
 ### System Prompt
-- [ ] Build `src/lib/ai/prompts.ts`:
-  - [ ] `buildSystemPrompt(duration)` — compositional rules + keyword layout selection + palette/style catalog + act timing table + brief JSON schema + soft palette/style compatibility guidance
-  - [ ] `buildModifyPrompt(currentBrief, instruction)` — sends current brief + user instruction (not VideoProject)
-- [ ] Layout selection keywords in prompt: Two-Column triggers = "vs", "client", "server", "frontend", "backend", "before", "after", "request", "response", "architecture"; Single-Column is default
+- [x] Build `src/lib/ai/prompts.ts`:
+  - [x] `buildSystemPrompt(duration)` — compositional rules + keyword layout selection + palette/style catalog + act timing table + brief JSON schema + soft palette/style compatibility guidance
+  - [x] `buildModifyPrompt(currentBrief, instruction)` — sends current brief + user instruction (not VideoProject)
+- [x] Layout selection keywords in prompt: Two-Column triggers = "vs", "client", "server", "frontend", "backend", "before", "after", "request", "response", "architecture"; Single-Column is default
 
 ### Pipeline
-- [ ] Build `src/lib/ai/pipeline.ts`:
-  - [ ] `runGeneratePipeline(prompt, duration)` → call OpenRouter → `validateBrief` → `buildProjectFromBrief` → `validateProject` → return `{ project, brief, diagnostics }`
-  - [ ] `runModifyPipeline(currentBrief, instruction, duration)` → call OpenRouter with modify prompt → `validateBrief` → `buildProjectFromBrief` → `validateProject` → return `{ project, brief, diagnostics }`
-  - [ ] Store latest `brief` alongside `project` in session state (modify flow reads from brief, not project)
-- [ ] Replace stub returns in `/api/generate` and `/api/modify` with pipeline calls
-- [ ] Add `OPENROUTER_API_KEY=sk-or-...` to `.env.local`
+- [x] Build `src/lib/ai/pipeline.ts`:
+  - [x] `runGeneratePipeline(prompt, duration)` → call OpenRouter → `validateBrief` → `buildProjectFromBrief` → `validateProject` → return `{ project, brief, diagnostics }`
+  - [x] `runModifyPipeline(currentBrief, instruction, duration)` → call OpenRouter with modify prompt → `validateBrief` → `buildProjectFromBrief` → `validateProject` → return `{ project, brief, diagnostics }`
+  - [x] Store latest `brief` alongside `project` in session state (modify flow reads from brief, not project)
+- [x] Replace stub returns in `/api/generate` and `/api/modify` with pipeline calls
+- [x] Add `OPENROUTER_API_KEY=sk-or-...` to `.env.local`
 
 ### Eval Harness
-- [ ] Build `src/scripts/evalPrompts.ts` — CLI that runs 10–15 test prompts through the pipeline (real LLM), validates each expanded VideoProject with `validateProject()`, reports pass/fail matrix
+- [x] Build `src/scripts/evalPrompts.ts` — CLI that runs 10–15 test prompts through the pipeline (real LLM), validates each expanded VideoProject with `validateProject()`, reports pass/fail matrix
 - [ ] **Verify:** Eval harness passes ≥80% of test prompts with zero errors from `validateProject()`
 - [ ] Iterate system prompt until eval passes reliably
 

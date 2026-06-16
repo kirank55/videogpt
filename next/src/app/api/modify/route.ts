@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ModifyRequestSchema } from "@/lib/schemas/api";
-import { buildProjectFromBrief } from "@/lib/brief/buildProjectFromBrief";
-import { validateBrief } from "@/lib/brief/validateBrief";
-import type { SupportedDuration } from "@/lib/schemas/brief";
-import { SUPPORTED_DURATIONS } from "@/lib/schemas/brief";
-import { validateProject } from "@/lib/renderer";
+import { ModifyRequestSchema }      from "@/lib/schemas/api";
+import { runModifyPipeline }        from "@/lib/ai/pipeline";
+import { validateBrief }            from "@/lib/brief/validateBrief";
+import type { SupportedDuration }   from "@/lib/schemas/brief";
+import { SUPPORTED_DURATIONS }      from "@/lib/schemas/brief";
 
 const VALID_DURATIONS = new Set<number>(SUPPORTED_DURATIONS);
 
@@ -26,47 +25,46 @@ export async function POST(req: NextRequest) {
 
   const { prompt, brief: rawBrief } = parsed.data;
 
-  // Phase 6A: re-validate the stored brief (or fall back to defaults), then
-  // re-apply the modify instruction as a title update.
-  // Phase 6B replaces this with runModifyPipeline(currentBrief, instruction, duration).
-  const existingBrief = rawBrief ?? {};
-  const updatedBrief = validateBrief({
-    ...(typeof existingBrief === "object" && existingBrief !== null ? existingBrief : {}),
-    // Reflect the modify prompt in the title as a minimal stub mutation
-    title: prompt.slice(0, 60) || "Modified Project",
-  });
+  // Normalise the stored brief (or fallback to defaults if missing/corrupt)
+  const currentBrief = validateBrief(
+    typeof rawBrief === "object" && rawBrief !== null ? rawBrief : {},
+  );
 
-  // Use stored duration if present, otherwise 15s
+  // Recover duration from the stored brief object if the client sent it
   const rawDur =
-    typeof existingBrief === "object" &&
-    existingBrief !== null &&
-    "duration" in existingBrief
-      ? (existingBrief as Record<string, unknown>).duration
+    typeof rawBrief === "object" &&
+    rawBrief !== null &&
+    "duration" in rawBrief
+      ? (rawBrief as Record<string, unknown>).duration
       : 15;
+
   const duration: SupportedDuration =
     typeof rawDur === "number" && VALID_DURATIONS.has(rawDur)
       ? (rawDur as SupportedDuration)
       : 15;
 
-  const project = buildProjectFromBrief(updatedBrief, duration);
+  const { project, brief, diagnostics } = await runModifyPipeline(
+    currentBrief,
+    prompt,
+    duration,
+  );
 
-  const diagnostics = validateProject(project);
-  const errorCount   = diagnostics.filter((d) => d.severity === "error").length;
-  const warningCount = diagnostics.filter((d) => d.severity === "warning").length;
+  const { errorCount, llmError } = diagnostics;
 
   const summary =
-    `Updated: "${prompt}". Canvas has been refreshed.` +
-    (errorCount > 0 ? ` (${errorCount} issue(s) — see diagnostics)` : "");
+    llmError
+      ? `⚠️ AI modification failed — brief unchanged. (${llmError.slice(0, 120)})`
+      : `Updated: "${prompt}". Canvas has been refreshed.` +
+        (errorCount > 0 ? ` (${errorCount} issue(s) — see diagnostics)` : "");
 
   return NextResponse.json({
     project,
-    brief: updatedBrief,
+    brief,
     summary,
     diagnostics: {
-      phase: "6a-stub",
-      issues: diagnostics,
+      ...diagnostics,
       errorCount,
-      warningCount,
+      warningCount: diagnostics.warningCount,
     },
   });
 }
