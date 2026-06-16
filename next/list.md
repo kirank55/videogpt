@@ -95,11 +95,11 @@ _Core runtime path: move from hardcoded UI to shared live state with basic safet
 
 _Core runtime path: make the app loop work through real request boundaries with minimal validation_
 
-- [ ] Define `GenerateRequestSchema` and `ModifyRequestSchema` in `src/lib/schemas/api.ts`
-- [ ] Build `src/app/api/generate/route.ts` — validate body, return `createSeedProject` + summary + diagnostics
-- [ ] Build `src/app/api/modify/route.ts` — same pattern, return project with modified title
-- [ ] **Verify:** Submit prompt in UI → spinner → assistant message with canvas preview, no console errors
-- [ ] **Verify:** `curl POST /api/generate` → valid JSON response
+- [x] Define `GenerateRequestSchema` and `ModifyRequestSchema` in `src/lib/schemas/api.ts`
+- [x] Build `src/app/api/generate/route.ts` — validate body, return `createSeedProject` + summary + diagnostics
+- [x] Build `src/app/api/modify/route.ts` — same pattern, return project with modified title
+- [x] **Verify:** Submit prompt in UI → spinner → assistant message with canvas preview, no console errors
+- [x] **Verify:** `curl POST /api/generate` → valid JSON response
 
 ---
 
