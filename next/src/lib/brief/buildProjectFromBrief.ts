@@ -90,6 +90,137 @@ function pickVariant(title: string): TwoColVariant {
   return seededChoice(TWO_COL_VARIANTS, seededHash(title));
 }
 
+// ── Entry animation resolver ─────────────────────────────────────────────────
+
+type EntryTransform = {
+  translateX?: { from: number; to: number; easing: EasingName };
+  translateY?: { from: number; to: number; easing: EasingName };
+  scale?: { from: number; to: number; easing: EasingName };
+};
+
+function resolveEntryAnimation(
+  anim: VideoBrief["entryAnimation"],
+  ease: EasingName,
+): EntryTransform {
+  switch (anim) {
+    case "slide-down":
+      return { translateY: { from: -40, to: 0, easing: ease } };
+    case "slide-left":
+      return { translateX: { from: 60, to: 0, easing: ease } };
+    case "slide-right":
+      return { translateX: { from: -60, to: 0, easing: ease } };
+    case "fade-only":
+      return {};
+    case "scale-up":
+      return { scale: { from: 0.5, to: 1, easing: ease } };
+    case "bounce-in":
+      return { scale: { from: 0.5, to: 1, easing: "bounce" } };
+    case "slide-up":
+    default:
+      return { translateY: { from: 40, to: 0, easing: ease } };
+  }
+}
+
+// ── Act timing resolver ───────────────────────────────────────────────────────
+//
+// Normalizes AI-provided actWeights [w1,w2,w3,w4,w5] into an ActTiming that
+// fits the total duration.  Each act gets at least MIN_ACT_S seconds.
+
+const MIN_ACT_S = 0.5;
+
+function resolveActTimings(
+  base: ActTiming,
+  duration: number,
+  weights: number[] | undefined,
+): ActTiming {
+  if (!weights || weights.length !== 5) return base;
+
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const minTotal = MIN_ACT_S * 5;
+  if (totalWeight <= 0 || duration <= minTotal) return base;
+
+  // Allocate durations, each at least MIN_ACT_S
+  const rawDurs = weights.map((w) => (w / totalWeight) * duration);
+  const clamped = rawDurs.map((d) => Math.max(d, MIN_ACT_S));
+
+  // Re-scale so they sum to duration
+  const clampedTotal = clamped.reduce((a, b) => a + b, 0);
+  const scale = duration / clampedTotal;
+  const durs = clamped.map((d) => d * scale);
+
+  // Build act boundaries
+  const starts: number[] = [];
+  let cursor = 0;
+  for (let i = 0; i < 5; i++) {
+    starts.push(parseFloat(cursor.toFixed(3)));
+    cursor += durs[i];
+  }
+
+  // Preserve stagger / stepStagger proportions from the base catalog
+  const baseDur2 = base.act2.end - base.act2.start;
+  const baseDur4 = base.act4.end - base.act4.start;
+  const stagger     = baseDur2 > 0 ? (base.act2.stagger     / baseDur2) * durs[1] : base.act2.stagger;
+  const stepStagger = baseDur4 > 0 ? (base.act4.stepStagger / baseDur4) * durs[3] : base.act4.stepStagger;
+
+  // closingStart proportional within act5
+  const act5Dur    = durs[4];
+  const act5Start  = starts[4];
+  const baseAct5Dur = base.act5.end - base.act5.start;
+  const closingRatio = baseAct5Dur > 0
+    ? (base.act5.closingStart - base.act5.start) / baseAct5Dur
+    : 0.5;
+  const closingStart = parseFloat((act5Start + closingRatio * act5Dur).toFixed(3));
+
+  return {
+    act1: { start: starts[0], end: parseFloat((starts[0] + durs[0]).toFixed(3)) },
+    act2: { start: starts[1], end: parseFloat((starts[1] + durs[1]).toFixed(3)), stagger },
+    act3: { start: starts[2], end: parseFloat((starts[2] + durs[2]).toFixed(3)) },
+    act4: { start: starts[3], end: parseFloat((starts[3] + durs[3]).toFixed(3)), stepStagger },
+    act5: { start: starts[4], end: duration, closingStart },
+  };
+}
+
+// ── Color override resolver ───────────────────────────────────────────────────
+
+function resolveColors(
+  base: PaletteSpec,
+  overrides: VideoBrief["colorOverrides"],
+): PaletteSpec {
+  if (!overrides) return base;
+  return {
+    ...base,
+    ...(overrides.accent1 && {
+      accent1: overrides.accent1,
+      accent1Glow: overrides.accent1,
+      glow: overrides.accent1,
+    }),
+    ...(overrides.accent2 && {
+      accent2: overrides.accent2,
+      accent2Glow: overrides.accent2,
+    }),
+    ...(overrides.surface && { surface: overrides.surface }),
+  };
+}
+
+// ── Title size resolver ───────────────────────────────────────────────────────
+
+function resolveTitleFontSize(size: VideoBrief["titleSize"]): number {
+  switch (size) {
+    case "small":  return 56;
+    case "medium": return 72;
+    case "hero":   return 108;
+    case "large":
+    default:       return 88;
+  }
+}
+
+// ── Particle intensity scaler ─────────────────────────────────────────────────
+
+function scaleParticles(base: number, intensity: number | undefined): number {
+  if (intensity === undefined) return base;
+  return Math.round(base * intensity);
+}
+
 /** Spatial constants for each variant. */
 interface ColumnGeometry {
   CL: number;   // left column x
@@ -346,7 +477,16 @@ function buildTwoColumn(
   const ev: TimelineEvent[] = [];
   const { act1, act2, act3, act4, act5 } = t;
   const glow = gb(s);
-  const ease = s.easing;
+
+  // Per-act easing: brief can override each act independently
+  const easeDefault = s.easing;
+  const easings = {
+    title:   brief.actEasings?.title   ?? easeDefault,
+    stacks:  brief.actEasings?.stacks  ?? easeDefault,
+    flow:    brief.actEasings?.flow    ?? easeDefault,
+    closing: brief.actEasings?.closing ?? easeDefault,
+  };
+  const ease = easeDefault; // shorthand for structural elements
   const end  = dur - 0.1;
 
   const leftRows  = brief.leftRows  ?? ["Layer 1", "Layer 2"];
@@ -354,6 +494,11 @@ function buildTwoColumn(
   const flow = brief.flow ?? false;
   const flowStyle = brief.flowStyle ?? "arc";
   const annotations = brief.annotations ?? [];
+  const deco = brief.decorations ?? {};
+
+  // Emphasis indices — which row gets bold border + accent color + glow
+  const emphL = brief.emphasizeLeft  ?? 0;
+  const emphR = brief.emphasizeRight ?? 0;
 
   const lCount = leftRows.length;
   const rCount = rightRows.length;
@@ -366,8 +511,8 @@ function buildTwoColumn(
   const titleSeed = seededHash(brief.title);
   const rng = mulberry32(titleSeed);
 
-  // Layout variant
-  const variant = pickVariant(brief.title);
+  // Layout variant — AI-first, fallback to seeded hash
+  const variant = (brief.variant ?? pickVariant(brief.title)) as "standard" | "diagonal" | "asymmetric";
   const geo = getColumnGeometry(variant);
   const {
     CL, SW_L, SL, SW_R,
@@ -375,7 +520,9 @@ function buildTwoColumn(
   } = geo;
 
   // Y of the packet arc midpoint (centre of top row on each side)
-  const reqY = rowTop(0, rRH, rightOffsetY) + rRH / 2;
+  const reqY_L = rowTop(0, lRH) + lRH / 2;
+  const reqY_R = rowTop(0, rRH, rightOffsetY) + rRH / 2;
+  const reqY = (reqY_L + reqY_R) / 2;
 
   const lBottom = rowTop(lCount - 1, lRH) + lRH;
   const rBottom = rowTop(rCount - 1, rRH, rightOffsetY) + rRH;
@@ -391,15 +538,21 @@ function buildTwoColumn(
 
   // ── ACT 1: Title card ────────────────────────────────────────────────────
 
+  const titleFS   = resolveTitleFontSize(brief.titleSize);
+  const titleLH   = Math.round(titleFS * 1.15);
+  const titleAlign = brief.titleAlign ?? "left";
+  const titleX    = titleAlign === "center" ? W / 2 - 400 : GAP_CX - 400;
+  const titleMaxW = 850;
+
   ev.push({
     id: "title", type: "text",
     start: act1.start, end: act1.end, layer: 5,
     text: brief.title,
-    x: GAP_CX - 400, y: 380, maxWidth: 850,
-    color: p.text, fontSize: 88, fontWeight: 800, lineHeight: 100,
+    x: titleX, y: 380, maxWidth: titleMaxW,
+    color: p.text, fontSize: titleFS, fontWeight: 800, lineHeight: titleLH,
     shadow: glow > 0 ? { color: p.glow, blur: glow * 2 } : undefined,
-    opacity: { from: 0, to: 1, easing: ease },
-    translateY: { from: 30, to: 0, easing: ease },
+    opacity: { from: 0, to: 1, easing: easings.title },
+    translateY: { from: 30, to: 0, easing: easings.title },
   });
 
   if (brief.subtitle) {
@@ -408,21 +561,23 @@ function buildTwoColumn(
       start: ce(act1.start + lerp(0, act1.end - act1.start, 0.4), dur),
       end: act1.end, layer: 5,
       text: brief.subtitle,
-      x: GAP_CX - 370, y: 498, maxWidth: 800,
+      x: GAP_CX - 370, y: titleFS > 88 ? 520 : 498, maxWidth: 800,
       color: p.muted, fontSize: 28, fontWeight: 400,
-      opacity: { from: 0, to: 1, easing: ease },
+      opacity: { from: 0, to: 1, easing: easings.title },
     });
   }
 
-  // Deco baseline
-  ev.push({
-    id: "deco-line", type: "shape", shapeType: "line",
-    start: act1.start + 0.3, end: ce(act5.end, dur), layer: 1,
-    x1: 100, y1: decoY, x2: W - 100, y2: decoY,
-    stroke: p.accent1Glow, lineWidth: s.strokeWeight,
-    lineDash: [14, 10], arrowStart: true, arrowEnd: true, arrowSize: 10,
-    opacity: { from: 0, to: 0.7, easing: ease },
-  });
+  // Deco baseline (AI-toggleable)
+  if (deco.decoBaseline !== false) {
+    ev.push({
+      id: "deco-line", type: "shape", shapeType: "line",
+      start: act1.start + 0.3, end: ce(act5.end, dur), layer: 1,
+      x1: 100, y1: decoY, x2: W - 100, y2: decoY,
+      stroke: p.accent1Glow, lineWidth: s.strokeWeight,
+      lineDash: [14, 10], arrowStart: true, arrowEnd: true, arrowSize: 10,
+      opacity: { from: 0, to: 0.7, easing: ease },
+    });
+  }
 
   // ── ACT 2: Stacks appear ─────────────────────────────────────────────────
 
@@ -433,14 +588,14 @@ function buildTwoColumn(
     text: brief.leftHeader ?? "LEFT",
     x: CL, y: HEADER_Y - 10, maxWidth: SW_L,
     color: p.text, fontSize: 16, fontWeight: 900,
-    opacity: { from: 0, to: 1, easing: ease },
+    opacity: { from: 0, to: 1, easing: easings.stacks },
   });
   ev.push({
     id: "left-header-line", type: "shape", shapeType: "line",
     start: act2.start + 0.1, end: end, layer: 1,
     x1: CL, y1: HEADER_Y + 14, x2: CL + SW_L, y2: HEADER_Y + 14,
     stroke: p.text, lineWidth: s.strokeWeight,
-    opacity: { from: 0, to: 1, easing: ease },
+    opacity: { from: 0, to: 1, easing: easings.stacks },
   });
 
   // Right column header + underline
@@ -494,12 +649,14 @@ function buildTwoColumn(
   );
 
   // Left rows
+  const entryL = resolveEntryAnimation(brief.entryAnimation, easings.stacks);
   leftRows.forEach((label, i) => {
     const delay = i * act2.stagger;
     const ry = rowTop(i, lRH);
     const ly = labelY(ry, lRH, lFS);
     const rStart = ce(act2.start + 0.2 + delay, dur);
     const lStart = ce(act2.start + 0.4 + delay, dur);
+    const isEmph = emphL >= 0 && i === emphL;
 
     // Row rect
     ev.push({
@@ -508,14 +665,14 @@ function buildTwoColumn(
       x: CL, y: ry, width: SW_L, height: lRH,
       radius: s.radius,
       fill: p.surface,
-      stroke: i === 0 ? p.text : p.muted,
-      strokeWidth: i === 0 ? s.strokeWeight * 1.5 : s.strokeWeight,
-      opacity: { from: 0, to: 1, easing: ease },
-      translateY: { from: 40, to: 0, easing: ease },
+      stroke: isEmph ? p.text : p.muted,
+      strokeWidth: isEmph ? s.strokeWeight * 1.5 : s.strokeWeight,
+      opacity: { from: 0, to: 1, easing: easings.stacks },
+      ...entryL,
     });
 
-    // Icon (left of text)
-    const iconName = pickIconForLabel(label, titleSeed + i);
+    // Icon — AI-explicit or keyword-matched
+    const iconName = brief.leftIcons?.[i] ?? pickIconForLabel(label, titleSeed + i);
     const iconX = CL + PAD + iconSz / 2;
     const iconCY = ry + lRH / 2;
     ev.push({
@@ -523,22 +680,22 @@ function buildTwoColumn(
       start: lStart, end, layer: 4,
       iconName,
       cx: iconX, cy: iconCY, size: iconSz,
-      color: i === 0 ? p.accent1 : withAlpha(p.muted, 0.7),
-      shadow: glow > 0 && i === 0 ? { color: p.accent1Glow, blur: Math.round(glow * 0.6) } : undefined,
-      opacity: { from: 0, to: 1, easing: ease },
+      color: isEmph ? p.accent1 : withAlpha(p.muted, 0.7),
+      shadow: glow > 0 && isEmph ? { color: p.accent1Glow, blur: Math.round(glow * 0.6) } : undefined,
+      opacity: { from: 0, to: 1, easing: easings.stacks },
       scale: { from: 0.5, to: 1, easing: "bounce" },
     });
 
-    // Label (offset right to make room for icon)
+    // Label
     const textX = CL + PAD + iconSz + 12;
     ev.push({
       id: `left-label-${i}`, type: "text",
       start: lStart, end, layer: 4,
       text: label,
       x: textX, y: ly, maxWidth: SW_L - (textX - CL) - PAD,
-      color: i === 0 ? p.text : p.muted,
-      fontSize: lFS, fontWeight: i === 0 ? 900 : 700,
-      opacity: { from: 0, to: 1, easing: ease },
+      color: isEmph ? p.text : p.muted,
+      fontSize: lFS, fontWeight: isEmph ? 900 : 700,
+      opacity: { from: 0, to: 1, easing: easings.stacks },
     });
 
     // Connector between rows
@@ -557,12 +714,14 @@ function buildTwoColumn(
   });
 
   // Right rows
+  const entryR = resolveEntryAnimation(brief.entryAnimation, easings.stacks);
   rightRows.forEach((label, j) => {
     const delay = j * act2.stagger;
     const ry = rowTop(j, rRH, rightOffsetY);
     const ly = labelY(ry, rRH, rFS);
     const rStart = ce(act2.start + 0.3 + delay, dur);
     const lStart = ce(act2.start + 0.5 + delay, dur);
+    const isEmph = emphR >= 0 && j === emphR;
 
     ev.push({
       id: `right-rect-${j}`, type: "shape", shapeType: "rect",
@@ -570,14 +729,14 @@ function buildTwoColumn(
       x: SL, y: ry, width: SW_R, height: rRH,
       radius: s.radius,
       fill: p.surface,
-      stroke: j === 0 ? p.text : p.muted,
-      strokeWidth: j === 0 ? s.strokeWeight * 1.5 : s.strokeWeight,
-      opacity: { from: 0, to: 1, easing: ease },
-      translateY: { from: 40, to: 0, easing: ease },
+      stroke: isEmph ? p.text : p.muted,
+      strokeWidth: isEmph ? s.strokeWeight * 1.5 : s.strokeWeight,
+      opacity: { from: 0, to: 1, easing: easings.stacks },
+      ...entryR,
     });
 
-    // Icon
-    const iconName = pickIconForLabel(label, titleSeed + 100 + j);
+    // Icon — AI-explicit or keyword-matched
+    const iconName = brief.rightIcons?.[j] ?? pickIconForLabel(label, titleSeed + 100 + j);
     const iconSzR = Math.min(rRH * 0.55, 48);
     const iconX = SL + PAD + iconSzR / 2;
     const iconCY = ry + rRH / 2;
@@ -586,9 +745,9 @@ function buildTwoColumn(
       start: lStart, end, layer: 4,
       iconName,
       cx: iconX, cy: iconCY, size: iconSzR,
-      color: j === 0 ? p.accent2 : withAlpha(p.muted, 0.7),
-      shadow: glow > 0 && j === 0 ? { color: p.accent2Glow, blur: Math.round(glow * 0.6) } : undefined,
-      opacity: { from: 0, to: 1, easing: ease },
+      color: isEmph ? p.accent2 : withAlpha(p.muted, 0.7),
+      shadow: glow > 0 && isEmph ? { color: p.accent2Glow, blur: Math.round(glow * 0.6) } : undefined,
+      opacity: { from: 0, to: 1, easing: easings.stacks },
       scale: { from: 0.5, to: 1, easing: "bounce" },
     });
 
@@ -598,10 +757,10 @@ function buildTwoColumn(
       id: `right-label-${j}`, type: "text",
       start: lStart, end, layer: 4,
       text: label,
-      x: textXR, y: ly, maxWidth: SW_R - (textXR - SL) - PAD,
-      color: j === 0 ? p.text : p.muted,
-      fontSize: rFS, fontWeight: j === 0 ? 900 : 700,
-      opacity: { from: 0, to: 1, easing: ease },
+      x: textXR, y: ly, maxWidth: flow ? (SL + SW_R - 230) - textXR : SW_R - (textXR - SL) - PAD,
+      color: isEmph ? p.text : p.muted,
+      fontSize: rFS, fontWeight: isEmph ? 900 : 700,
+      opacity: { from: 0, to: 1, easing: easings.stacks },
     });
 
     if (j < rCount - 1) {
@@ -618,20 +777,22 @@ function buildTwoColumn(
     }
   });
 
-  // Gap centre divider
+  // Gap centre divider (AI-toggleable)
   const gapDivStart = ce(
     act2.start + act2.stagger * Math.max(lCount, rCount) + 0.5,
     dur,
   );
-  ev.push({
-    id: "gap-divider", type: "shape", shapeType: "line",
-    start: gapDivStart, end, layer: 1,
-    x1: GAP_CX, y1: ROW_START_Y - 30,
-    x2: GAP_CX, y2: stackBottom + 30,
-    stroke: p.muted, lineWidth: s.strokeWeight * 0.5,
-    lineDash: [8, 6],
-    opacity: { from: 0, to: flow ? 0.3 : 0.5, easing: ease },
-  });
+  if (deco.gapDivider !== false) {
+    ev.push({
+      id: "gap-divider", type: "shape", shapeType: "line",
+      start: gapDivStart, end, layer: 1,
+      x1: GAP_CX, y1: ROW_START_Y - 30,
+      x2: GAP_CX, y2: stackBottom + 30,
+      stroke: p.muted, lineWidth: s.strokeWeight * 0.5,
+      lineDash: [8, 6],
+      opacity: { from: 0, to: flow ? 0.3 : 0.5, easing: ease },
+    });
+  }
 
   // Floating annotation badges in gap
   if (annotations.length > 0) {
@@ -665,7 +826,7 @@ function buildTwoColumn(
     let reqPath: { points: { x: number; y: number }[]; easing: EasingName };
     if (flowStyle === "straight") {
       reqPath = {
-        points: [{ x: GAP_L, y: reqY }, { x: GAP_R, y: reqY + rightOffsetY }],
+        points: [{ x: GAP_L, y: reqY_L }, { x: GAP_R, y: reqY_R }],
         easing: "easeInOut",
       };
     } else if (flowStyle === "zigzag") {
@@ -673,10 +834,10 @@ function buildTwoColumn(
       const zigY = reqY + 60;
       reqPath = {
         points: [
-          { x: GAP_L,  y: reqY },
+          { x: GAP_L,  y: reqY_L },
           { x: midX - 80, y: zigY },
           { x: midX + 80, y: reqY - 40 },
-          { x: GAP_R,  y: reqY + rightOffsetY },
+          { x: GAP_R,  y: reqY_R },
         ],
         easing: "linear",
       };
@@ -684,9 +845,9 @@ function buildTwoColumn(
       // arc (default)
       reqPath = {
         points: [
-          { x: GAP_L,  y: reqY },
-          { x: GAP_CX, y: ROW_START_Y - 40 },
-          { x: GAP_R,  y: reqY + rightOffsetY },
+          { x: GAP_L,  y: reqY_L },
+          { x: GAP_CX, y: Math.min(reqY_L, reqY_R) - 40 },
+          { x: GAP_R,  y: reqY_R },
         ],
         easing: "easeInOut",
       };
@@ -703,33 +864,35 @@ function buildTwoColumn(
       scale: { from: 0.5, to: 1.2, easing: "easeInOut" },
     });
 
-    // Pulse rings at departure
-    injectPulseRings(ev, "req", GAP_L, reqY, p.accent1Glow, Math.round(glow * 0.7), pktStart, pktEnd - pktStart);
+    // Pulse rings at departure (AI-toggleable)
+    if (deco.pulseRings !== false) {
+      injectPulseRings(ev, "req", GAP_L, reqY_L, p.accent1Glow, Math.round(glow * 0.7), pktStart, pktEnd - pktStart);
+    }
 
     // Data trail particles along the packet path
     if (pktEnd > pktStart) {
       ev.push({
         id: "req-trail", type: "particle",
         start: pktStart, end: ce(pktEnd - 0.1, dur), layer: 2,
-        count: 18, seed: 555 + Math.round(rng() * 100),
+        count: scaleParticles(18, brief.particleIntensity), seed: 555 + Math.round(rng() * 100),
         origin: { x: GAP_CX, y: reqY },
         spread: { x: 120, y: 30 }, drift: { x: 40, y: -10 },
         particleRadius: { min: 1.5, max: 3.5 },
         color: p.accent1Glow,
         particleOpacity: { min: 0.2, max: 0.65 },
-        opacity: { from: 0, to: 1, easing: ease },
+        opacity: { from: 0, to: 1, easing: easings.flow },
       });
 
       ev.push({
         id: "req-burst", type: "particle",
         start: pktStart, end: ce(pktEnd - 0.2, dur), layer: 3,
-        count: 25, seed: 101,
-        origin: { x: GAP_L, y: reqY },
+        count: scaleParticles(25, brief.particleIntensity), seed: 101,
+        origin: { x: GAP_L, y: reqY_L },
         spread: { x: 40, y: 35 }, drift: { x: 50, y: -20 },
         particleRadius: { min: 2, max: 5 },
         color: p.accent1Glow,
         particleOpacity: { min: 0.4, max: 0.85 },
-        opacity: { from: 0, to: 1, easing: ease },
+        opacity: { from: 0, to: 1, easing: easings.flow },
       });
     }
 
@@ -803,7 +966,7 @@ function buildTwoColumn(
       // Progress bar in the row
       injectStepProgressBar(
         ev, `step-progress-${k}`,
-        SL, sRY, SW_R - iconSzR - PAD, rRH,
+        SL, sRY, SW_R, rRH,
         p.accent2, withAlpha(p.accent2, 0.15),
         stStart, stEnd, ease,
       );
@@ -835,7 +998,7 @@ function buildTwoColumn(
       ev.push({
         id: "db-burst", type: "particle",
         start: dbStart, end: act4.end, layer: 3,
-        count: 20, seed: 202,
+        count: scaleParticles(20, brief.particleIntensity), seed: 202,
         origin: { x: SL + SW_R / 2, y: rowTop(rCount - 1, rRH, rightOffsetY) + rRH / 2 },
         spread: { x: 70, y: 40 }, drift: { x: 5, y: -15 },
         particleRadius: { min: 2, max: 5 },
@@ -874,7 +1037,7 @@ function buildTwoColumn(
       let resPath: { points: { x: number; y: number }[]; easing: EasingName };
       if (flowStyle === "straight") {
         resPath = {
-          points: [{ x: GAP_R, y: reqY + rightOffsetY }, { x: GAP_L, y: reqY }],
+          points: [{ x: GAP_R, y: reqY_R }, { x: GAP_L, y: reqY_L }],
           easing: "easeInOut",
         };
       } else if (flowStyle === "zigzag") {
@@ -882,19 +1045,19 @@ function buildTwoColumn(
         const zigY = reqY + 60;
         resPath = {
           points: [
-            { x: GAP_R,  y: reqY + rightOffsetY },
+            { x: GAP_R,  y: reqY_R },
             { x: midX + 80, y: zigY },
             { x: midX - 80, y: reqY - 40 },
-            { x: GAP_L,  y: reqY },
+            { x: GAP_L,  y: reqY_L },
           ],
           easing: "linear",
         };
       } else {
         resPath = {
           points: [
-            { x: GAP_R,  y: reqY + rightOffsetY },
-            { x: GAP_CX, y: ROW_START_Y - 40 },
-            { x: GAP_L,  y: reqY },
+            { x: GAP_R,  y: reqY_R },
+            { x: GAP_CX, y: Math.min(reqY_L, reqY_R) - 40 },
+            { x: GAP_L,  y: reqY_L },
           ],
           easing: "easeInOut",
         };
@@ -911,8 +1074,10 @@ function buildTwoColumn(
         scale: { from: 0.5, to: 1.2, easing: "easeInOut" },
       });
 
-      // Pulse rings on response arrival
-      injectPulseRings(ev, "res", GAP_L, reqY, p.accent2Glow, Math.round(glow * 0.7), resPktEnd, 0.8);
+      // Pulse rings on response arrival (AI-toggleable)
+      if (deco.pulseRings !== false) {
+        injectPulseRings(ev, "res", GAP_L, reqY_L, p.accent2Glow, Math.round(glow * 0.7), resPktEnd, 0.8);
+      }
     }
 
     // Roundtrip overlay
@@ -957,31 +1122,38 @@ function buildTwoColumn(
   // ── ACT 5: Outro ────────────────────────────────────────────────────────
 
   const cs = act5.closingStart;
+  const closingStyle = brief.closingStyle ?? "fade-up";
 
-  ev.push({
-    id: "outro-separator", type: "shape", shapeType: "line",
-    start: cs, end: dur, layer: 4,
-    x1: 100, y1: outroY, x2: W - 100, y2: outroY,
-    stroke: p.accent1, lineWidth: s.strokeWeight * 1.2,
-    opacity: closingOpacity(cs, dur),
-  });
+  if (closingStyle !== "none") {
+    ev.push({
+      id: "outro-separator", type: "shape", shapeType: "line",
+      start: cs, end: dur, layer: 4,
+      x1: 100, y1: outroY, x2: W - 100, y2: outroY,
+      stroke: p.accent1, lineWidth: s.strokeWeight * 1.2,
+      opacity: closingOpacity(cs, dur),
+    });
 
-  ev.push({
-    id: "closing-line", type: "text",
-    start: cs, end: dur, layer: 5,
-    text: brief.closingLine ?? "Built for the web.",
-    x: 240, y: closingY, maxWidth: 1440,
-    color: p.text, fontSize: 48, fontWeight: 700,
-    shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 1.5) } : undefined,
-    opacity: closingOpacity(cs, dur),
-    translateY: { from: 20, to: 0, easing: ease },
-  });
+    const closingX = closingStyle === "fade-center" ? W / 2 : 240;
+    ev.push({
+      id: "closing-line", type: "text",
+      start: cs, end: dur, layer: 5,
+      text: brief.closingLine ?? "Built for the web.",
+      x: closingX, y: closingY, maxWidth: 1440,
+      color: p.text, fontSize: 48, fontWeight: 700,
+      shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 1.5) } : undefined,
+      opacity: closingOpacity(cs, dur),
+      ...(closingStyle === "fade-center" && { align: "center" as CanvasTextAlign }),
+      ...(closingStyle === "fade-up" && {
+        translateY: { from: 20, to: 0, easing: easings.closing },
+      }),
+    });
+  }
 
-  if (s.particleDensity > 0) {
+  if (scaleParticles(Math.round(s.particleDensity * 0.85), brief.particleIntensity) > 0) {
     ev.push({
       id: "celebration-burst", type: "particle",
       start: ce(cs + 0.2, dur), end: dur, layer: 3,
-      count: Math.round(s.particleDensity * 0.85), seed: 303,
+      count: scaleParticles(Math.round(s.particleDensity * 0.85), brief.particleIntensity), seed: 303,
       origin: { x: W / 2, y: burstY },
       spread: { x: 450, y: 100 }, drift: { x: 3, y: -15 },
       particleRadius: { min: 2.5, max: 6 },
@@ -1009,8 +1181,16 @@ function buildSingleColumn(
   const ev: TimelineEvent[] = [];
   const { act1, act2, act5 } = t;
   const glow = gb(s);
-  const ease = s.easing;
+  const easeDefault = s.easing;
+  const easings = {
+    title:   brief.actEasings?.title   ?? easeDefault,
+    stacks:  brief.actEasings?.stacks  ?? easeDefault,
+    closing: brief.actEasings?.closing ?? easeDefault,
+  };
+  const ease = easeDefault;
   const cs   = act5.closingStart;
+  const blockStyle = brief.blockStyle ?? "stacked";
+  const closingStyle = brief.closingStyle ?? "fade-up";
 
   const blocks = brief.blocks ?? [
     { heading: "Key Point",  description: "An important insight." },
@@ -1022,9 +1202,13 @@ function buildSingleColumn(
   const maxSpacing  = 200;
   const spacing     = n <= 1 ? maxSpacing : Math.min(maxSpacing, 500 / (n - 1));
 
-  const titleSeed = seededHash(brief.title);
+  const titleSeed  = seededHash(brief.title);
+  const titleFS    = resolveTitleFontSize(brief.titleSize);
+  const titleLH    = Math.round(titleFS * 1.15);
+  const titleX     = brief.titleAlign === "center" ? W / 2 - 720 : 160;
+  const entryBlk   = resolveEntryAnimation(brief.entryAnimation, easings.stacks);
 
-  // ── ACT 1: Title ─────────────────────────────────────────────────────────
+  // ── ACT 1: Title ──────────────────────────────────────────────────────────────────
 
   ev.push({
     id: "title", type: "text",
@@ -1032,11 +1216,11 @@ function buildSingleColumn(
     end: ce(act2.start + Math.min(0.5, (act2.end - act2.start) * 0.2), dur),
     layer: 5,
     text: brief.title,
-    x: 160, y: 270, maxWidth: 1600,
-    color: p.text, fontSize: 88, fontWeight: 800, lineHeight: 100,
+    x: titleX, y: 270, maxWidth: 1600,
+    color: p.text, fontSize: titleFS, fontWeight: 800, lineHeight: titleLH,
     shadow: glow > 0 ? { color: p.glow, blur: glow * 2 } : undefined,
-    opacity: { from: 0, to: 1, easing: ease },
-    translateY: { from: 30, to: 0, easing: ease },
+    opacity: { from: 0, to: 1, easing: easings.title },
+    translateY: { from: 30, to: 0, easing: easings.title },
   });
 
   if (brief.subtitle) {
@@ -1045,13 +1229,13 @@ function buildSingleColumn(
       start: ce(act1.start + lerp(0, act1.end - act1.start, 0.4), dur),
       end: act2.start, layer: 5,
       text: brief.subtitle,
-      x: 160, y: 380, maxWidth: 1200,
+      x: 160, y: titleFS > 88 ? 400 : 380, maxWidth: 1200,
       color: p.muted, fontSize: 32, fontWeight: 400,
-      opacity: { from: 0, to: 1, easing: ease },
+      opacity: { from: 0, to: 1, easing: easings.title },
     });
   }
 
-  // ── ACT 2+: Content blocks ────────────────────────────────────────────────
+  // ── ACT 2+: Content blocks ────────────────────────────────────────────────────────
 
   blocks.forEach((block, i) => {
     const blkStart = ce(act2.start + i * (act2.stagger + 0.3), dur);
@@ -1060,58 +1244,115 @@ function buildSingleColumn(
 
     const by = blockStartY + i * spacing;
 
-    // Icon left of heading
-    const iconName = pickIconForLabel(block.heading, titleSeed + i * 7);
+    // Timeline dot (blockStyle = "timeline")
+    if (blockStyle === "timeline") {
+      ev.push({
+        id: `timeline-dot-${i}`, type: "shape", shapeType: "circle",
+        start: blkStart, end: blkEnd, layer: 3,
+        x: 90, y: by + 22, radius: 8,
+        fill: p.accent1,
+        shadow: glow > 0 ? { color: p.accent1Glow, blur: Math.round(glow * 0.5) } : undefined,
+        opacity: { from: 0, to: 1, easing: ease },
+        scale: { from: 0, to: 1, easing: "bounce" },
+      });
+      if (i < n - 1) {
+        ev.push({
+          id: `timeline-line-${i}`, type: "shape", shapeType: "line",
+          start: ce(blkStart + 0.3, dur), end: blkEnd, layer: 2,
+          x1: 90, y1: by + 30, x2: 90, y2: by + spacing,
+          stroke: withAlpha(p.accent1, 0.35), lineWidth: s.strokeWeight,
+          lineDash: s.lineDash ?? [4, 4],
+          opacity: { from: 0, to: 1, easing: ease },
+        });
+      }
+    }
+
+    // Card background (blockStyle = "cards")
+    if (blockStyle === "cards") {
+      ev.push({
+        id: `card-bg-${i}`, type: "shape", shapeType: "rect",
+        start: blkStart, end: blkEnd, layer: 1,
+        x: 100, y: by - 20, width: W - 200, height: spacing > 0 ? spacing - 10 : 170,
+        radius: s.radius,
+        fill: p.surface,
+        stroke: p.muted, strokeWidth: s.strokeWeight * 0.8,
+        opacity: { from: 0, to: 1, easing: ease },
+        ...entryBlk,
+      });
+    }
+
+    // Number prefix (blockStyle = "numbered")
+    if (blockStyle === "numbered") {
+      ev.push({
+        id: `block-num-${i}`, type: "text",
+        start: blkStart, end: blkEnd, layer: 4,
+        text: String(i + 1).padStart(2, "0"),
+        x: 100, y: by, maxWidth: 60,
+        color: withAlpha(p.accent1, 0.5), fontSize: 60, fontWeight: 900,
+        opacity: { from: 0, to: 1, easing: ease },
+      });
+    }
+
+    // Icon — AI-explicit or keyword-matched (offset for numbered / timeline styles)
+    const iconLeft = blockStyle === "numbered" ? 185 : blockStyle === "timeline" ? 130 : 120;
+    const iconName = brief.blockIcons?.[i] ?? block.icon ?? pickIconForLabel(block.heading, titleSeed + i * 7);
     ev.push({
       id: `block-icon-${i}`, type: "shape", shapeType: "icon",
       start: blkStart, end: blkEnd, layer: 4,
       iconName,
-      cx: 120, cy: by + 22, size: 44,
+      cx: iconLeft, cy: by + 22, size: 44,
       color: p.accent1,
       shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 0.4) } : undefined,
       opacity: { from: 0, to: 1, easing: ease },
       scale: { from: 0.4, to: 1, easing: "bounce" },
     });
 
+    const textLeft = iconLeft + 48;
     ev.push({
       id: `block-heading-${i}`, type: "text",
       start: blkStart, end: blkEnd, layer: 4,
       text: block.heading,
-      x: 165, y: by, maxWidth: 1600,
+      x: textLeft, y: by, maxWidth: W - textLeft - 100,
       color: p.text, fontSize: 44, fontWeight: 700,
       shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 0.3) } : undefined,
-      opacity: { from: 0, to: 1, easing: ease },
-      translateY: { from: 24, to: 0, easing: ease },
+      opacity: { from: 0, to: 1, easing: easings.stacks },
+      ...entryBlk,
     });
     ev.push({
       id: `block-desc-${i}`, type: "text",
       start: ce(blkStart + 0.2, dur), end: blkEnd, layer: 4,
       text: block.description,
-      x: 165, y: by + 60, maxWidth: 1400,
+      x: textLeft, y: by + 60, maxWidth: W - textLeft - 120,
       color: p.muted, fontSize: 28, fontWeight: 400, lineHeight: 42,
-      opacity: { from: 0, to: 1, easing: ease },
-      translateY: { from: 16, to: 0, easing: ease },
+      opacity: { from: 0, to: 1, easing: easings.stacks },
+      ...entryBlk,
     });
   });
 
-  // ── ACT 5: Outro ─────────────────────────────────────────────────────────
+  // ── ACT 5: Outro ─────────────────────────────────────────────────────────────────
 
-  ev.push({
-    id: "closing-line", type: "text",
-    start: cs, end: dur, layer: 5,
-    text: brief.closingLine ?? "Built for the web.",
-    x: 160, y: 900, maxWidth: 1600,
-    color: p.text, fontSize: 48, fontWeight: 700,
-    shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 1.5) } : undefined,
-    opacity: closingOpacity(cs, dur),
-    translateY: { from: 20, to: 0, easing: ease },
-  });
+  if (closingStyle !== "none") {
+    const closingX = closingStyle === "fade-center" ? W / 2 : 160;
+    ev.push({
+      id: "closing-line", type: "text",
+      start: cs, end: dur, layer: 5,
+      text: brief.closingLine ?? "Built for the web.",
+      x: closingX, y: 900, maxWidth: 1600,
+      color: p.text, fontSize: 48, fontWeight: 700,
+      shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 1.5) } : undefined,
+      opacity: closingOpacity(cs, dur),
+      ...(closingStyle === "fade-center" && { align: "center" as CanvasTextAlign }),
+      ...(closingStyle === "fade-up" && {
+        translateY: { from: 20, to: 0, easing: easings.closing },
+      }),
+    });
+  }
 
-  if (s.particleDensity > 0) {
+  if (scaleParticles(Math.round(s.particleDensity * 0.85), brief.particleIntensity) > 0) {
     ev.push({
       id: "celebration-burst", type: "particle",
       start: ce(cs + 0.2, dur), end: dur, layer: 3,
-      count: Math.round(s.particleDensity * 0.85), seed: 404,
+      count: scaleParticles(Math.round(s.particleDensity * 0.85), brief.particleIntensity), seed: 404,
       origin: { x: W / 2, y: 950 },
       spread: { x: 500, y: 80 }, drift: { x: 3, y: -12 },
       particleRadius: { min: 2, max: 5 },
@@ -1124,25 +1365,78 @@ function buildSingleColumn(
   return ev;
 }
 
+// ── Brief hydration ───────────────────────────────────────────────────────────
+//
+// When the AI omits mandatory creative fields, fill them in deterministically
+// using the title hash so the same title always maps to the same defaults, but
+// different titles get different looks.
+
+const ENTRY_ANIMATIONS: NonNullable<VideoBrief["entryAnimation"]>[] = [
+  "slide-up", "slide-down", "slide-left", "slide-right",
+  "fade-only", "scale-up", "bounce-in",
+];
+const VARIANTS: NonNullable<VideoBrief["variant"]>[] = [
+  "standard", "diagonal", "asymmetric",
+];
+const TITLE_SIZES: NonNullable<VideoBrief["titleSize"]>[] = [
+  "large", "large", "hero", "medium", "large", "hero", "large",
+];
+const CLOSING_STYLES: NonNullable<VideoBrief["closingStyle"]>[] = [
+  "fade-up", "fade-up", "fade-center", "fade-up", "fade-up", "fade-center", "fade-up",
+];
+
+export function hydrateBrief(brief: VideoBrief): VideoBrief {
+  const h = seededHash(brief.title);
+  const rng = mulberry32(h);
+
+  // For each mandatory field: use AI value if present, otherwise pick deterministically
+  return {
+    ...brief,
+    entryAnimation: brief.entryAnimation
+      ?? ENTRY_ANIMATIONS[Math.floor(rng() * ENTRY_ANIMATIONS.length)],
+    variant: brief.variant
+      ?? VARIANTS[Math.floor(rng() * VARIANTS.length)],
+    // emphasize: pick semantically (first row for left, last for right as default variety)
+    emphasizeLeft: brief.emphasizeLeft !== undefined
+      ? brief.emphasizeLeft
+      : (Math.floor(rng() * 3) === 0 ? 1 : 0), // occasionally pick row 1
+    emphasizeRight: brief.emphasizeRight !== undefined
+      ? brief.emphasizeRight
+      : (Math.floor(rng() * 3) === 0 ? 1 : 0),
+    titleSize: brief.titleSize
+      ?? TITLE_SIZES[h % TITLE_SIZES.length],
+    particleIntensity: brief.particleIntensity !== undefined
+      ? brief.particleIntensity
+      : (1 + (h % 3) * 0.5), // 1.0, 1.5, or 2.0
+    closingStyle: brief.closingStyle
+      ?? CLOSING_STYLES[h % CLOSING_STYLES.length],
+  };
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 /**
  * Expand a `VideoBrief` into a complete, renderable `VideoProject`.
  *
- * All spatial coordinates, animation values, particle configs, and path
- * waypoints are computed here — never by the AI.
- *
- * Icons and layout sub-variants are selected deterministically by seeded
- * hash of the brief title — same title always produces the same visuals,
- * different titles produce different layouts and icon assignments.
+ * Design principle: the Brief Expander computes *where* (pixel coordinates)
+ * and *when* (absolute timestamps). All creative decisions — variant, icons,
+ * emphasis, entry animations, decorations, particle intensity, timing weights,
+ * closing style, per-act easings, color overrides — come from the AI via the
+ * VideoBrief schema. The expander never makes creative decisions autonomously.
  */
 export function buildProjectFromBrief(
-  brief: VideoBrief,
+  rawBrief: VideoBrief,
   duration: SupportedDuration,
 ): VideoProject {
-  const timing  = TIMINGS[duration];
-  const palette = PALETTES[brief.palette] ?? PALETTES[DEFAULT_PALETTE];
-  const style   = STYLES[brief.style]   ?? STYLES[DEFAULT_STYLE];
+  // Hydrate any mandatory creative fields the AI may have omitted
+  const brief = hydrateBrief(rawBrief);
+
+  const baseTiming = TIMINGS[duration];
+  const timing     = resolveActTimings(baseTiming, duration, brief.actWeights);
+  const basePalette = PALETTES[brief.palette] ?? PALETTES[DEFAULT_PALETTE];
+  const palette    = resolveColors(basePalette, brief.colorOverrides);
+  const style      = STYLES[brief.style] ?? STYLES[DEFAULT_STYLE];
+
 
   const background: TimelineEvent = {
     id: "bg", type: "background",
@@ -1155,11 +1449,12 @@ export function buildProjectFromBrief(
     },
   };
 
-  const ambient: TimelineEvent[] = style.particleDensity > 0
+  const ambientCount = scaleParticles(style.particleDensity, brief.particleIntensity);
+  const ambient: TimelineEvent[] = ambientCount > 0
     ? [{
         id: "ambient-particles", type: "particle",
         start: 0.2, end: duration, layer: 1,
-        count: style.particleDensity, seed: 42,
+        count: ambientCount, seed: 42,
         origin: { x: W / 2, y: H / 2 },
         spread: { x: W / 2 - 80, y: H / 2 - 80 },
         drift:  { x: 6, y: -2 },

@@ -17,7 +17,7 @@
 import { callOpenRouter }        from "@/lib/ai/openrouter";
 import { buildSystemPrompt, buildModifyPrompt } from "@/lib/ai/prompts";
 import { validateBrief }         from "@/lib/brief/validateBrief";
-import { buildProjectFromBrief } from "@/lib/brief/buildProjectFromBrief";
+import { buildProjectFromBrief, hydrateBrief } from "@/lib/brief/buildProjectFromBrief";
 import { validateProject, runQualityGate } from "@/lib/renderer";
 import type { QualityResult }    from "@/lib/renderer";
 import type { VideoBrief, SupportedDuration } from "@/lib/schemas/brief";
@@ -102,7 +102,7 @@ export async function runGeneratePipeline(
     return { project, brief, diagnostics: qualityDiagnostics(project, { llmError, rawBrief }) };
   }
 
-  const brief   = validateBrief(rawBrief);
+  const brief   = hydrateBrief(validateBrief(rawBrief));
   const project = buildProjectFromBrief(brief, duration);
   return { project, brief, diagnostics: qualityDiagnostics(project, { rawBrief }) };
 }
@@ -140,7 +140,7 @@ export async function runModifyPipeline(
     };
   }
 
-  const brief   = validateBrief(rawBrief);
+  const brief   = hydrateBrief(validateBrief(rawBrief));
   const project = buildProjectFromBrief(brief, duration);
   return { project, brief, diagnostics: qualityDiagnostics(project, { rawBrief }) };
 }

@@ -9,6 +9,7 @@ export type ChatMessage = {
   brief?: any;
   /** Quality gate result from the server pipeline, if present. */
   diagnostics?: QualityResult;
+  rawBrief?: any;
   isError?: boolean;
 };
 

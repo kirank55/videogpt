@@ -124,6 +124,7 @@ export const useStore = create<StoreState>((set, get) => ({
         project: data.project,
         brief: data.brief,
         diagnostics: data.diagnostics?.qualityResult,
+        rawBrief: data.diagnostics?.rawBrief,
       };
 
       set((state) => ({
@@ -207,6 +208,7 @@ export const useStore = create<StoreState>((set, get) => ({
         project: data.project,
         brief: data.brief,
         diagnostics: data.diagnostics?.qualityResult,
+        rawBrief: data.diagnostics?.rawBrief,
       };
 
       set((state) => ({
@@ -297,6 +299,7 @@ export const useStore = create<StoreState>((set, get) => ({
           project: data.project,
           brief: data.brief,
           diagnostics: data.diagnostics?.qualityResult,
+          rawBrief: data.diagnostics?.rawBrief,
         };
 
         set((state) => ({
@@ -361,6 +364,7 @@ export const useStore = create<StoreState>((set, get) => ({
           project: data.project,
           brief: data.brief,
           diagnostics: data.diagnostics?.qualityResult,
+          rawBrief: data.diagnostics?.rawBrief,
         };
 
         set((state) => ({

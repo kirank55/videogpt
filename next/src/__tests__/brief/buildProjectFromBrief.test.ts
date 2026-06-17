@@ -252,7 +252,10 @@ describe("buildProjectFromBrief", () => {
 
   it("neon-glow style produces ambient particles with high count", () => {
     const neonDensity = STYLES["neon-glow"].particleDensity;
-    const project = buildProjectFromBrief(twoColBrief({ style: "neon-glow" }), DUR);
+    const project = buildProjectFromBrief(
+      twoColBrief({ style: "neon-glow", particleIntensity: 1 }),
+      DUR,
+    );
     const ambient = project.events.find((e) => e.id === "ambient-particles");
     expect(ambient).toBeDefined();
     if (ambient?.type === "particle") {

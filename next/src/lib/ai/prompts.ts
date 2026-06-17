@@ -1,6 +1,6 @@
 // ── Prompt builders ───────────────────────────────────────────────────────────
 //
-// The AI produces a VideoBrief (~200 tokens).  It never touches coordinates,
+// The AI produces a VideoBrief (~350 tokens).  It never touches coordinates,
 // timing arithmetic, or particle counts — those are computed deterministically
 // by the Brief Expander (buildProjectFromBrief).
 //
@@ -12,77 +12,51 @@
 // src/lib/schemas/brief.ts.  When the schema changes, update both files.
 
 import type { SupportedDuration, VideoBrief } from "@/lib/schemas/brief";
-import { TIMINGS } from "@/lib/catalog/timings";
 
 // ── Two-column trigger keywords ───────────────────────────────────────────────
 //
 // If the user's prompt contains any of these (case-insensitive), the AI should
 // output layout = "two-column".  Otherwise, default to "single-column".
-//
-// This list is embedded verbatim in the system prompt so the model can apply it.
 
 const TWO_COLUMN_KEYWORDS = [
-  "vs",
-  "versus",
-  "client",
-  "server",
-  "frontend",
-  "backend",
-  "before",
-  "after",
-  "request",
-  "response",
-  "architecture",
-  "compare",
-  "comparison",
-  "difference",
-  "vs.",
-  "api",
-  "endpoint",
-  "database",
-  "microservice",
-  "service",
-  "producer",
-  "consumer",
-  "sender",
-  "receiver",
-  "push",
-  "pull",
-  "sync",
-  "async",
+  "vs", "versus", "client", "server", "frontend", "backend",
+  "before", "after", "request", "response", "architecture",
+  "compare", "comparison", "difference", "vs.", "api", "endpoint",
+  "database", "microservice", "service", "producer", "consumer",
+  "sender", "receiver", "push", "pull", "sync", "async",
 ] as const;
 
-// ── Palette + Style catalog summaries for the prompt ─────────────────────────
+// ── Palette + Style catalog summaries ─────────────────────────────────────────
 
 const PALETTE_CATALOG = `
 PALETTES (pick one name):
-  "midnight"  — deep navy/blue, blue+teal accents        [best for: tech, data, networking]
-  "neon"      — ultra-dark, cyan+pink neon accents        [best for: cyberpunk, AI, ML]
-  "aurora"    — dark blue, purple+teal accents            [best for: science, space, magic]
-  "ember"     — near-black, orange+red accents            [best for: performance, infra, ops]
-  "forest"    — near-black green, green+teal accents      [best for: environment, biology]
-  "slate"     — dark grey-blue, muted cool accents        [best for: enterprise, finance]
-  "paper"     — warm cream, rust+forest-green accents     [best for: explainers, education]
-  "ice"       — light blue-white, navy+sky accents        [best for: cloud, data, clean]
+  "midnight"  — deep navy/blue, blue+teal accents        [tech, data, networking]
+  "neon"      — ultra-dark, cyan+pink neon accents        [cyberpunk, AI, ML]
+  "aurora"    — dark blue, purple+teal accents            [science, space, magic]
+  "ember"     — near-black, orange+red accents            [performance, infra, ops]
+  "forest"    — near-black green, green+teal accents      [environment, biology]
+  "slate"     — dark grey-blue, muted cool accents        [enterprise, finance]
+  "paper"     — warm cream, rust+forest-green accents     [explainers, education]
+  "ice"       — light blue-white, navy+sky accents        [cloud, data, clean]
 `.trim();
 
 const STYLE_CATALOG = `
 STYLES (pick one name):
-  "modern"     — rounded, softly glowing, dense particles  [good default for almost anything]
-  "brutalist"  — sharp corners, no glow, no particles      [stark, data-center aesthetic]
+  "modern"     — rounded, softly glowing, dense particles  [good default]
+  "brutalist"  — sharp corners, no glow, no particles      [stark, data-center]
   "sketch"     — slightly rough, dashed connectors         [hand-drawn, educational]
   "neon-glow"  — heavy bloom, ultra-rounded, dense haze    [cyberpunk, AI, synthwave]
   "minimal"    — ultra-thin lines, barely-there glow       [clean, whitespace-focused]
 `.trim();
 
 const COMPATIBILITY_HINTS = `
-SOFT COMPATIBILITY GUIDANCE (not rules — trust your judgement):
-  neon palette → neon-glow or modern style works well
-  paper palette → sketch or minimal style works well
-  ember palette → brutalist or modern works well
-  midnight / aurora / slate → modern, minimal, or neon-glow all work
-  ice palette → minimal or modern preferred
-  Avoid: paper + neon-glow (clashing), neon + brutalist (contradictory)
+SOFT COMPATIBILITY GUIDANCE:
+  neon palette → neon-glow or modern style
+  paper palette → sketch or minimal style
+  ember palette → brutalist or modern
+  midnight / aurora / slate → modern, minimal, or neon-glow
+  ice palette → minimal or modern
+  Avoid: paper + neon-glow, neon + brutalist
 `.trim();
 
 // ── JSON Schema for VideoBrief (must match src/lib/schemas/brief.ts) ──────────
@@ -95,8 +69,7 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
     layout: {
       type: "string",
       enum: ["two-column", "single-column"],
-      description:
-        "two-column: for client/server, compare, architecture. single-column: default explainer/how-to.",
+      description: "two-column: client/server, compare, architecture. single-column: explainers, steps.",
     },
     title: { type: "string", minLength: 1, maxLength: 80 },
     subtitle: { type: "string", maxLength: 120 },
@@ -105,40 +78,15 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
     // Two-column fields
     leftHeader:  { type: "string", maxLength: 30 },
     rightHeader: { type: "string", maxLength: 30 },
-    leftRows: {
-      type: "array",
-      items: { type: "string", minLength: 1, maxLength: 40 },
-      minItems: 2, maxItems: 4,
-    },
-    rightRows: {
-      type: "array",
-      items: { type: "string", minLength: 1, maxLength: 40 },
-      minItems: 2, maxItems: 4,
-    },
-    flow: {
-      type: "boolean",
-      description:
-        "true = add animated request/response packet arc between stacks. Only meaningful for two-column.",
-    },
+    leftRows:  { type: "array", items: { type: "string", maxLength: 40 }, minItems: 2, maxItems: 4 },
+    rightRows: { type: "array", items: { type: "string", maxLength: 40 }, minItems: 2, maxItems: 4 },
+    flow: { type: "boolean" },
     requestLabel:  { type: "string", maxLength: 60 },
     requestBody:   { type: "string", maxLength: 80 },
     responseLabel: { type: "string", maxLength: 60 },
-    processingSteps: {
-      type: "array",
-      items: { type: "string", minLength: 1, maxLength: 50 },
-      maxItems: 3,
-    },
-    annotations: {
-      type: "array",
-      items: { type: "string", minLength: 1, maxLength: 30 },
-      maxItems: 3,
-      description: "Short protocol/tech callout labels shown in the gap (e.g. 'TLS 1.3', 'REST', 'JSON').",
-    },
-    flowStyle: {
-      type: "string",
-      enum: ["arc", "straight", "zigzag"],
-      description: "How the request/response packet travels. arc=curves overhead, straight=horizontal, zigzag=S-curve.",
-    },
+    processingSteps: { type: "array", items: { type: "string", maxLength: 50 }, maxItems: 3 },
+    annotations:    { type: "array", items: { type: "string", maxLength: 30 }, maxItems: 3 },
+    flowStyle: { type: "string", enum: ["arc", "straight", "zigzag"] },
 
     // Single-column fields
     blocks: {
@@ -148,8 +96,9 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
         required: ["heading", "description"],
         additionalProperties: false,
         properties: {
-          heading:     { type: "string", minLength: 1, maxLength: 60 },
-          description: { type: "string", minLength: 1, maxLength: 140 },
+          heading:     { type: "string", maxLength: 60 },
+          description: { type: "string", maxLength: 140 },
+          icon: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] },
         },
       },
       minItems: 2, maxItems: 5,
@@ -157,6 +106,51 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
 
     palette: { type: "string", enum: ["midnight","neon","aurora","ember","forest","slate","paper","ice"] },
     style:   { type: "string", enum: ["modern","brutalist","sketch","neon-glow","minimal"] },
+
+    // Creative fields
+    variant:        { type: "string", enum: ["standard","diagonal","asymmetric"] },
+    entryAnimation: { type: "string", enum: ["slide-up","slide-down","slide-left","slide-right","fade-only","scale-up","bounce-in"] },
+    emphasizeLeft:  { type: "number" },
+    emphasizeRight: { type: "number" },
+    leftIcons:  { type: "array", items: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] }, maxItems: 4 },
+    rightIcons: { type: "array", items: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] }, maxItems: 4 },
+    blockIcons: { type: "array", items: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] }, maxItems: 5 },
+    decorations: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        cornerBrackets: { type: "boolean" },
+        scanLines:      { type: "boolean" },
+        pulseRings:     { type: "boolean" },
+        gapDivider:     { type: "boolean" },
+        decoBaseline:   { type: "boolean" },
+      },
+    },
+    actWeights:        { type: "array", items: { type: "number" }, minItems: 5, maxItems: 5 },
+    titleSize:         { type: "string", enum: ["small","medium","large","hero"] },
+    titleAlign:        { type: "string", enum: ["left","center"] },
+    particleIntensity: { type: "number" },
+    closingStyle:      { type: "string", enum: ["fade-up","fade-center","none"] },
+    actEasings: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        title:   { type: "string", enum: ["linear","easeIn","easeOut","easeInOut","bounce"] },
+        stacks:  { type: "string", enum: ["linear","easeIn","easeOut","easeInOut","bounce"] },
+        flow:    { type: "string", enum: ["linear","easeIn","easeOut","easeInOut","bounce"] },
+        closing: { type: "string", enum: ["linear","easeIn","easeOut","easeInOut","bounce"] },
+      },
+    },
+    colorOverrides: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        accent1: { type: "string" },
+        accent2: { type: "string" },
+        surface: { type: "string" },
+      },
+    },
+    blockStyle: { type: "string", enum: ["stacked","cards","timeline","numbered"] },
   },
 };
 
@@ -166,71 +160,63 @@ export { VIDEO_BRIEF_JSON_SCHEMA };
 
 /**
  * Build the system prompt for a fresh video generation request.
- *
- * The prompt tells the model:
- *   1. Its role and what a VideoBrief is
- *   2. Layout selection rules (keyword-driven)
- *   3. What each field means and how to fill it
- *   4. The act timing table for the requested duration
- *   5. The palette / style catalogs + compatibility hints
- *   6. Hard constraints (token budget, no arithmetic, etc.)
+ * Kept compact (~2,500 tokens) to stay within OpenRouter budget.
  */
 export function buildSystemPrompt(duration: SupportedDuration): string {
-  const t = TIMINGS[duration];
   const kw = TWO_COLUMN_KEYWORDS.join(", ");
 
   return `
 You are a video-brief writer for an animated infographic generator.
-Your only job is to output a single JSON object called a "VideoBrief" — a compact description of what the video should show.
-You do NOT compute coordinates, animations, or timings. A deterministic code pipeline handles all of that.
+Output a single JSON VideoBrief object. No markdown, prose, or code fences.
+You never compute coordinates, timing, or animations — a deterministic pipeline handles those.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-VIDEO DURATION: ${duration} seconds
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VIDEO DURATION: ${duration}s
 
-ACT TIMING TABLE (for your reference only — never output timing values):
-  Act 1 (title card):     ${t.act1.start}s → ${t.act1.end}s
-  Act 2 (stacks/blocks):  ${t.act2.start}s → ${t.act2.end}s  stagger=${t.act2.stagger}s/item
-  Act 3 (request phase):  ${t.act3.start}s → ${t.act3.end}s  [two-column + flow=true only]
-  Act 4 (processing):     ${t.act4.start}s → ${t.act4.end}s  stepStagger=${t.act4.stepStagger}s
-  Act 5 (outro):          ${t.act5.start}s → ${t.act5.end}s  closingAt=${t.act5.closingStart}s
+━━━ LAYOUT SELECTION ━━━
+layout="two-column" if prompt contains: ${kw}
+layout="single-column" for explainers, how-it-works, steps, history.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-LAYOUT SELECTION RULES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Output layout = "two-column" when the prompt contains ANY of these keywords (case-insensitive):
-  ${kw}
+━━━ FIELD GUIDE ━━━
 
-Otherwise output layout = "single-column".
-Single-column is the default for: how-it-works, explainers, history, science, steps.
+REQUIRED: layout, title, palette, style
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FIELD GUIDE
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TWO-COLUMN (when layout=two-column):
+  leftHeader, rightHeader  — stack labels (e.g. "CLIENT", "SERVER")
+  leftRows, rightRows      — 2–4 layer labels each
+  flow                     — true for animated request/response arc
+  requestLabel, responseLabel — arc labels (e.g. "GET /api", "200 OK")
+  requestBody              — optional body text
+  processingSteps          — up to 3 labels inside right rows
+  annotations              — up to 3 gap callouts (e.g. "TLS 1.3")
+  flowStyle                — "arc"(HTTP/REST) | "straight"(TCP) | "zigzag"(async)
 
-COMMON FIELDS:
-  title        — short headline (max 80 chars, ALLCAPS OK for acronyms)
-  subtitle     — optional one-liner elaborating on the title
-  closingLine  — punchy closing statement shown at the end (max 100 chars)
-  palette      — visual color theme (pick from catalog below)
-  style        — shape/animation personality (pick from catalog below)
+SINGLE-COLUMN (when layout=single-column):
+  blocks     — 2–5 items: { heading, description, icon? }
+  blockStyle — "stacked" | "cards" | "timeline" | "numbered"
 
-TWO-COLUMN FIELDS (only for layout = "two-column"):
-  leftHeader   — label for the left stack (e.g. "CLIENT", "BEFORE")
-  rightHeader  — label for the right stack (e.g. "SERVER", "AFTER")
-  leftRows     — 2–4 layer labels for the left stack (shortest to deepest / logical order)
-  rightRows    — 2–4 layer labels for the right stack
-  flow         — true if a request/response packet arc makes sense; false for pure comparisons
-  requestLabel — one-line label shown above the request arc (e.g. "POST /api/users")
-  requestBody  — optional inline body (e.g. "{ name, email }")
-  responseLabel — one-line label shown above the response arc (e.g. "201 Created")
-  processingSteps — up to 3 short labels shown inside right-stack rows (e.g. "Validate", "Hash", "INSERT")
-  annotations — up to 3 short tech/protocol callouts shown in the gap (e.g. "TLS 1.3", "REST", "JSON")
-  flowStyle   — packet path style: "arc" (curves overhead), "straight" (horizontal), "zigzag" (S-curve).
-                Pick based on content: HTTP/REST → arc, TCP/low-level → straight, complex/async → zigzag.
+COMMON: title(max80), subtitle, closingLine(max100)
 
-SINGLE-COLUMN FIELDS (only for layout = "single-column"):
-  blocks       — 2–5 content blocks, each with a short "heading" and 1–2 sentence "description"
+━━━ CREATIVE FIELDS ━━━
+
+MANDATORY — include ALL of these on every brief, no exceptions:
+  entryAnimation  — "slide-up" | "slide-down" | "slide-left" | "slide-right" | "fade-only" | "scale-up" | "bounce-in"
+                    Pick the one that fits the mood. Never always use slide-up.
+  variant         — "standard" | "diagonal" | "asymmetric"  [two-column only]
+  emphasizeLeft   — 0-based index of most important left row (-1 = none)
+  emphasizeRight  — 0-based index of most important right row (-1 = none)
+  titleSize       — "small"(56px) | "medium"(72px) | "large"(88px,default) | "hero"(108px)
+  particleIntensity — 0(none) | 1(default) | 2(heavy) | 3(extreme)
+  closingStyle    — "fade-up" | "fade-center" | "none"
+
+OPTIONAL — use when they add meaning:
+  leftIcons / rightIcons / blockIcons — icon name per row/block
+  ICONS: browser server database cloud lock globe gear code api mobile router shield cpu cache app
+  decorations     — { cornerBrackets, scanLines, pulseRings, gapDivider, decoBaseline } booleans
+                    brutalist → most false; neon-glow → all true
+  titleAlign      — "left" | "center"
+  actWeights      — [w1,w2,w3,w4,w5] relative act durations
+  actEasings      — { title, stacks, flow, closing } each: "linear"|"easeIn"|"easeOut"|"easeInOut"|"bounce"
+  colorOverrides  — { accent1, accent2, surface } CSS color strings
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${PALETTE_CATALOG}
@@ -239,16 +225,13 @@ ${STYLE_CATALOG}
 
 ${COMPATIBILITY_HINTS}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-HARD CONSTRAINTS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- Output ONLY the JSON object. No markdown, no prose, no code fences.
-- For two-column: include leftRows, rightRows, leftHeader, rightHeader.
-  Omit blocks. Set flow=true only when a packet arc meaningfully shows the interaction.
-- For single-column: include blocks (2–5). Omit leftRows, rightRows, flow, etc.
-- Do not invent palette or style names outside the catalogs.
-- Keep all strings within the max character limits above.
-- Do not output timing numbers. The pipeline computes all timing.
+━━━ CONSTRAINTS ━━━
+- Output ONLY the JSON object.
+- two-column: include leftRows/rightRows/headers. Omit blocks.
+- single-column: include blocks. Omit leftRows/rightRows/flow.
+- Only use palette/style names from the catalogs.
+- Never output timing numbers.
+- MANDATORY creative fields (entryAnimation, variant, emphasizeLeft, emphasizeRight, titleSize, particleIntensity, closingStyle) MUST appear in every output.
 `.trim();
 }
 
@@ -256,10 +239,6 @@ HARD CONSTRAINTS
 
 /**
  * Build the user-turn prompt for a modify request.
- *
- * We send the current brief (as JSON) so the model can intelligently update
- * only the fields that the user's instruction touches, while preserving the
- * rest.  The system prompt (same as generate) tells the model the schema.
  */
 export function buildModifyPrompt(
   currentBrief: VideoBrief,
@@ -273,8 +252,8 @@ USER MODIFICATION INSTRUCTION:
 "${instruction}"
 
 Return an updated VideoBrief JSON object that incorporates the user's instruction.
-Preserve all fields that the instruction does not affect.
-Do NOT change the layout unless the instruction explicitly asks for it.
+Preserve all fields the instruction does not affect.
+Do NOT change the layout unless explicitly asked.
 Output ONLY the JSON object.
 `.trim();
 }

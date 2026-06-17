@@ -4,6 +4,8 @@ import type {
   TextEvent,
   TimelineEvent,
   VideoProject,
+  ShapeEvent,
+  ShapeFill,
 } from "@/lib/renderer/types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -65,9 +67,17 @@ function getEventBounds(event: TimelineEvent): Bounds | null {
     case "background":
       return null;
     case "text": {
-      const left = event.x + txBounds.min;
+      const align = event.align ?? "left";
+      let left = event.x + txBounds.min;
+      let right = event.x + event.maxWidth + txBounds.max;
+      if (align === "center") {
+        left = event.x - event.maxWidth / 2 + txBounds.min;
+        right = event.x + event.maxWidth / 2 + txBounds.max;
+      } else if (align === "right") {
+        left = event.x - event.maxWidth + txBounds.min;
+        right = event.x + txBounds.max;
+      }
       const top = event.y + tyBounds.min;
-      const right = event.x + event.maxWidth + txBounds.max;
       const bottom = event.y + event.fontSize * 3 + tyBounds.max;
       return scaleBox({ left, top, right, bottom }, maxScale, event.x, event.y);
     }
@@ -110,17 +120,68 @@ function getEventBounds(event: TimelineEvent): Bounds | null {
       }
       break;
     }
-    case "particle": {
-      const duration = Math.max(event.end - event.start, 0);
-      const maxDriftX = Math.abs(event.drift.x) * 1.5 * duration;
-      const maxDriftY = Math.abs(event.drift.y) * 1.5 * duration;
-      return {
-        left: event.origin.x - event.spread.x - maxDriftX,
-        top: event.origin.y - event.spread.y - maxDriftY,
-        right: event.origin.x + event.spread.x + maxDriftX,
-        bottom: event.origin.y + event.spread.y + maxDriftY,
-      };
+    case "particle":
+      return null;
+  }
+  return null;
+}
+
+function getStaticEventBounds(event: TimelineEvent): Bounds | null {
+  switch (event.type) {
+    case "background":
+      return null;
+    case "text": {
+      const align = event.align ?? "left";
+      let left = event.x;
+      let right = event.x + event.maxWidth;
+      if (align === "center") {
+        left = event.x - event.maxWidth / 2;
+        right = event.x + event.maxWidth / 2;
+      } else if (align === "right") {
+        left = event.x - event.maxWidth;
+        right = event.x;
+      }
+      const top = event.y;
+      const bottom = event.y + event.fontSize * 3;
+      return { left, top, right, bottom };
     }
+    case "shape": {
+      switch (event.shapeType) {
+        case "rect": {
+          const left = event.x;
+          const top = event.y;
+          const right = event.x + event.width;
+          const bottom = event.y + event.height;
+          return { left, top, right, bottom };
+        }
+        case "circle": {
+          const r = event.radius;
+          return {
+            left: event.x - r,
+            top: event.y - r,
+            right: event.x + r,
+            bottom: event.y + r,
+          };
+        }
+        case "triangle": {
+          const left = event.x;
+          const top = event.y;
+          const right = event.x + event.width;
+          const bottom = event.y + event.height;
+          return { left, top, right, bottom };
+        }
+        case "line": {
+          const left = Math.min(event.x1, event.x2);
+          const top = Math.min(event.y1, event.y2);
+          const right = Math.max(event.x1, event.x2);
+          const bottom = Math.max(event.y1, event.y2);
+          return { left, top, right, bottom };
+        }
+      }
+      break;
+    }
+    case "particle":
+      return null;
   }
   return null;
 }
@@ -319,6 +380,7 @@ export function checkOffCanvas(project: VideoProject): QualityIssue[] {
   };
 
   for (const ev of project.events) {
+    if (ev.type === "particle") continue;
     const bounds = getEventBounds(ev);
     if (!bounds) continue;
 
@@ -359,9 +421,16 @@ export function checkOffCanvas(project: VideoProject): QualityIssue[] {
 /**
  * Checks for same-layer, same-time, overlapping-bounds collisions.
  */
+function isLowOpacityFill(fill: ShapeFill): boolean {
+  if (typeof fill === "string") {
+    return fill === "transparent" || /\/\s*0\.[0-2]\d*\)/.test(fill);
+  }
+  return /\/\s*0\.[0-2]\d*\)/.test(fill.from) || /\/\s*0\.[0-2]\d*\)/.test(fill.to);
+}
+
 export function checkLayerCollisions(project: VideoProject): QualityIssue[] {
   const issues: QualityIssue[] = [];
-  const nonBg = project.events.filter((e) => e.type !== "background");
+  const nonBg = project.events.filter((e) => e.type !== "background" && e.type !== "particle");
 
   for (let i = 0; i < nonBg.length; i++) {
     for (let j = i + 1; j < nonBg.length; j++) {
@@ -369,8 +438,51 @@ export function checkLayerCollisions(project: VideoProject): QualityIssue[] {
       const b = nonBg[j];
       if (a.layer !== b.layer) continue;
       if (!timeOverlap(a, b)) continue;
-      const boundsA = getEventBounds(a);
-      const boundsB = getEventBounds(b);
+
+      // Exclude line connections/decorators from collision warnings
+      if (a.type === "shape" && a.shapeType === "line") continue;
+      if (b.type === "shape" && b.shapeType === "line") continue;
+
+      // Exclude transparent or low opacity overlay shapes (e.g. glows, highlights)
+      if (
+        a.type === "shape" &&
+        (a.shapeType === "rect" || a.shapeType === "circle" || a.shapeType === "triangle") &&
+        isLowOpacityFill(a.fill)
+      ) {
+        continue;
+      }
+      if (
+        b.type === "shape" &&
+        (b.shapeType === "rect" || b.shapeType === "circle" || b.shapeType === "triangle") &&
+        isLowOpacityFill(b.fill)
+      ) {
+        continue;
+      }
+
+      // Exclude concentric overlay shapes (same coordinates)
+      if (
+        a.type === "shape" &&
+        b.type === "shape" &&
+        "x" in a &&
+        "x" in b &&
+        a.x === b.x &&
+        "y" in a &&
+        "y" in b &&
+        a.y === b.y
+      ) {
+        continue;
+      }
+
+      // Exclude title/subtitle stack collisions
+      if (
+        (a.id === "title" && b.id === "subtitle") ||
+        (a.id === "subtitle" && b.id === "title")
+      ) {
+        continue;
+      }
+
+      const boundsA = getStaticEventBounds(a);
+      const boundsB = getStaticEventBounds(b);
       if (!boundsA || !boundsB) continue;
       if (boundsOverlap(boundsA, boundsB)) {
         issues.push({

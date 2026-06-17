@@ -96,6 +96,8 @@ function staticBBox(event: TimelineEvent): BBox | null {
         x1: Math.min(e.x1, e.x2), y1: Math.min(e.y1, e.y2),
         x2: Math.max(e.x1, e.x2), y2: Math.max(e.y1, e.y2),
       };
+    default:
+      return null;
   }
 }
 
@@ -348,6 +350,7 @@ function describeEvent(event: TimelineEvent): string {
     case "circle": return `circle @ x:${e.x} y:${e.y} r:${e.radius}`;
     case "triangle": return `triangle @ x:${e.x}–${e.x + e.width} y:${e.y}–${e.y + e.height}`;
     case "line": return `line (${e.x1},${e.y1})→(${e.x2},${e.y2})`;
+    default:     return `shape/${e.shapeType}`;
   }
 }
 
