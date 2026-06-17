@@ -86,6 +86,10 @@ export const VideoBriefSchema = z.object({
   responseLabel: z.string().optional(),
   /** Up to 3 processing steps shown inside the right-stack rows. */
   processingSteps: z.array(z.string().min(1)).max(3).optional(),
+  /** Up to 3 short callout strings shown in the gap area (e.g. "TLS 1.3", "REST"). */
+  annotations: z.array(z.string().min(1).max(30)).max(3).optional(),
+  /** Packet travel style for flow animations. */
+  flowStyle: z.enum(["arc", "straight", "zigzag"]).optional(),
 
   // ── Single-Column fields ───────────────────────────────────────────────────
   /** 2–5 content blocks.  Validated/clamped by validateBrief. */
@@ -99,3 +103,4 @@ export const VideoBriefSchema = z.object({
 });
 
 export type VideoBrief = z.infer<typeof VideoBriefSchema>;
+

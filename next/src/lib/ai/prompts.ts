@@ -128,6 +128,17 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
       items: { type: "string", minLength: 1, maxLength: 50 },
       maxItems: 3,
     },
+    annotations: {
+      type: "array",
+      items: { type: "string", minLength: 1, maxLength: 30 },
+      maxItems: 3,
+      description: "Short protocol/tech callout labels shown in the gap (e.g. 'TLS 1.3', 'REST', 'JSON').",
+    },
+    flowStyle: {
+      type: "string",
+      enum: ["arc", "straight", "zigzag"],
+      description: "How the request/response packet travels. arc=curves overhead, straight=horizontal, zigzag=S-curve.",
+    },
 
     // Single-column fields
     blocks: {
@@ -214,6 +225,9 @@ TWO-COLUMN FIELDS (only for layout = "two-column"):
   requestBody  — optional inline body (e.g. "{ name, email }")
   responseLabel — one-line label shown above the response arc (e.g. "201 Created")
   processingSteps — up to 3 short labels shown inside right-stack rows (e.g. "Validate", "Hash", "INSERT")
+  annotations — up to 3 short tech/protocol callouts shown in the gap (e.g. "TLS 1.3", "REST", "JSON")
+  flowStyle   — packet path style: "arc" (curves overhead), "straight" (horizontal), "zigzag" (S-curve).
+                Pick based on content: HTTP/REST → arc, TCP/low-level → straight, complex/async → zigzag.
 
 SINGLE-COLUMN FIELDS (only for layout = "single-column"):
   blocks       — 2–5 content blocks, each with a short "heading" and 1–2 sentence "description"

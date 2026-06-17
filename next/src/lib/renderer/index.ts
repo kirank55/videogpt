@@ -20,6 +20,7 @@ export type {
   BaseTimelineEvent,
   EasingName,
   GradientFill,
+  IconName,
   Keyframe,
   ParticleEvent,
   PathAnimation,
