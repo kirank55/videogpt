@@ -443,6 +443,14 @@ export function checkLayerCollisions(project: VideoProject): QualityIssue[] {
       if (a.type === "shape" && a.shapeType === "line") continue;
       if (b.type === "shape" && b.shapeType === "line") continue;
 
+      // Exclude visual diagram elements from colliding with each other
+      if (a.id.startsWith("vis-") && b.id.startsWith("vis-")) continue;
+
+      // Exclude block column layout elements from colliding with each other (headings, descriptions, icons, backgrounds, timelines)
+      const isBlockA = a.id.startsWith("block-") || a.id.startsWith("timeline-") || a.id.startsWith("card-bg-");
+      const isBlockB = b.id.startsWith("block-") || b.id.startsWith("timeline-") || b.id.startsWith("card-bg-");
+      if (isBlockA && isBlockB) continue;
+
       // Exclude transparent or low opacity overlay shapes (e.g. glows, highlights)
       if (
         a.type === "shape" &&

@@ -289,4 +289,95 @@ describe("buildProjectFromBrief", () => {
     const project = buildProjectFromBrief(brief, DUR);
     expect(project.name).toBe("My Custom Title");
   });
+
+  // ── 9. Single-Column visualElements ───────────────────────────────────────
+
+  it("correctly handles visualElements and adjusts text column layout", () => {
+    const brief = singleColBrief({
+      visualElements: [
+        {
+          type: "rect",
+          blockIndex: 1,
+          x: 50,
+          y: 60,
+          width: 200,
+          height: 100,
+          color: "accent2",
+          fillType: "outline",
+          label: "Level 1",
+          entry: "slide-up"
+        },
+        {
+          type: "circle",
+          blockIndex: 2,
+          x: 150,
+          y: 200,
+          radius: 40,
+          color: "accent1",
+          fillType: "solid"
+        },
+        {
+          type: "line",
+          blockIndex: 0,
+          x1: 10,
+          y1: 20,
+          x2: 100,
+          y2: 200,
+          color: "muted",
+          fillType: "dashed"
+        }
+      ]
+    });
+
+    const project = buildProjectFromBrief(brief, DUR);
+
+    // Verify title and subtitle max width are constrained to 750 (shifted left)
+    const titleEvent = project.events.find((e) => e.id === "title");
+    expect(titleEvent).toBeDefined();
+    if (titleEvent?.type === "text") {
+      expect(titleEvent.maxWidth).toBe(750);
+    }
+
+    // Verify visual element shape events are generated
+    const rectShape = project.events.find((e) => e.id === "vis-shape-0");
+    const circleShape = project.events.find((e) => e.id === "vis-shape-1");
+    const lineShape = project.events.find((e) => e.id === "vis-shape-2");
+
+    expect(rectShape).toBeDefined();
+    expect(circleShape).toBeDefined();
+    expect(lineShape).toBeDefined();
+
+    // Verify absolute coordinate offset application (relative to diagram box center x=1060, y=320)
+    if (rectShape && rectShape.type === "shape" && rectShape.shapeType === "rect") {
+      expect(rectShape.x).toBe(1060 + 50);
+      expect(rectShape.y).toBe(320 + 60);
+      expect(rectShape.width).toBe(200);
+      expect(rectShape.height).toBe(100);
+      expect(rectShape.stroke).toBeDefined(); // outline should populate stroke
+    }
+
+    if (circleShape && circleShape.type === "shape" && circleShape.shapeType === "circle") {
+      expect(circleShape.x).toBe(1060 + 150);
+      expect(circleShape.y).toBe(320 + 200);
+      expect(circleShape.radius).toBe(40);
+    }
+
+    if (lineShape && lineShape.type === "shape" && lineShape.shapeType === "line") {
+      expect(lineShape.x1).toBe(1060 + 10);
+      expect(lineShape.y1).toBe(320 + 20);
+      expect(lineShape.x2).toBe(1060 + 100);
+      expect(lineShape.y2).toBe(320 + 200);
+      expect(lineShape.lineDash).toEqual([6, 6]); // dashed fillType should populate lineDash
+    }
+
+    // Verify visual element label text event is generated
+    const labelEvent = project.events.find((e) => e.id === "vis-label-0");
+    expect(labelEvent).toBeDefined();
+    if (labelEvent?.type === "text") {
+      expect(labelEvent.text).toBe("Level 1");
+      expect(labelEvent.align).toBe("center");
+      // rect center X = 1060 + 50 + 100 = 1210
+      expect(labelEvent.x).toBe(1210);
+    }
+  });
 });

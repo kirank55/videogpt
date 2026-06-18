@@ -98,6 +98,25 @@ const BlockSchema = z.object({
   icon: IconNameSchema.optional(),
 });
 
+export const VisualElementSchema = z.object({
+  type: z.enum(["rect", "circle", "line", "icon"]),
+  blockIndex: z.number().int().min(0).max(4).optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  radius: z.number().optional(),
+  x1: z.number().optional(),
+  y1: z.number().optional(),
+  x2: z.number().optional(),
+  y2: z.number().optional(),
+  color: z.enum(["accent1", "accent2", "muted", "text", "surface"]).optional(),
+  fillType: z.enum(["solid", "outline", "dashed"]).optional(),
+  iconName: IconNameSchema.optional(),
+  label: z.string().optional(),
+  entry: z.enum(["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x"]).optional(),
+});
+
 // ── Main schema ──────────────────────────────────────────────────────────────
 //
 // This is the AI-pipeline contract.  The AI outputs a VideoBrief (~350 tokens),
@@ -295,6 +314,7 @@ export const VideoBriefSchema = z.object({
    * "numbered" — 01, 02, 03 prefix numbering
    */
   blockStyle: z.enum(["stacked", "cards", "timeline", "numbered"]).optional(),
+  visualElements: z.array(VisualElementSchema).optional(),
 });
 
 export type VideoBrief = z.infer<typeof VideoBriefSchema>;

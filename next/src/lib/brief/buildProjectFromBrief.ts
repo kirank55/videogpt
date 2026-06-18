@@ -1202,6 +1202,39 @@ function buildTwoColumn(
 
 // ── Single-Column layout ──────────────────────────────────────────────────────
 
+function resolveShapeEntry(
+  entry: string | undefined,
+  easing: EasingName,
+) {
+  if (entry === "slide-up") {
+    return {
+      opacity: { from: 0, to: 1, easing },
+      translateY: { from: 40, to: 0, easing },
+    };
+  }
+  if (entry === "slide-down") {
+    return {
+      opacity: { from: 0, to: 1, easing },
+      translateY: { from: -40, to: 0, easing },
+    };
+  }
+  if (entry === "scale-up") {
+    return {
+      opacity: { from: 0, to: 1, easing },
+      scale: { from: 0.5, to: 1, easing },
+    };
+  }
+  if (entry === "grow-y" || entry === "grow-x") {
+    return {
+      opacity: { from: 0, to: 1, easing },
+      scale: { from: 0, to: 1, easing },
+    };
+  }
+  return {
+    opacity: { from: 0, to: 1, easing },
+  };
+}
+
 function buildSingleColumn(
   brief: VideoBrief,
   t: ActTiming,
@@ -1229,6 +1262,12 @@ function buildSingleColumn(
   ];
   const n = blocks.length;
 
+  const visualElements = brief.visualElements ?? [];
+  const hasVisuals = visualElements.length > 0;
+
+  const startX = 160;
+  const blockMaxWidth = hasVisuals ? 750 : W - 320;
+
   const blockStartY = 430;
   const maxSpacing  = 200;
   const spacing     = n <= 1 ? maxSpacing : Math.min(maxSpacing, 500 / (n - 1));
@@ -1236,7 +1275,9 @@ function buildSingleColumn(
   const titleSeed  = seededHash(brief.title);
   const titleFS    = resolveTitleFontSize(brief.titleSize);
   const titleLH    = Math.round(titleFS * 1.15);
-  const titleX     = brief.titleAlign === "center" ? W / 2 - 720 : 160;
+  const titleX     = hasVisuals ? startX : (brief.titleAlign === "center" ? W / 2 - 720 : 160);
+  const titleMaxW  = hasVisuals ? 750 : 1600;
+  const subtitleMaxW = hasVisuals ? 750 : 1200;
   const entryBlk   = resolveEntryAnimation(brief.entryAnimation, easings.stacks);
 
   // ── ACT 1: Title ──────────────────────────────────────────────────────────────────
@@ -1247,7 +1288,7 @@ function buildSingleColumn(
     end: ce(act2.start + Math.min(0.5, (act2.end - act2.start) * 0.2), dur),
     layer: 5,
     text: brief.title,
-    x: titleX, y: 270, maxWidth: 1600,
+    x: titleX, y: 270, maxWidth: titleMaxW,
     color: p.text, fontSize: titleFS, fontWeight: 800, lineHeight: titleLH,
     shadow: glow > 0 ? { color: p.glow, blur: glow * 2 } : undefined,
     opacity: { from: 0, to: 1, easing: easings.title },
@@ -1255,14 +1296,14 @@ function buildSingleColumn(
   });
 
   if (brief.subtitle) {
-    const titleLines = estimateTextLines(brief.title, titleFS, 1600);
+    const titleLines = estimateTextLines(brief.title, titleFS, titleMaxW);
     const subtitleY = 270 + titleLines * titleLH + 24;
     ev.push({
       id: "subtitle", type: "text",
       start: ce(act1.start + lerp(0, act1.end - act1.start, 0.4), dur),
       end: act2.start, layer: 5,
       text: brief.subtitle,
-      x: 160, y: subtitleY, maxWidth: 1200,
+      x: titleX, y: subtitleY, maxWidth: subtitleMaxW,
       color: p.muted, fontSize: 32, fontWeight: 400,
       opacity: { from: 0, to: 1, easing: easings.title },
     });
@@ -1277,12 +1318,18 @@ function buildSingleColumn(
 
     const by = blockStartY + i * spacing;
 
+    const timelineDotX = startX - 70;
+    const cardX = startX - 60;
+    const cardW = hasVisuals ? blockMaxWidth + 80 : W - 200;
+    const numX = startX - 60;
+    const iconLeft = blockStyle === "numbered" ? startX + 25 : blockStyle === "timeline" ? startX - 30 : startX - 40;
+
     // Timeline dot (blockStyle = "timeline")
     if (blockStyle === "timeline") {
       ev.push({
         id: `timeline-dot-${i}`, type: "shape", shapeType: "circle",
         start: blkStart, end: blkEnd, layer: 3,
-        x: 90, y: by + 22, radius: 8,
+        x: timelineDotX, y: by + 22, radius: 8,
         fill: p.accent1,
         shadow: glow > 0 ? { color: p.accent1Glow, blur: Math.round(glow * 0.5) } : undefined,
         opacity: { from: 0, to: 1, easing: ease },
@@ -1292,7 +1339,7 @@ function buildSingleColumn(
         ev.push({
           id: `timeline-line-${i}`, type: "shape", shapeType: "line",
           start: ce(blkStart + 0.3, dur), end: blkEnd, layer: 2,
-          x1: 90, y1: by + 30, x2: 90, y2: by + spacing,
+          x1: timelineDotX, y1: by + 30, x2: timelineDotX, y2: by + spacing,
           stroke: withAlpha(p.accent1, 0.35), lineWidth: s.strokeWeight,
           lineDash: s.lineDash ?? [4, 4],
           opacity: { from: 0, to: 1, easing: ease },
@@ -1305,7 +1352,7 @@ function buildSingleColumn(
       ev.push({
         id: `card-bg-${i}`, type: "shape", shapeType: "rect",
         start: blkStart, end: blkEnd, layer: 1,
-        x: 100, y: by - 20, width: W - 200, height: spacing > 0 ? spacing - 10 : 170,
+        x: cardX, y: by - 20, width: cardW, height: spacing > 0 ? spacing - 10 : 170,
         radius: s.radius,
         fill: p.surface,
         stroke: p.muted, strokeWidth: s.strokeWeight * 0.8,
@@ -1320,14 +1367,13 @@ function buildSingleColumn(
         id: `block-num-${i}`, type: "text",
         start: blkStart, end: blkEnd, layer: 4,
         text: String(i + 1).padStart(2, "0"),
-        x: 100, y: by, maxWidth: 60,
+        x: numX, y: by, maxWidth: 60,
         color: withAlpha(p.accent1, 0.5), fontSize: 60, fontWeight: 900,
         opacity: { from: 0, to: 1, easing: ease },
       });
     }
 
-    // Icon — AI-explicit or keyword-matched (offset for numbered / timeline styles)
-    const iconLeft = blockStyle === "numbered" ? 185 : blockStyle === "timeline" ? 130 : 120;
+    // Icon — AI-explicit or keyword-matched
     const iconName = brief.blockIcons?.[i] ?? block.icon ?? pickIconForLabel(block.heading, titleSeed + i * 7);
     ev.push({
       id: `block-icon-${i}`, type: "shape", shapeType: "icon",
@@ -1341,11 +1387,12 @@ function buildSingleColumn(
     });
 
     const textLeft = iconLeft + 48;
+    const headingMaxW = blockMaxWidth - (textLeft - startX);
     ev.push({
       id: `block-heading-${i}`, type: "text",
       start: blkStart, end: blkEnd, layer: 4,
       text: block.heading,
-      x: textLeft, y: by, maxWidth: W - textLeft - 100,
+      x: textLeft, y: by, maxWidth: headingMaxW,
       color: p.text, fontSize: 44, fontWeight: 700,
       shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 0.3) } : undefined,
       opacity: { from: 0, to: 1, easing: easings.stacks },
@@ -1355,12 +1402,139 @@ function buildSingleColumn(
       id: `block-desc-${i}`, type: "text",
       start: ce(blkStart + 0.2, dur), end: blkEnd, layer: 4,
       text: block.description,
-      x: textLeft, y: by + 60, maxWidth: W - textLeft - 120,
+      x: textLeft, y: by + 60, maxWidth: headingMaxW - 20,
       color: p.muted, fontSize: 28, fontWeight: 400, lineHeight: 42,
       opacity: { from: 0, to: 1, easing: easings.stacks },
       ...entryBlk,
     });
   });
+
+  // ── ACT 2+: Visual elements (diagram on the right half) ───────────────────────────
+
+  if (hasVisuals) {
+    const boxX = 1060;
+    const boxY = 320;
+
+    visualElements.forEach((element, idx) => {
+      const blockIndex = element.blockIndex ?? 0;
+      const blkStart = ce(act2.start + Math.min(n - 1, Math.max(0, blockIndex)) * (act2.stagger + 0.3), dur);
+      const blkEnd   = ce(cs - 0.3, dur);
+      if (blkStart >= blkEnd) return;
+
+      const elementEase = easings.stacks;
+      const entryAnims = resolveShapeEntry(element.entry, elementEase);
+
+      let baseColor = p.accent1;
+      if (element.color === "accent2") baseColor = p.accent2;
+      else if (element.color === "muted") baseColor = p.muted;
+      else if (element.color === "text") baseColor = p.text;
+      else if (element.color === "surface") baseColor = p.surface;
+
+      const shapeX = boxX + (element.x ?? 0);
+      const shapeY = boxY + (element.y ?? 0);
+
+      if (element.type === "rect") {
+        const fill = (element.fillType === "outline" || element.fillType === "dashed")
+          ? withAlpha(baseColor, 0)
+          : baseColor;
+        const stroke = (element.fillType === "outline" || element.fillType === "dashed")
+          ? baseColor
+          : undefined;
+        const strokeWidth = stroke ? s.strokeWeight * 0.8 : undefined;
+
+        ev.push({
+          id: `vis-shape-${idx}`, type: "shape", shapeType: "rect",
+          start: blkStart, end: blkEnd, layer: 2,
+          x: shapeX, y: shapeY,
+          width: element.width ?? 100, height: element.height ?? 100,
+          radius: element.radius ?? s.radius ?? 0,
+          fill,
+          stroke,
+          strokeWidth,
+          shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 0.4) } : undefined,
+          ...entryAnims,
+        });
+      } else if (element.type === "circle") {
+        const fill = (element.fillType === "outline" || element.fillType === "dashed")
+          ? withAlpha(baseColor, 0)
+          : baseColor;
+        const stroke = (element.fillType === "outline" || element.fillType === "dashed")
+          ? baseColor
+          : undefined;
+        const strokeWidth = stroke ? s.strokeWeight * 0.8 : undefined;
+
+        ev.push({
+          id: `vis-shape-${idx}`, type: "shape", shapeType: "circle",
+          start: blkStart, end: blkEnd, layer: 2,
+          x: shapeX, y: shapeY,
+          radius: element.radius ?? 50,
+          fill,
+          stroke,
+          strokeWidth,
+          shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 0.4) } : undefined,
+          ...entryAnims,
+        });
+      } else if (element.type === "line") {
+        const lineX1 = boxX + (element.x1 ?? 0);
+        const lineY1 = boxY + (element.y1 ?? 0);
+        const lineX2 = boxX + (element.x2 ?? 0);
+        const lineY2 = boxY + (element.y2 ?? 0);
+
+        ev.push({
+          id: `vis-shape-${idx}`, type: "shape", shapeType: "line",
+          start: blkStart, end: blkEnd, layer: 2,
+          x1: lineX1, y1: lineY1, x2: lineX2, y2: lineY2,
+          stroke: baseColor,
+          lineWidth: element.width ?? s.strokeWeight ?? 3,
+          lineDash: element.fillType === "dashed" ? [6, 6] : undefined,
+          opacity: { from: 0, to: 1, easing: elementEase },
+        });
+      } else if (element.type === "icon") {
+        ev.push({
+          id: `vis-shape-${idx}`, type: "shape", shapeType: "icon",
+          start: blkStart, end: blkEnd, layer: 3,
+          iconName: element.iconName ?? "gear",
+          cx: shapeX, cy: shapeY,
+          size: element.width ?? element.radius ?? 48,
+          color: baseColor,
+          shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 0.4) } : undefined,
+          ...entryAnims,
+        });
+      }
+
+      if (element.label) {
+        let labelCX = shapeX;
+        let labelCY = shapeY;
+        if (element.type === "rect") {
+          labelCX = shapeX + (element.width ?? 100) / 2;
+          labelCY = shapeY + (element.height ?? 100) / 2;
+        } else if (element.type === "line") {
+          const lineX1 = boxX + (element.x1 ?? 0);
+          const lineY1 = boxY + (element.y1 ?? 0);
+          const lineX2 = boxX + (element.x2 ?? 0);
+          const lineY2 = boxY + (element.y2 ?? 0);
+          labelCX = (lineX1 + lineX2) / 2;
+          labelCY = (lineY1 + lineY2) / 2;
+        }
+
+        const isFilled = element.type !== "line" && (element.fillType ?? "solid") === "solid";
+        const labelColor = isFilled
+          ? (element.color === "surface" || element.color === "muted" ? p.text : p.surface)
+          : p.text;
+
+        ev.push({
+          id: `vis-label-${idx}`, type: "text",
+          start: ce(blkStart + 0.1, dur), end: blkEnd, layer: 4,
+          text: element.label,
+          x: labelCX, y: labelCY, maxWidth: element.width ?? 200,
+          color: labelColor, fontSize: 22, fontWeight: 700, align: "center",
+          opacity: { from: 0, to: 1, easing: elementEase },
+          ...(element.entry === "slide-up" && { translateY: { from: 20, to: 0, easing: elementEase } }),
+          ...(element.entry === "slide-down" && { translateY: { from: -20, to: 0, easing: elementEase } }),
+        });
+      }
+    });
+  }
 
   // ── ACT 5: Outro ─────────────────────────────────────────────────────────────────
 

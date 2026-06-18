@@ -65,6 +65,58 @@ function extractBlocks(
   return raw.length >= 2 ? raw : fallback;
 }
 
+function extractVisualElements(x: unknown): any[] | undefined {
+  if (!Array.isArray(x)) return undefined;
+  return x
+    .filter(isObject)
+    .map((e) => {
+      const type = str(e.type, "rect") as "rect" | "circle" | "line" | "icon";
+      const blockIndex = typeof e.blockIndex === "number" ? Math.max(0, Math.min(4, Math.floor(e.blockIndex))) : undefined;
+      const x = typeof e.x === "number" ? e.x : undefined;
+      const y = typeof e.y === "number" ? e.y : undefined;
+      const width = typeof e.width === "number" ? e.width : (typeof e.w === "number" ? e.w : undefined);
+      const height = typeof e.height === "number" ? e.height : (typeof e.h === "number" ? e.h : undefined);
+      const radius = typeof e.radius === "number" ? e.radius : (typeof e.r === "number" ? e.r : undefined);
+      const x1 = typeof e.x1 === "number" ? e.x1 : undefined;
+      const y1 = typeof e.y1 === "number" ? e.y1 : undefined;
+      const x2 = typeof e.x2 === "number" ? e.x2 : undefined;
+      const y2 = typeof e.y2 === "number" ? e.y2 : undefined;
+
+      const color = (typeof e.color === "string" && ["accent1", "accent2", "muted", "text", "surface"].includes(e.color))
+        ? (e.color as any)
+        : undefined;
+      const fillType = (typeof e.fillType === "string" && ["solid", "outline", "dashed"].includes(e.fillType))
+        ? (e.fillType as any)
+        : undefined;
+      const entry = (typeof e.entry === "string" && ["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x"].includes(e.entry))
+        ? (e.entry as any)
+        : undefined;
+
+      const iconName = optStr(e.iconName) as any;
+      const label = optStr(e.label);
+
+      return {
+        type,
+        blockIndex,
+        x,
+        y,
+        width,
+        height,
+        radius,
+        x1,
+        y1,
+        x2,
+        y2,
+        color,
+        fillType,
+        iconName,
+        label,
+        entry,
+      };
+    })
+    .slice(0, 30);
+}
+
 // ── Main validator ───────────────────────────────────────────────────────────
 
 /**
@@ -122,5 +174,6 @@ export function validateBrief(raw: unknown): VideoBrief {
   return {
     ...base,
     blocks: extractBlocks(src.blocks),
+    visualElements: extractVisualElements(src.visualElements),
   };
 }

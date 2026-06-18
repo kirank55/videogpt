@@ -286,6 +286,81 @@ describe("runQualityGate", () => {
     expect(result.issues).toHaveLength(0);
   });
 
+  it("excludes visual diagram elements starting with 'vis-' from layer collisions", () => {
+    const p = project({
+      events: [
+        BASE.events[0], // background
+        BASE.events[1], // title
+        {
+          id: "vis-shape-0",
+          type: "shape",
+          shapeType: "rect",
+          start: 0,
+          end: 10,
+          layer: 2,
+          x: 100,
+          y: 100,
+          width: 100,
+          height: 100,
+          fill: "#ff0000",
+        },
+        {
+          id: "vis-shape-1",
+          type: "shape",
+          shapeType: "rect",
+          start: 0,
+          end: 10,
+          layer: 2,
+          x: 120, // overlapping X
+          y: 120, // overlapping Y
+          width: 100,
+          height: 100,
+          fill: "#00ff00",
+        },
+      ],
+    });
+    const result = runQualityGate(p);
+    expect(result.passed).toBe(true);
+    const collisions = result.issues.filter((i) => i.code === "LAYER_COLLISION");
+    expect(collisions).toHaveLength(0);
+  });
+
+  it("excludes block column layout elements from layer collisions", () => {
+    const p = project({
+      events: [
+        BASE.events[0], // background
+        {
+          id: "block-heading-0",
+          type: "text",
+          start: 0,
+          end: 10,
+          layer: 4,
+          text: "Heading",
+          x: 100,
+          y: 100,
+          maxWidth: 500,
+          fontSize: 32,
+        },
+        {
+          id: "block-desc-0",
+          type: "text",
+          start: 0,
+          end: 10,
+          layer: 4,
+          text: "Description description description",
+          x: 100,
+          y: 120, // overlapping Y
+          maxWidth: 500,
+          fontSize: 24,
+        },
+      ],
+    });
+    const result = runQualityGate(p);
+    expect(result.passed).toBe(true);
+    const collisions = result.issues.filter((i) => i.code === "LAYER_COLLISION");
+    expect(collisions).toHaveLength(0);
+  });
+
   it("returns passed:false when there are errors", () => {
     const p = withoutBackground();
     const result = runQualityGate(p);

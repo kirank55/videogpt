@@ -59,6 +59,21 @@ SOFT COMPATIBILITY GUIDANCE:
   Avoid: paper + neon-glow, neon + brutalist
 `.trim();
 
+const DIAGRAM_GUIDE = `
+━━━ DIAGRAM DESIGN & COORDINATES GUIDE ━━━
+Use visualElements to build a beautiful diagram on the right half of the canvas.
+- Coordinate box: width=700 (x: 0 to 700), height=600 (y: 0 to 600).
+- Origin: Top-left is (0,0). Bottom-right is (700,600). y=0 is TOP, y=600 is BOTTOM.
+- Stacking / Buildings (e.g. skyscraper, layers):
+  * Start from the bottom (e.g. foundation at y=480, height=80, y-span 480 to 560).
+  * Stack upwards by using SMALLER y values for each next block (e.g. next block at y=380, height=100, sitting directly on top of the foundation).
+  * Center the stack horizontally around x=350 (e.g. width=300 starting at x=200).
+- Label Formatting:
+  * Only put labels on rectangles/circles if they are wide/large enough (width >= 160) to fit the text without overflowing.
+  * If a rect/circle is narrow (width < 120), leave the label blank.
+- Timing: Match blockIndex of visualElements to the corresponding block index on the left (e.g. blockIndex=0 is the first block, blockIndex=1 is the second block).
+`.trim();
+
 // ── JSON Schema for VideoBrief (must match src/lib/schemas/brief.ts) ──────────
 
 const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
@@ -151,6 +166,33 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
       },
     },
     blockStyle: { type: "string", enum: ["stacked","cards","timeline","numbered"] },
+    visualElements: {
+      type: "array",
+      description: "Optional shape/line/icon diagram elements to render on the right half of the canvas inside a 700x600 coordinate box.",
+      items: {
+        type: "object",
+        required: ["type"],
+        additionalProperties: false,
+        properties: {
+          type: { type: "string", enum: ["rect", "circle", "line", "icon"] },
+          blockIndex: { type: "integer", minimum: 0, maximum: 4, description: "Block index (0-based) that triggers this element's entrance" },
+          x: { type: "number", description: "Relative X (0-700) for rect, circle, or icon" },
+          y: { type: "number", description: "Relative Y (0-600) for rect, circle, or icon" },
+          width: { type: "number", description: "Width for rect" },
+          height: { type: "number", description: "Height for rect" },
+          radius: { type: "number", description: "Radius for circle" },
+          x1: { type: "number", description: "Line start X (0-700)" },
+          y1: { type: "number", description: "Line start Y (0-600)" },
+          x2: { type: "number", description: "Line end X (0-700)" },
+          y2: { type: "number", description: "Line end Y (0-600)" },
+          color: { type: "string", enum: ["accent1", "accent2", "muted", "text", "surface"] },
+          fillType: { type: "string", enum: ["solid", "outline", "dashed"] },
+          iconName: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] },
+          label: { type: "string", maxLength: 40, description: "Text label centered within/on the element" },
+          entry: { type: "string", enum: ["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x"] },
+        },
+      },
+    },
   },
 };
 
@@ -191,8 +233,20 @@ TWO-COLUMN (when layout=two-column):
   flowStyle                — "arc"(HTTP/REST) | "straight"(TCP) | "zigzag"(async)
 
 SINGLE-COLUMN (when layout=single-column):
-  blocks     — 2–5 items: { heading, description, icon? }
-  blockStyle — "stacked" | "cards" | "timeline" | "numbered"
+  blocks          — 2–5 items: { heading, description, icon? }
+  blockStyle      — "stacked" | "cards" | "timeline" | "numbered"
+  visualElements  — optional array of dynamic shapes/lines/icons to render on the right half of the canvas inside a 700x600 coordinate box. Use this to construct a visual representation or diagram related to the prompt (e.g., stacking blocks for a skyscraper, a branching line/circle for a tree).
+                    Each element is an object with:
+                      type: "rect" | "circle" | "line" | "icon" (required)
+                      blockIndex: 0-4 (optional, triggers entry when that content block enters)
+                      color: "accent1" | "accent2" | "muted" | "text" | "surface" (optional)
+                      fillType: "solid" | "outline" | "dashed" (optional)
+                      entry: "fade" | "slide-up" | "slide-down" | "scale-up" | "grow-y" | "grow-x" (optional)
+                      label: optional centered overlay text label (max 40 chars)
+                      For "rect": x, y (relative 0-700, 0-600), width, height, radius (optional)
+                      For "circle": x, y, radius
+                      For "line": x1, y1 (start 0-700, 0-600), x2, y2 (end 0-700, 0-600)
+                      For "icon": x, y, iconName (see icons list below)
 
 COMMON: title(max80), subtitle, closingLine(max100)
 
@@ -225,10 +279,12 @@ ${STYLE_CATALOG}
 
 ${COMPATIBILITY_HINTS}
 
+${DIAGRAM_GUIDE}
+
 ━━━ CONSTRAINTS ━━━
 - Output ONLY the JSON object.
 - two-column: include leftRows/rightRows/headers. Omit blocks.
-- single-column: include blocks. Omit leftRows/rightRows/flow.
+- single-column: include blocks. Omit leftRows/rightRows/flow. If the prompt describes a physical or structural building process, always design visualElements (e.g. stacking rectangles for a building or a hierarchy of circles/lines) to provide visual support on the right.
 - Only use palette/style names from the catalogs.
 - Never output timing numbers.
 - MANDATORY creative fields (entryAnimation, variant, emphasizeLeft, emphasizeRight, titleSize, particleIntensity, closingStyle) MUST appear in every output.

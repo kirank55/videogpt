@@ -1,121 +1,82 @@
-# Client-Server Architecture — Visual Verification Cycle
+# Plan — Prompt-Driven Visual Diagram Support in Single-Column Layouts
 
-## Background
+## Goal
 
-The goal is to visually verify that layout fixes applied to the `buildProjectFromBrief.ts` / `validateProject.ts` pipeline render correctly in the browser for the "Client-Server Architecture" prompt. Three specific issues were targeted.
-
----
-
-## ✅ Completed — Code Changes
-
-### 1. Packet arc path (Browser → Server)
-**File:** [buildProjectFromBrief.ts](file:///c:/Users/kiran/code/p/videogpt/next/src/lib/brief/buildProjectFromBrief.ts)
-
-- Computed separate `reqY_L` (client row center) and `reqY_R` (server row center) so the animated packet arc starts at the Browser card and ends at the Server card — not at the Application Logic row.
-
-### 2. Progress bar full-width
-**File:** [buildProjectFromBrief.ts](file:///c:/Users/kiran/code/p/videogpt/next/src/lib/brief/buildProjectFromBrief.ts)
-
-- Updated `injectStepProgressBar` to set bar width = full card width instead of a fixed smaller value.
-
-### 3. Label collision fix (green text / step label overlap)
-**File:** [buildProjectFromBrief.ts](file:///c:/Users/kiran/code/p/videogpt/next/src/lib/brief/buildProjectFromBrief.ts)
-
-- Reduced label `maxWidth` in right-stack cards during `flow` states to prevent the "Application Logic" / step-progression text from overlapping with the green progress label.
-
-### 4. Outro text centering
-**File:** [buildProjectFromBrief.ts](file:///c:/Users/kiran/code/p/videogpt/next/src/lib/brief/buildProjectFromBrief.ts)
-
-- Set `align: "center"` and `x: W / 2` on the fade-center outro event so the conclusion line renders exactly in the horizontal centre.
-
-### 5. Validation false-positive fix
-**File:** [validateProject.ts](file:///c:/Users/kiran/code/p/videogpt/next/src/lib/renderer/validateProject.ts)
-
-- Added alignment-aware bounding-box logic in `getEventBounds` / `getStaticEventBounds` so centred text no longer triggers an off-canvas warning.
-
-### 6. Regression test: all 214 tests pass ✅
+Provide single-column layouts with dynamic, prompt-driven visual diagrams (e.g., skyscraper construction, growing trees, networking nodes) without hardcoding any specific visuals. The AI model will design these custom visual diagrams inline as part of the `VideoBrief` response.
 
 ---
 
-## ⚠️ Known Issue (discovered during verification attempts)
-
-A browser subagent session that checked the advance page reported:
-
-> **Quality Gate score = 68/100 — 4 layer collision warnings**
-
-This means the code changes either:
-- did not fully land in the running server (needs a fresh generation), **or**
-- there are residual collisions the fixes did not address.
-
-The subagent ran out of quota before capturing frame screenshots or identifying which specific elements were colliding.
-
----
-
-## 🔲 Pending — Visual Verification Tasks
-
-These tasks need to be done in **separate, focused browser sessions** (one at a time to avoid quota exhaustion):
-
-### Session A — Quality Gate Score
-**URL:** `http://localhost:3000/advance?sessionId=<session>&messageId=<msg>`
-
-1. Generate a fresh "Client-Server Architecture" project from `/generate`.
-2. Open the resulting advance URL.
-3. Read the Quality Gate score in the diagnostics panel.
-4. Screenshot the score panel.
-5. **Pass criterion:** score ≥ 98/100, zero layer-collision warnings.
+## User Review Required
 
 > [!IMPORTANT]
-> If score is still 68/100, the 4 collision warnings need to be identified by name and fixed before continuing.
+> The single-column visual layout divides the canvas into two halves:
+> - **Left Half**: Content blocks (text, descriptions, and icons) shifted to `x=120`, width constrained to `750`.
+> - **Right Half**: A dedicated visual container of size `700x600` positioned at `diagramX=1060`, `diagramY=320` where the AI-defined shapes are rendered.
+> This layout format only triggers when the AI chooses to output the optional `visualElements` array in its brief. If `visualElements` is omitted, the layout falls back to the classic centered single-column layout for backwards compatibility.
 
 ---
 
-### Session B — Frame 1.80s: Packet Arc
-**Focus:** The animated blue packet should travel from the Browser (left column, row 0) to the Server (right column, row 0) — **not** from the Application Logic row.
+## Proposed Changes
 
-1. Scrub timeline to 1.80s.
-2. Screenshot the canvas.
-3. **Pass criterion:** Arc start = Browser card center, arc end = Server card center.
+### Component 1: Schema Updates
 
----
-
-### Session C — Frame 5.50s: Progress Bar & Label Collision
-**Focus:** Right-side server cards at the "flow" state.
-
-1. Scrub timeline to 5.50s.
-2. Screenshot the canvas.
-3. **Pass criterion:**
-   - Green progress bar spans full card width.
-   - "Application Logic" / step label text does **not** overlap the green percentage label.
-
----
-
-### Session D — Frame 10.00s: Outro Centering
-**Focus:** The closing text line ("Request-response cycle...").
-
-1. Scrub timeline to 10.00s (or the last frame).
-2. Screenshot the canvas.
-3. **Pass criterion:** Text is exactly horizontally centred on the 1280 px canvas.
+#### [MODIFY] [brief.ts](file:///c:/Users/kiran/code/p/videogpt/next/src/lib/schemas/brief.ts)
+- Define `VisualElementSchema` with support for:
+  - `type`: `"rect" | "circle" | "line" | "icon"`
+  - `blockIndex`: optional index (0 to 4) of the content block that triggers this element's entry.
+  - Geometry (relative to the `700x600` container):
+    - For `rect`: `x`, `y`, `width`, `height`, `radius`
+    - For `circle`: `x`, `y`, `radius`
+    - For `line`: `x1`, `y1`, `x2`, `y2`
+    - For `icon`: `x` (center), `y` (center), `size`
+  - Style properties:
+    - `color`: `"accent1" | "accent2" | "muted" | "text" | "surface"`
+    - `fillType`: `"solid" | "outline" | "dashed"`
+    - `iconName`: string enum matching `ICON_NAMES`
+    - `label`: optional overlay label text
+  - Animation properties:
+    - `entry`: `"fade" | "slide-up" | "slide-down" | "scale-up" | "grow-y" | "grow-x"`
+- Append `visualElements: z.array(VisualElementSchema).optional()` to the main `VideoBriefSchema`.
 
 ---
 
-## 🔁 If Issues Found
+### Component 2: AI Pipeline & Prompts
 
-If any session finds a visual defect:
-
-1. Identify which element / layer is responsible (using the Active Layers panel in `/advance`).
-2. Trace it back to the relevant `buildProjectFromBrief.ts` coordinate or event property.
-3. Apply the math fix.
-4. Re-run `npm test` to confirm no regression.
-5. Re-run the relevant verification session.
+#### [MODIFY] [prompts.ts](file:///c:/Users/kiran/code/p/videogpt/next/src/lib/ai/prompts.ts)
+- Update `VIDEO_BRIEF_JSON_SCHEMA` to include `visualElements` and its full sub-schema description.
+- Modify the system prompt in `buildSystemPrompt` to instruct the AI:
+  - When the user asks for a physical process, timeline, build process, or step-by-step tutorial (such as building a skyscraper, growing a tree, or compiling code), layout = `"single-column"` must be used.
+  - To make the video visually engaging, the AI should design a matching set of `visualElements` inside the `700x600` container.
+  - Provide an example of how to define `visualElements` (e.g. stacking rectangles for a skyscraper).
 
 ---
 
-## Verification Plan Summary
+### Component 3: Brief Expander & Renderer
 
-| Session | Frame | Check | Status |
-|---------|-------|-------|--------|
-| A | n/a | Quality Gate ≥ 98/100 | ✅ Passed (100/100) |
-| B | 1.80s | Packet arc: Browser→Server | ✅ Passed (6.30s frame verified) |
-| C | 5.50s | Progress bar full-width, no label collision | ✅ Passed (9.00s frame verified) |
-| D | 10.00s | Outro text centred | ✅ Passed (14.00s frame verified) |
+#### [MODIFY] [buildProjectFromBrief.ts](file:///c:/Users/kiran/code/p/videogpt/next/src/lib/brief/buildProjectFromBrief.ts)
+- Update `buildSingleColumn` to check if `visualElements` is defined and has elements.
+- If visual elements are present:
+  - Shift content blocks layout to the left (e.g. `textLeft = 120`, `maxWidth = 750`).
+  - Compute absolute canvas coordinates for each visual element within the `700x600` bounding box centered on the right half (`diagramX=1060`, `diagramY=320`).
+  - Match element colors (`accent1`, `accent2`, `muted`, etc.) to the resolved palette object (`p.accent1`, `p.accent2`, etc.).
+  - Translate the element definitions into `TimelineEvent` objects of type `"shape"` (or `"text"` for element labels).
+  - Stagger element timeline timing (`start`, `end`) based on their associated `blockIndex`'s stagger times, so they animate in sync with the content blocks.
+  - Implement corresponding animations for `entry` values (fade, translation, scale, or clipping paths/growth).
 
+---
+
+## Verification Plan
+
+### Automated Tests
+- Run `npm test` to ensure existing 214 tests pass and no regression occurs.
+- Add a new test suite in `src/__tests__/brief/buildProjectFromBrief.test.ts` to verify that `visualElements` inside a single-column brief correctly generate the expected shapes and text events with proper coordinates.
+
+### Manual Verification
+- Start Next.js dev server.
+- Open `http://localhost:3000/generate`.
+- Submit prompt: `"how are skyscrapper built"`.
+- Verify that the generation completes successfully (no OpenRouter or schema errors).
+- Load Advanced Mode and scrub through frames to verify that:
+  - A stack of building blocks (rectangles) is displayed on the right side.
+  - Text cards are neatly aligned on the left side.
+  - The shapes animate in sync as each phase (Foundation, Steel Frame, Concrete, Facade) enters.
