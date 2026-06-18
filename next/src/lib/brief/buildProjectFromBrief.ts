@@ -283,6 +283,35 @@ function labelFontSize(rh: number): number {
   return 22;
 }
 
+function estimateTextLines(text: string, fontSize: number, maxWidth: number): number {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let currentLine = "";
+  
+  // Approximate character width as 0.55 of fontSize.
+  const charWidth = fontSize * 0.55;
+
+  for (const word of words) {
+    if (!word) continue;
+    const candidate = currentLine ? `${currentLine} ${word}` : word;
+    const estimatedWidth = candidate.length * charWidth;
+
+    if (estimatedWidth <= maxWidth || !currentLine) {
+      currentLine = candidate;
+      continue;
+    }
+
+    lines.push(currentLine);
+    currentLine = word;
+  }
+
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+
+  return Math.max(1, lines.length);
+}
+
 // ── Animation helpers ─────────────────────────────────────────────────────────
 
 function lerp(a: number, b: number, t: number): number {
@@ -556,12 +585,14 @@ function buildTwoColumn(
   });
 
   if (brief.subtitle) {
+    const titleLines = estimateTextLines(brief.title, titleFS, titleMaxW);
+    const subtitleY = 380 + titleLines * titleLH + 24;
     ev.push({
       id: "subtitle", type: "text",
       start: ce(act1.start + lerp(0, act1.end - act1.start, 0.4), dur),
       end: act1.end, layer: 5,
       text: brief.subtitle,
-      x: GAP_CX - 370, y: titleFS > 88 ? 520 : 498, maxWidth: 800,
+      x: GAP_CX - 370, y: subtitleY, maxWidth: 800,
       color: p.muted, fontSize: 28, fontWeight: 400,
       opacity: { from: 0, to: 1, easing: easings.title },
     });
@@ -1224,12 +1255,14 @@ function buildSingleColumn(
   });
 
   if (brief.subtitle) {
+    const titleLines = estimateTextLines(brief.title, titleFS, 1600);
+    const subtitleY = 270 + titleLines * titleLH + 24;
     ev.push({
       id: "subtitle", type: "text",
       start: ce(act1.start + lerp(0, act1.end - act1.start, 0.4), dur),
       end: act2.start, layer: 5,
       text: brief.subtitle,
-      x: 160, y: titleFS > 88 ? 400 : 380, maxWidth: 1200,
+      x: 160, y: subtitleY, maxWidth: 1200,
       color: p.muted, fontSize: 32, fontWeight: 400,
       opacity: { from: 0, to: 1, easing: easings.title },
     });

@@ -407,13 +407,22 @@ export const useStore = create<StoreState>((set, get) => ({
   },
 
   hydrate: (persisted) => {
-    set((state) => ({
-      sessions: persisted.sessions ?? state.sessions,
-      activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
-      duration: persisted.duration ?? state.duration,
-      stylePreset: persisted.stylePreset ?? state.stylePreset,
-      theme: persisted.theme ?? state.theme,
-    }));
+    set((state) => {
+      const persistedSessions = persisted.sessions ?? [];
+      const mergedSessions = [...persistedSessions];
+      for (const initS of state.sessions) {
+        if (!mergedSessions.some((s) => s.id === initS.id)) {
+          mergedSessions.push(initS);
+        }
+      }
+      return {
+        sessions: mergedSessions,
+        activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
+        duration: persisted.duration ?? state.duration,
+        stylePreset: persisted.stylePreset ?? state.stylePreset,
+        theme: persisted.theme ?? state.theme,
+      };
+    });
   },
 }));
 
