@@ -1332,13 +1332,33 @@ function buildSingleColumn(
   const titleSeed  = seededHash(brief.title);
   const titleFS    = resolveTitleFontSize(brief.titleSize);
   const titleLH    = Math.round(titleFS * 1.15);
-  const titleX     = hasVisuals ? startX : (brief.titleAlign === "center" ? W / 2 - 720 : 160);
+  const isCentered = brief.titleAlign === "center";
   const titleMaxW  = hasVisuals ? 750 : 1600;
   const subtitleMaxW = hasVisuals ? 750 : 1200;
+  const titleX     = isCentered
+    ? (hasVisuals ? startX + titleMaxW / 2 : W / 2)
+    : startX;
 
   // ── ACT 1: Title ──────────────────────────────────────────────────────────────────
 
   const titleEnd = ce(act2.start + Math.min(0.5, (act2.end - act2.start) * 0.2), dur);
+  const titleOpacity: AnimatedValue = {
+    keyframes: [
+      { time: act1.start, value: 0, easing: easings.title },
+      { time: Math.min(act1.start + 0.5, act2.start), value: 1, easing: easings.title },
+      ...(act2.start > act1.start + 0.5 ? [{ time: act2.start, value: 1, easing: easings.title }] : []),
+      { time: titleEnd, value: 0, easing: easings.title },
+    ],
+  };
+  const titleTranslateY: AnimatedValue = {
+    keyframes: [
+      { time: act1.start, value: 30, easing: easings.title },
+      { time: Math.min(act1.start + 0.5, act2.start), value: 0, easing: easings.title },
+      ...(act2.start > act1.start + 0.5 ? [{ time: act2.start, value: 0, easing: easings.title }] : []),
+      { time: titleEnd, value: -30, easing: easings.title },
+    ],
+  };
+
   ev.push({
     id: "title", type: "text",
     start: act1.start,
@@ -1348,22 +1368,42 @@ function buildSingleColumn(
     x: titleX, y: 270, maxWidth: titleMaxW,
     color: p.text, fontSize: titleFS, fontWeight: 800, lineHeight: titleLH,
     shadow: glow > 0 ? { color: p.glow, blur: glow * 2 } : undefined,
-    opacity: transitionValue(0, 1, act1.start, titleEnd, easings.title, 0.5),
-    translateY: transitionValue(30, 0, act1.start, titleEnd, easings.title, 0.5),
+    opacity: titleOpacity,
+    translateY: titleTranslateY,
+    ...(isCentered && { align: "center" as CanvasTextAlign }),
   });
 
   if (brief.subtitle) {
     const titleLines = estimateTextLines(brief.title, titleFS, titleMaxW);
     const subtitleY = 270 + titleLines * titleLH + 24;
     const subStart = ce(act1.start + lerp(0, act1.end - act1.start, 0.4), dur);
+    const subOpacity: AnimatedValue = {
+      keyframes: [
+        { time: subStart, value: 0, easing: easings.title },
+        { time: Math.min(subStart + 0.5, act2.start), value: 1, easing: easings.title },
+        ...(act2.start > subStart + 0.5 ? [{ time: act2.start, value: 1, easing: easings.title }] : []),
+        { time: titleEnd, value: 0, easing: easings.title },
+      ],
+    };
+    const subTranslateY: AnimatedValue = {
+      keyframes: [
+        { time: subStart, value: 20, easing: easings.title },
+        { time: Math.min(subStart + 0.5, act2.start), value: 0, easing: easings.title },
+        ...(act2.start > subStart + 0.5 ? [{ time: act2.start, value: 0, easing: easings.title }] : []),
+        { time: titleEnd, value: -30, easing: easings.title },
+      ],
+    };
+
     ev.push({
       id: "subtitle", type: "text",
       start: subStart,
-      end: act2.start, layer: 5,
+      end: titleEnd, layer: 5,
       text: brief.subtitle,
       x: titleX, y: subtitleY, maxWidth: subtitleMaxW,
       color: p.muted, fontSize: 32, fontWeight: 400,
-      opacity: transitionValue(0, 1, subStart, act2.start, easings.title, 0.5),
+      opacity: subOpacity,
+      translateY: subTranslateY,
+      ...(isCentered && { align: "center" as CanvasTextAlign }),
     });
   }
 
@@ -1593,8 +1633,8 @@ function buildSingleColumn(
           fill: p.surface,
           stroke: withAlpha(p.text, 0.15),
           strokeWidth: 1,
-          paddingX: 8,
-          paddingY: 4,
+          paddingX: 14,
+          paddingY: 6,
           radius: 6,
         } : undefined;
 
@@ -1605,12 +1645,30 @@ function buildSingleColumn(
             ? (element.color === "surface" || element.color === "muted" ? p.text : p.surface)
             : p.text;
 
+        let fontSize = 22;
+        if (element.type === "rect") {
+          const rectW = element.width ?? 100;
+          const charWidthFactor = 0.58;
+          const estimatedTextWidth = element.label.length * 22 * charWidthFactor;
+          const maxAllowedWidth = rectW - 20; // 10px padding on each side
+          if (estimatedTextWidth > maxAllowedWidth) {
+            fontSize = Math.max(14, Math.floor(maxAllowedWidth / (element.label.length * charWidthFactor)));
+          }
+        } else if (element.type === "circle" && !hasBackdrop) {
+          const circleW = (element.radius ?? 50) * 1.5; // Allow text to occupy up to 75% of diameter
+          const charWidthFactor = 0.58;
+          const estimatedTextWidth = element.label.length * 22 * charWidthFactor;
+          if (estimatedTextWidth > circleW) {
+            fontSize = Math.max(14, Math.floor(circleW / (element.label.length * charWidthFactor)));
+          }
+        }
+
         ev.push({
           id: `vis-label-${idx}`, type: "text",
           start: subStart, end: blkEnd, layer: 4,
           text: element.label,
           x: labelCX, y: labelCY, maxWidth: element.width ?? 200,
-          color: labelColor, fontSize: 22, fontWeight: 700, align: "center",
+          color: labelColor, fontSize, fontWeight: 700, align: "center",
           verticalAlign: "middle",
           backdrop,
           opacity: transitionValue(0, 1, subStart, blkEnd, elementEase, 0.5),

@@ -145,6 +145,59 @@ export function validateBrief(raw: unknown): VideoBrief {
   const styleKey = str(src.style, "");
   const style = VALID_STYLES.has(styleKey) ? styleKey : DEFAULT_STYLE;
 
+  const entryAnimation = (typeof src.entryAnimation === "string" && ["slide-up", "slide-down", "slide-left", "slide-right", "fade-only", "scale-up", "bounce-in"].includes(src.entryAnimation))
+    ? (src.entryAnimation as any)
+    : undefined;
+
+  const variant = (typeof src.variant === "string" && ["standard", "diagonal", "asymmetric"].includes(src.variant))
+    ? (src.variant as any)
+    : undefined;
+
+  const titleSize = (typeof src.titleSize === "string" && ["small", "medium", "large", "hero"].includes(src.titleSize))
+    ? (src.titleSize as any)
+    : undefined;
+
+  const titleAlign = (typeof src.titleAlign === "string" && ["left", "center"].includes(src.titleAlign))
+    ? (src.titleAlign as any)
+    : undefined;
+
+  const particleIntensity = typeof src.particleIntensity === "number"
+    ? src.particleIntensity
+    : undefined;
+
+  const closingStyle = (typeof src.closingStyle === "string" && ["fade-up", "fade-center", "none"].includes(src.closingStyle))
+    ? (src.closingStyle as any)
+    : undefined;
+
+  const blockStyle = (typeof src.blockStyle === "string" && ["stacked", "cards", "timeline", "numbered"].includes(src.blockStyle))
+    ? (src.blockStyle as any)
+    : undefined;
+
+  const emphasizeLeft = typeof src.emphasizeLeft === "number" ? src.emphasizeLeft : undefined;
+  const emphasizeRight = typeof src.emphasizeRight === "number" ? src.emphasizeRight : undefined;
+
+  const leftIcons = Array.isArray(src.leftIcons) ? src.leftIcons.map(i => str(i, "gear")) : undefined;
+  const rightIcons = Array.isArray(src.rightIcons) ? src.rightIcons.map(i => str(i, "gear")) : undefined;
+  const blockIcons = Array.isArray(src.blockIcons) ? src.blockIcons.map(i => str(i, "gear")) : undefined;
+
+  const decorations = isObject(src.decorations) ? {
+    cornerBrackets: typeof src.decorations.cornerBrackets === "boolean" ? src.decorations.cornerBrackets : undefined,
+    scanLines: typeof src.decorations.scanLines === "boolean" ? src.decorations.scanLines : undefined,
+    pulseRings: typeof src.decorations.pulseRings === "boolean" ? src.decorations.pulseRings : undefined,
+    gapDivider: typeof src.decorations.gapDivider === "boolean" ? src.decorations.gapDivider : undefined,
+    decoBaseline: typeof src.decorations.decoBaseline === "boolean" ? src.decorations.decoBaseline : undefined,
+  } : undefined;
+
+  const actWeights = Array.isArray(src.actWeights)
+    ? src.actWeights.map(w => typeof w === "number" ? w : 1)
+    : undefined;
+
+  const colorOverrides = isObject(src.colorOverrides) ? {
+    accent1: optStr(src.colorOverrides.accent1),
+    accent2: optStr(src.colorOverrides.accent2),
+    surface: optStr(src.colorOverrides.surface),
+  } : undefined;
+
   const base = {
     layout,
     title:      str(src.title, "Untitled"),
@@ -152,6 +205,20 @@ export function validateBrief(raw: unknown): VideoBrief {
     closingLine: optStr(src.closingLine),
     palette,
     style,
+    entryAnimation,
+    variant,
+    titleSize,
+    titleAlign,
+    particleIntensity,
+    closingStyle,
+    emphasizeLeft,
+    emphasizeRight,
+    leftIcons,
+    rightIcons,
+    blockIcons,
+    decorations,
+    actWeights,
+    colorOverrides,
   };
 
   if (layout === "two-column") {
@@ -177,6 +244,7 @@ export function validateBrief(raw: unknown): VideoBrief {
   return {
     ...base,
     blocks: extractBlocks(src.blocks),
+    blockStyle,
     visualElements: extractVisualElements(src.visualElements),
   };
 }

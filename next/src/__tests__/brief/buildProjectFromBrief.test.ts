@@ -476,4 +476,133 @@ describe("buildProjectFromBrief", () => {
     expect(label3.color).toBe(PALETTES.midnight.text);
     expect(label3.y).toBe(320 + 100 - 40); // Offset to shapeY - radius
   });
+
+  it("verifies title and subtitle center-alignment in single-column layout", () => {
+    const brief = singleColBrief({
+      titleAlign: "center",
+      subtitle: "Trilateration in action",
+    });
+    const project = buildProjectFromBrief(brief, DUR);
+    const title = project.events.find((e) => e.id === "title") as TextEvent;
+    const subtitle = project.events.find((e) => e.id === "subtitle") as TextEvent;
+
+    expect(title).toBeDefined();
+    expect(title.align).toBe("center");
+    expect(title.x).toBe(1920 / 2); // since hasVisuals is false, titleX = W / 2
+
+    expect(subtitle).toBeDefined();
+    expect(subtitle.align).toBe("center");
+    expect(subtitle.x).toBe(1920 / 2);
+
+    // Now test with visuals: center should be startX + titleMaxW / 2 = 160 + 750 / 2 = 535
+    const briefWithVisuals = singleColBrief({
+      titleAlign: "center",
+      subtitle: "Trilateration in action",
+      visualElements: [{ type: "circle", x: 10, y: 10 }],
+    });
+    const projectWithVisuals = buildProjectFromBrief(briefWithVisuals, DUR);
+    const titleWithVisuals = projectWithVisuals.events.find((e) => e.id === "title") as TextEvent;
+    const subtitleWithVisuals = projectWithVisuals.events.find((e) => e.id === "subtitle") as TextEvent;
+
+    expect(titleWithVisuals.align).toBe("center");
+    expect(titleWithVisuals.x).toBe(535);
+
+    expect(subtitleWithVisuals.align).toBe("center");
+    expect(subtitleWithVisuals.x).toBe(535);
+  });
+
+  it("verifies title and subtitle exit transition keyframes in single-column layout", () => {
+    const brief = singleColBrief({
+      subtitle: "Trilateration in action",
+    });
+    const project = buildProjectFromBrief(brief, DUR);
+    const title = project.events.find((e) => e.id === "title") as TextEvent;
+    const subtitle = project.events.find((e) => e.id === "subtitle") as TextEvent;
+
+    expect(title).toBeDefined();
+    expect(title.opacity).toBeDefined();
+    expect(typeof title.opacity).toBe("object");
+    expect("keyframes" in title.opacity!).toBe(true);
+
+    const titleOpacityKfs = (title.opacity as any).keyframes;
+    expect(titleOpacityKfs).toHaveLength(4);
+    // Exit starts at act2.start and ends at titleEnd
+    const act2Start = titleOpacityKfs[2].time;
+    const titleEnd = titleOpacityKfs[3].time;
+
+    expect(titleOpacityKfs[2].value).toBe(1);
+    expect(titleOpacityKfs[3].value).toBe(0);
+    expect(titleOpacityKfs[3].time).toBe(title.end);
+
+    expect(title.translateY).toBeDefined();
+    const titleTransKfs = (title.translateY as any).keyframes;
+    expect(titleTransKfs[2].value).toBe(0);
+    expect(titleTransKfs[3].value).toBe(-30);
+    expect(titleTransKfs[3].time).toBe(title.end);
+
+    expect(subtitle).toBeDefined();
+    expect(subtitle.end).toBe(title.end); // Should match titleEnd
+    expect(subtitle.opacity).toBeDefined();
+    const subOpacityKfs = (subtitle.opacity as any).keyframes;
+    expect(subOpacityKfs).toHaveLength(4);
+    expect(subOpacityKfs[2].value).toBe(1);
+    expect(subOpacityKfs[3].value).toBe(0);
+    expect(subOpacityKfs[3].time).toBe(title.end);
+
+    expect(subtitle.translateY).toBeDefined();
+    const subTransKfs = (subtitle.translateY as any).keyframes;
+    expect(subTransKfs[2].value).toBe(0);
+    expect(subTransKfs[3].value).toBe(-30);
+  });
+
+  it("verifies diagram shape label padding and dynamic font-size scaling", () => {
+    const brief = singleColBrief({
+      visualElements: [
+        {
+          type: "rect",
+          blockIndex: 0,
+          x: 100, y: 100,
+          width: 120, height: 50,
+          label: "Triangulate", // Very long label for a 120px wide rect
+          fillType: "solid",
+        },
+        {
+          type: "circle",
+          blockIndex: 0,
+          x: 200, y: 100,
+          radius: 20,
+          label: "TooLongLabelForCircle", // Very long label for 20px radius solid circle
+          fillType: "solid",
+        },
+        {
+          type: "line",
+          blockIndex: 0,
+          x1: 100, y1: 100, x2: 200, y2: 200,
+          label: "LineLabel",
+          fillType: "dashed",
+        }
+      ]
+    });
+
+    const project = buildProjectFromBrief(brief, DUR);
+    const labelRect = project.events.find((e) => e.id === "vis-label-0") as TextEvent;
+    const labelCircle = project.events.find((e) => e.id === "vis-label-1") as TextEvent;
+    const labelLine = project.events.find((e) => e.id === "vis-label-2") as TextEvent;
+
+    expect(labelRect).toBeDefined();
+    // Font size should scale down from 22 to prevent border overlap
+    expect(labelRect.fontSize).toBeLessThan(22);
+    expect(labelRect.fontSize).toBeGreaterThanOrEqual(14);
+
+    expect(labelCircle).toBeDefined();
+    // Solid circle label should scale down from 22
+    expect(labelCircle.fontSize).toBeLessThan(22);
+    expect(labelCircle.fontSize).toBeGreaterThanOrEqual(14);
+
+    expect(labelLine).toBeDefined();
+    // Line label uses backdrop with increased padding
+    expect(labelLine.backdrop).toBeDefined();
+    expect(labelLine.backdrop?.paddingX).toBe(14);
+    expect(labelLine.backdrop?.paddingY).toBe(6);
+  });
 });
