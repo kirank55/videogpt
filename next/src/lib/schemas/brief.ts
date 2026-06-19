@@ -115,6 +115,9 @@ export const VisualElementSchema = z.object({
   iconName: IconNameSchema.optional(),
   label: z.string().optional(),
   entry: z.enum(["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x", "draw"]).optional(),
+  startPadding: z.number().optional(),
+  endPadding: z.number().optional(),
+  labelBackdrop: z.boolean().optional(),
 });
 
 // ── Main schema ──────────────────────────────────────────────────────────────

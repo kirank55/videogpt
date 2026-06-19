@@ -88,7 +88,7 @@ function extractVisualElements(x: unknown): any[] | undefined {
       const fillType = (typeof e.fillType === "string" && ["solid", "outline", "dashed"].includes(e.fillType))
         ? (e.fillType as any)
         : undefined;
-      const entry = (typeof e.entry === "string" && ["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x"].includes(e.entry))
+      const entry = (typeof e.entry === "string" && ["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x", "draw"].includes(e.entry))
         ? (e.entry as any)
         : undefined;
 
@@ -112,6 +112,9 @@ function extractVisualElements(x: unknown): any[] | undefined {
         iconName,
         label,
         entry,
+        startPadding: typeof e.startPadding === "number" ? e.startPadding : undefined,
+        endPadding: typeof e.endPadding === "number" ? e.endPadding : undefined,
+        labelBackdrop: typeof e.labelBackdrop === "boolean" ? e.labelBackdrop : undefined,
       };
     })
     .slice(0, 30);

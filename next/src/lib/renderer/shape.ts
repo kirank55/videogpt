@@ -177,6 +177,18 @@ function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent, tim
 
   const { drawProgress } = getAnimatedStyle(event, time);
 
+  const startPad = (event as any).startPadding ?? 0;
+  const endPad = (event as any).endPadding ?? 0;
+
+  const dx = event.x2 - event.x1;
+  const dy = event.y2 - event.y1;
+  const angle = Math.atan2(dy, dx);
+
+  const p1X = event.x1 + Math.cos(angle) * startPad;
+  const p1Y = event.y1 + Math.sin(angle) * startPad;
+  const p2X = event.x2 - Math.cos(angle) * endPad;
+  const p2Y = event.y2 - Math.sin(angle) * endPad;
+
   if (event.lineDash) {
     context.setLineDash(event.lineDash);
   }
@@ -186,10 +198,10 @@ function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent, tim
   context.lineWidth = event.lineWidth;
   context.lineCap = "round";
   
-  const currentX2 = event.x1 + (event.x2 - event.x1) * drawProgress;
-  const currentY2 = event.y1 + (event.y2 - event.y1) * drawProgress;
+  const currentX2 = p1X + (p2X - p1X) * drawProgress;
+  const currentY2 = p1Y + (p2Y - p1Y) * drawProgress;
   
-  context.moveTo(event.x1, event.y1);
+  context.moveTo(p1X, p1Y);
   context.lineTo(currentX2, currentY2);
   context.stroke();
 
@@ -197,15 +209,14 @@ function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent, tim
     context.setLineDash([]);
   }
 
-  const angle = Math.atan2(event.y2 - event.y1, event.x2 - event.x1);
   const size = event.arrowSize ?? event.lineWidth * 3;
 
   if (event.arrowEnd && drawProgress >= 0.98) {
-    drawArrowhead(context, event.x2, event.y2, angle, size, event.stroke);
+    drawArrowhead(context, p2X, p2Y, angle, size, event.stroke);
   }
 
   if (event.arrowStart && drawProgress >= 0.02) {
-    drawArrowhead(context, event.x1, event.y1, angle + Math.PI, size, event.stroke);
+    drawArrowhead(context, p1X, p1Y, angle + Math.PI, size, event.stroke);
   }
 }
 

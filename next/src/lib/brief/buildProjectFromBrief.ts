@@ -1548,6 +1548,8 @@ function buildSingleColumn(
           stroke: baseColor,
           lineWidth: element.width ?? s.strokeWeight ?? 3,
           lineDash: element.fillType === "dashed" ? [6, 6] : undefined,
+          startPadding: element.startPadding,
+          endPadding: element.endPadding,
           ...entryAnims,
         });
       } else if (element.type === "icon") {
@@ -1584,12 +1586,23 @@ function buildSingleColumn(
           : p.text;
 
         const subStart = ce(blkStart + 0.1, dur);
+        const hasBackdrop = element.labelBackdrop !== false;
+        const backdrop = hasBackdrop ? {
+          fill: p.surface,
+          stroke: withAlpha(p.text, 0.15),
+          strokeWidth: 1,
+          paddingX: 8,
+          paddingY: 4,
+          radius: 6,
+        } : undefined;
+
         ev.push({
           id: `vis-label-${idx}`, type: "text",
           start: subStart, end: blkEnd, layer: 4,
           text: element.label,
           x: labelCX, y: labelCY, maxWidth: element.width ?? 200,
           color: labelColor, fontSize: 22, fontWeight: 700, align: "center",
+          backdrop,
           opacity: transitionValue(0, 1, subStart, blkEnd, elementEase, 0.5),
           ...(element.entry === "slide-up" && { translateY: transitionValue(20, 0, subStart, blkEnd, elementEase, 0.5) }),
           ...(element.entry === "slide-down" && { translateY: transitionValue(-20, 0, subStart, blkEnd, elementEase, 0.5) }),

@@ -31,7 +31,7 @@ async function main() {
   const prompt = PROMPTS[idx];
   const duration = 5;
   const times = ["0.5", "1.2", "3.0", "4.8"];
-  const brainDir = "C:\\Users\\kiran\\.gemini\\antigravity-ide\\brain\\d459c086-a14c-4f2c-8b3c-0c521d1b36b9";
+  const brainDir = process.env.BRAIN_DIR ?? "C:\\Users\\kiran\\.gemini\\antigravity-ide\\brain\\b2bfb0e0-4179-4c14-9b4b-1cdd9d559cf5";
   const outDir = path.join(brainDir, `bulk_captures`, `prompt_${idx}`);
 
   console.log(`\n=== runBulkGeneration CLI (Prompt ${idx}) ===`);

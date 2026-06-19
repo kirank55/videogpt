@@ -2,7 +2,9 @@ import fs from "fs";
 import path from "path";
 import { type VideoProject } from "../lib/renderer";
 
-const DEFAULT_BULK_DIR = "C:\\Users\\kiran\\.gemini\\antigravity-ide\\brain\\d459c086-a14c-4f2c-8b3c-0c521d1b36b9\\bulk_captures";
+const DEFAULT_BULK_DIR = process.env.BRAIN_DIR 
+  ? path.join(process.env.BRAIN_DIR, "bulk_captures")
+  : "C:\\Users\\kiran\\.gemini\\antigravity-ide\\brain\\b2bfb0e0-4179-4c14-9b4b-1cdd9d559cf5\\bulk_captures";
 const tempJSPath = path.resolve(__dirname, "../../public/temp-project-data.js");
 
 async function main() {

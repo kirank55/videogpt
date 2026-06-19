@@ -62,21 +62,24 @@ SOFT COMPATIBILITY GUIDANCE:
 const DIAGRAM_GUIDE = `
 ━━━ DIAGRAM DESIGN & COORDINATES GUIDE ━━━
 Use visualElements to build a high-quality, creative, and animated diagram on the right half of the canvas.
-- Coordinate box: width=700 (x: 0 to 700), height=600 (y: 0 to 600).
-- Origin: Top-left is (0,0). Bottom-right is (700,600). y=0 is TOP, y=600 is BOTTOM.
-- Choose entry animations carefully for high visual quality:
+- Coordinate box: width=700 (x: 0 to 700), height=600 (y: 0 to 600). Origin: Top-left is (0,0). y=0 is TOP, y=600 is BOTTOM.
+- Standard Grid & Layout Templates:
+  * LINEAR FLOW GRID: Stagger nodes horizontally. Place Nodes at X=100, X=350, X=600, with connecting lines between them (e.g. line from X=100 to X=350, another from X=350 to X=600).
+  * CLIENT-SERVER SPLIT GRID: Place Client columns/nodes at X=150, Server columns/nodes at X=550. Connect them with horizontal lines.
+  * HIERARCHICAL TREE GRID: Root node centered at (350, 100). Child nodes left-to-right at Y=350 (e.g., X=150, X=350, X=550). Connect root to children using diagonal lines.
+- Node Boundaries & Line Padding (CRITICAL):
+  * To prevent lines and arrowheads from overlapping circular or rectangular nodes, ALWAYS set "startPadding" and "endPadding" on lines.
+  * For a node (circle/rect) with radius/width R, set startPadding/endPadding equal to R (usually 25-45) so the line and its arrowhead stop exactly at the outer boundary of the node.
+- Choose entry animations carefully:
   * "draw": Use this for lines, outline circles, connecting lines, and arrows. They will draw from start to end progressively.
   * "grow-y": Use this for vertical pillars, skyscraper construction blocks, or bar charts. They will scale vertically.
   * "grow-x": Use this for horizontal progress meters, horizontal dividers, or horizontal path connectors.
   * "bounce-in" or "scale-up": Use this for icons, badges, text labels, and structural nodes (circles).
-  * "slide-up" / "slide-down": Use this for blocks of text or side panels.
 - Creative Designs:
-  * Stacking / Pillars (e.g., Skyscrapers, database layers): horizontal-center at x=350. Stack upwards starting from the bottom (e.g. foundation at y=480, height=80, next level at y=380, height=100). Use "grow-y" entry.
-  * Networking / Client-Server: Draw multiple nodes (circles with icons) connected by lines. Set element fillType="outline" and entry="draw" on connectors.
-  * Flow / Sequences: Use lines with arrows (y1=y2 for horizontal) using entry="draw" to direct the user's eye from step to step.
+  * Stacking / Pillars (e.g. Skyscrapers, database layers): centered at x=350. Stack upwards starting from the bottom (e.g. foundation at y=480, height=80, next level at y=380, height=100). Use "grow-y" entry.
+  * Flow / Sequences: Use lines with arrows using entry="draw" to direct the user's eye from step to step in sync with blockIndex.
 - Label Formatting:
-  * Only put labels on rectangles/circles if they are wide/large enough (width >= 160) to fit text.
-  * For narrow shapes, leave the label blank and put a text label element next to it.
+  * Text labels automatically render with a semi-transparent container backdrop for high legibility, unless "labelBackdrop": false is set.
 - Timing: Match blockIndex of visualElements to the corresponding block index on the left (e.g., elements for the first step get blockIndex=0).
 `.trim();
 
@@ -196,6 +199,9 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
           iconName: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] },
           label: { type: "string", maxLength: 40, description: "Text label centered within/on the element" },
           entry: { type: "string", enum: ["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x", "draw"] },
+          startPadding: { type: "number", description: "Offset line start position to stop overlap with shapes (usually equal to shape radius, e.g. 20-40)" },
+          endPadding: { type: "number", description: "Offset line end position to stop overlap with shapes (usually equal to shape radius, e.g. 20-40)" },
+          labelBackdrop: { type: "boolean", description: "Defaults to true. Renders a rounded surface backdrop behind the label for legibility." },
         },
       },
     },

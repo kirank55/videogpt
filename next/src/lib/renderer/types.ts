@@ -94,6 +94,14 @@ export type TextEvent = BaseTimelineEvent & {
   fontFamily?: string;
   lineHeight?: number;
   align?: CanvasTextAlign;
+  backdrop?: {
+    fill: string;
+    stroke?: string;
+    strokeWidth?: number;
+    paddingX?: number;
+    paddingY?: number;
+    radius?: number;
+  };
 };
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -164,6 +172,8 @@ export type ShapeEvent = BaseTimelineEvent &
         arrowStart?: boolean;
         arrowEnd?: boolean;
         arrowSize?: number;
+        startPadding?: number;
+        endPadding?: number;
       }
     | {
         /** Canvas-drawn tech icon from the built-in atlas. */
