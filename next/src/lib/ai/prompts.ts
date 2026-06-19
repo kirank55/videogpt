@@ -63,24 +63,24 @@ const DIAGRAM_GUIDE = `
 ━━━ DIAGRAM DESIGN & COORDINATES GUIDE ━━━
 Use visualElements to build a high-quality, creative, and animated diagram on the right half of the canvas.
 - Coordinate box: width=700 (x: 0 to 700), height=600 (y: 0 to 600). Origin: Top-left is (0,0). y=0 is TOP, y=600 is BOTTOM.
-- Standard Grid & Layout Templates:
-  * LINEAR FLOW GRID: Stagger nodes horizontally. Place Nodes at X=100, X=350, X=600, with connecting lines between them (e.g. line from X=100 to X=350, another from X=350 to X=600).
-  * CLIENT-SERVER SPLIT GRID: Place Client columns/nodes at X=150, Server columns/nodes at X=550. Connect them with horizontal lines.
-  * HIERARCHICAL TREE GRID: Root node centered at (350, 100). Child nodes left-to-right at Y=350 (e.g., X=150, X=350, X=550). Connect root to children using diagonal lines.
-- Node Boundaries & Line Padding (CRITICAL):
-  * To prevent lines and arrowheads from overlapping circular or rectangular nodes, ALWAYS set "startPadding" and "endPadding" on lines.
-  * For a node (circle/rect) with radius/width R, set startPadding/endPadding equal to R (usually 25-45) so the line and its arrowhead stop exactly at the outer boundary of the node.
-- Choose entry animations carefully:
+
+- MANDATORY Composition Rules (CRITICAL):
+  * NO LAZY STACKED BARS: DO NOT just draw a vertical list of simple horizontal bar rectangles with labels inside them (like a list of text). This looks extremely basic and unprofessional.
+  * NODE-ICON COMBINATIONS: Design every diagram using visual "nodes". A node is a circle or styled rectangle, containing a tech icon inside, with a text label positioned either centered inside or just below/above it.
+  * CONNECTORS & FLOWS: Connect nodes together using type: "line" elements with "arrowEnd": true. The lines must have "startPadding" and "endPadding" (typically 20 to 45 depending on the node size) so the line and its arrowhead stop exactly at the outer boundary of the node rather than overlapping the center.
+  * STEP-BY-STEP STAGGER: Use "blockIndex" to reveal elements sequentially. Show Node 1 in blockIndex 0, the connector line in blockIndex 1, Node 2 in blockIndex 1, and so on.
+
+- Standard Layout Templates (Apply to ANY topic):
+  * FLOW / PIPELINE (Sequential): Stagger nodes horizontally. Place Node 1 at (150, 300), Node 2 at (350, 300), Node 3 at (550, 300). Connect Node 1 -> Node 2 with a horizontal line, and Node 2 -> Node 3 with another.
+  * CLIENT-SERVER / DISTRIBUTED: Place Client nodes/columns on the left (e.g., X=150, Y=200 and Y=400), and Server nodes/columns on the right (e.g., X=550, Y=200 and Y=400). Draw horizontal/diagonal lines with arrows between them representing communication.
+  * HUB & SPOKE (Centralized): Place a main central hub node (e.g., cloud or database) at (350, 300). Place peripheral nodes around it (e.g., X=150, Y=300; X=350, Y=120; X=550, Y=300; X=350, Y=480) and connect all of them to the hub.
+  * STRUCTURAL STACK (Vertical): For stacked database layers or physical buildings, stack them vertically from the bottom up (e.g. Foundation at Y=480, height=80; Level 1 at Y=380, height=100; Spire at Y=300, height=80), centered at X=350. Give each layer a distinct fill color, border, and sub-icon.
+
+- Entry Animations:
   * "draw": Use this for lines, outline circles, connecting lines, and arrows. They will draw from start to end progressively.
-  * "grow-y": Use this for vertical pillars, skyscraper construction blocks, or bar charts. They will scale vertically.
-  * "grow-x": Use this for horizontal progress meters, horizontal dividers, or horizontal path connectors.
+  * "grow-y": Use this for vertical pillars, skyscraper levels, or bar charts. They scale vertically.
+  * "grow-x": Use this for horizontal progress meters or dividers.
   * "bounce-in" or "scale-up": Use this for icons, badges, text labels, and structural nodes (circles).
-- Creative Designs:
-  * Stacking / Pillars (e.g. Skyscrapers, database layers): centered at x=350. Stack upwards starting from the bottom (e.g. foundation at y=480, height=80, next level at y=380, height=100). Use "grow-y" entry.
-  * Flow / Sequences: Use lines with arrows using entry="draw" to direct the user's eye from step to step in sync with blockIndex.
-- Label Formatting:
-  * Text labels automatically render with a semi-transparent container backdrop for high legibility, unless "labelBackdrop": false is set.
-- Timing: Match blockIndex of visualElements to the corresponding block index on the left (e.g., elements for the first step get blockIndex=0).
 `.trim();
 
 // ── JSON Schema for VideoBrief (must match src/lib/schemas/brief.ts) ──────────
@@ -100,16 +100,16 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
     closingLine: { type: "string", maxLength: 100 },
 
     // Two-column fields
-    leftHeader:  { type: "string", maxLength: 30 },
+    leftHeader: { type: "string", maxLength: 30 },
     rightHeader: { type: "string", maxLength: 30 },
-    leftRows:  { type: "array", items: { type: "string", maxLength: 40 }, minItems: 2, maxItems: 4 },
+    leftRows: { type: "array", items: { type: "string", maxLength: 40 }, minItems: 2, maxItems: 4 },
     rightRows: { type: "array", items: { type: "string", maxLength: 40 }, minItems: 2, maxItems: 4 },
     flow: { type: "boolean" },
-    requestLabel:  { type: "string", maxLength: 60 },
-    requestBody:   { type: "string", maxLength: 80 },
+    requestLabel: { type: "string", maxLength: 60 },
+    requestBody: { type: "string", maxLength: 80 },
     responseLabel: { type: "string", maxLength: 60 },
     processingSteps: { type: "array", items: { type: "string", maxLength: 50 }, maxItems: 3 },
-    annotations:    { type: "array", items: { type: "string", maxLength: 30 }, maxItems: 3 },
+    annotations: { type: "array", items: { type: "string", maxLength: 30 }, maxItems: 3 },
     flowStyle: { type: "string", enum: ["arc", "straight", "zigzag"] },
 
     // Single-column fields
@@ -120,49 +120,49 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
         required: ["heading", "description"],
         additionalProperties: false,
         properties: {
-          heading:     { type: "string", maxLength: 60 },
+          heading: { type: "string", maxLength: 60 },
           description: { type: "string", maxLength: 140 },
-          icon: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] },
+          icon: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] },
         },
       },
       minItems: 2, maxItems: 5,
     },
 
-    palette: { type: "string", enum: ["midnight","neon","aurora","ember","forest","slate","paper","ice"] },
-    style:   { type: "string", enum: ["modern","brutalist","sketch","neon-glow","minimal"] },
+    palette: { type: "string", enum: ["midnight", "neon", "aurora", "ember", "forest", "slate", "paper", "ice"] },
+    style: { type: "string", enum: ["modern", "brutalist", "sketch", "neon-glow", "minimal"] },
 
     // Creative fields
-    variant:        { type: "string", enum: ["standard","diagonal","asymmetric"] },
-    entryAnimation: { type: "string", enum: ["slide-up","slide-down","slide-left","slide-right","fade-only","scale-up","bounce-in"] },
-    emphasizeLeft:  { type: "number" },
+    variant: { type: "string", enum: ["standard", "diagonal", "asymmetric"] },
+    entryAnimation: { type: "string", enum: ["slide-up", "slide-down", "slide-left", "slide-right", "fade-only", "scale-up", "bounce-in"] },
+    emphasizeLeft: { type: "number" },
     emphasizeRight: { type: "number" },
-    leftIcons:  { type: "array", items: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] }, maxItems: 4 },
-    rightIcons: { type: "array", items: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] }, maxItems: 4 },
-    blockIcons: { type: "array", items: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] }, maxItems: 5 },
+    leftIcons: { type: "array", items: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] }, maxItems: 4 },
+    rightIcons: { type: "array", items: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] }, maxItems: 4 },
+    blockIcons: { type: "array", items: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] }, maxItems: 5 },
     decorations: {
       type: "object",
       additionalProperties: false,
       properties: {
         cornerBrackets: { type: "boolean" },
-        scanLines:      { type: "boolean" },
-        pulseRings:     { type: "boolean" },
-        gapDivider:     { type: "boolean" },
-        decoBaseline:   { type: "boolean" },
+        scanLines: { type: "boolean" },
+        pulseRings: { type: "boolean" },
+        gapDivider: { type: "boolean" },
+        decoBaseline: { type: "boolean" },
       },
     },
-    actWeights:        { type: "array", items: { type: "number" }, minItems: 5, maxItems: 5 },
-    titleSize:         { type: "string", enum: ["small","medium","large","hero"] },
-    titleAlign:        { type: "string", enum: ["left","center"] },
+    actWeights: { type: "array", items: { type: "number" }, minItems: 5, maxItems: 5 },
+    titleSize: { type: "string", enum: ["small", "medium", "large", "hero"] },
+    titleAlign: { type: "string", enum: ["left", "center"] },
     particleIntensity: { type: "number" },
-    closingStyle:      { type: "string", enum: ["fade-up","fade-center","none"] },
+    closingStyle: { type: "string", enum: ["fade-up", "fade-center", "none"] },
     actEasings: {
       type: "object",
       additionalProperties: false,
       properties: {
-        title:   { type: "string", enum: ["linear","easeIn","easeOut","easeInOut","bounce"] },
-        stacks:  { type: "string", enum: ["linear","easeIn","easeOut","easeInOut","bounce"] },
-        flow:    { type: "string", enum: ["linear","easeIn","easeOut","easeInOut","bounce"] },
-        closing: { type: "string", enum: ["linear","easeIn","easeOut","easeInOut","bounce"] },
+        title: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
+        stacks: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
+        flow: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
+        closing: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
       },
     },
     colorOverrides: {
@@ -174,10 +174,10 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
         surface: { type: "string" },
       },
     },
-    blockStyle: { type: "string", enum: ["stacked","cards","timeline","numbered"] },
+    blockStyle: { type: "string", enum: ["stacked", "cards", "timeline", "numbered"] },
     visualElements: {
       type: "array",
-      description: "Optional shape/line/icon diagram elements to render on the right half of the canvas inside a 700x600 coordinate box.",
+      description: "MANDATORY shape/line/icon diagram elements to render on the right half of the canvas inside a 700x600 coordinate box to visualize the concept. You must always populate this array with a meaningful diagram.",
       items: {
         type: "object",
         required: ["type"],
@@ -196,7 +196,7 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
           y2: { type: "number", description: "Line end Y (0-600)" },
           color: { type: "string", enum: ["accent1", "accent2", "muted", "text", "surface"] },
           fillType: { type: "string", enum: ["solid", "outline", "dashed"] },
-          iconName: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] },
+          iconName: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] },
           label: { type: "string", maxLength: 40, description: "Text label centered within/on the element" },
           entry: { type: "string", enum: ["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x", "draw"] },
           startPadding: { type: "number", description: "Offset line start position to stop overlap with shapes (usually equal to shape radius, e.g. 20-40)" },
@@ -218,6 +218,7 @@ export { VIDEO_BRIEF_JSON_SCHEMA };
  */
 export function buildSystemPrompt(duration: SupportedDuration): string {
   const kw = TWO_COLUMN_KEYWORDS.join(", ");
+  const requestSeed = Math.floor(Math.random() * 1000000);
 
   return `
 You are a video-brief writer for an animated infographic generator.
@@ -225,6 +226,7 @@ Output a single JSON VideoBrief object. No markdown, prose, or code fences.
 You never compute coordinates, timing, or animations — a deterministic pipeline handles those.
 
 VIDEO DURATION: ${duration}s
+REQUEST_SEED: ${requestSeed}
 
 ━━━ LAYOUT SELECTION ━━━
 layout="two-column" if prompt contains: ${kw}
@@ -247,7 +249,7 @@ TWO-COLUMN (when layout=two-column):
 SINGLE-COLUMN (when layout=single-column):
   blocks          — 2–5 items: { heading, description, icon? }
   blockStyle      — "stacked" | "cards" | "timeline" | "numbered"
-  visualElements  — optional array of dynamic shapes/lines/icons to render on the right half of the canvas inside a 700x600 coordinate box. Use this to construct a visual representation or diagram related to the prompt (e.g., stacking blocks for a skyscraper, a branching line/circle for a tree).
+  visualElements  — MANDATORY array of dynamic shapes/lines/icons to render on the right half of the canvas inside a 700x600 coordinate box. You must ALWAYS construct a visual representation or diagram related to the prompt (e.g., stacking blocks for a skyscraper, a branching line/circle for a tree, search engine indexing flow) to avoid an empty canvas.
                     Each element is an object with:
                       type: "rect" | "circle" | "line" | "icon" (required)
                       blockIndex: 0-4 (optional, triggers entry when that content block enters)

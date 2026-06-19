@@ -73,3 +73,4 @@ export async function POST(req: NextRequest) {
     },
   });
 }
+// Force Next.js API route compilation refresh after prompt updates
