@@ -1571,6 +1571,11 @@ function buildSingleColumn(
         if (element.type === "rect") {
           labelCX = shapeX + (element.width ?? 100) / 2;
           labelCY = shapeY + (element.height ?? 100) / 2;
+        } else if (element.type === "circle") {
+          if (element.fillType === "outline" || element.fillType === "dashed") {
+            // Place label on the top border of the outline circle to avoid overlap in concentric circles
+            labelCY = shapeY - (element.radius ?? 50);
+          }
         } else if (element.type === "line") {
           const lineX1 = boxX + (element.x1 ?? 0);
           const lineY1 = boxY + (element.y1 ?? 0);
@@ -1580,13 +1585,10 @@ function buildSingleColumn(
           labelCY = (lineY1 + lineY2) / 2;
         }
 
-        const isFilled = element.type !== "line" && (element.fillType ?? "solid") === "solid";
-        const labelColor = isFilled
-          ? (element.color === "surface" || element.color === "muted" ? p.text : p.surface)
-          : p.text;
-
         const subStart = ce(blkStart + 0.1, dur);
-        const hasBackdrop = element.labelBackdrop !== false;
+        const hasBackdrop = element.labelBackdrop !== undefined
+          ? element.labelBackdrop
+          : (element.type === "line" || (element.type === "circle" && (element.fillType === "outline" || element.fillType === "dashed")));
         const backdrop = hasBackdrop ? {
           fill: p.surface,
           stroke: withAlpha(p.text, 0.15),
@@ -1596,12 +1598,20 @@ function buildSingleColumn(
           radius: 6,
         } : undefined;
 
+        const isFilled = element.type !== "line" && (element.fillType ?? "solid") === "solid";
+        const labelColor = hasBackdrop
+          ? p.text
+          : isFilled
+            ? (element.color === "surface" || element.color === "muted" ? p.text : p.surface)
+            : p.text;
+
         ev.push({
           id: `vis-label-${idx}`, type: "text",
           start: subStart, end: blkEnd, layer: 4,
           text: element.label,
           x: labelCX, y: labelCY, maxWidth: element.width ?? 200,
           color: labelColor, fontSize: 22, fontWeight: 700, align: "center",
+          verticalAlign: "middle",
           backdrop,
           opacity: transitionValue(0, 1, subStart, blkEnd, elementEase, 0.5),
           ...(element.entry === "slide-up" && { translateY: transitionValue(20, 0, subStart, blkEnd, elementEase, 0.5) }),

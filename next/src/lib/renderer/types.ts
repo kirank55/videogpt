@@ -94,6 +94,7 @@ export type TextEvent = BaseTimelineEvent & {
   fontFamily?: string;
   lineHeight?: number;
   align?: CanvasTextAlign;
+  verticalAlign?: "top" | "middle";
   backdrop?: {
     fill: string;
     stroke?: string;

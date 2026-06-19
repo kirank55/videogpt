@@ -422,4 +422,58 @@ describe("buildProjectFromBrief", () => {
     expect(drawLine).toBeDefined();
     expect(drawLine?.drawProgress).toBeDefined();
   });
+
+  it("verifies shape label verticalAlign and color logic", () => {
+    const brief = singleColBrief({
+      visualElements: [
+        {
+          type: "circle",
+          blockIndex: 0,
+          x: 100, y: 100, radius: 25,
+          color: "accent1",
+          fillType: "solid",
+          label: "SAT-1"
+        },
+        {
+          type: "circle",
+          blockIndex: 0,
+          x: 200, y: 100, radius: 25,
+          color: "accent1",
+          fillType: "solid",
+          label: "SAT-2",
+          labelBackdrop: true
+        },
+        {
+          type: "circle",
+          blockIndex: 0,
+          x: 300, y: 100, radius: 40,
+          color: "accent1",
+          fillType: "outline",
+          label: "Sphere 1"
+        }
+      ]
+    });
+    const project = buildProjectFromBrief(brief, DUR);
+    const label1 = project.events.find((e) => e.id === "vis-label-0") as TextEvent;
+    const label2 = project.events.find((e) => e.id === "vis-label-1") as TextEvent;
+    const label3 = project.events.find((e) => e.id === "vis-label-2") as TextEvent;
+
+    expect(label1).toBeDefined();
+    expect(label1.verticalAlign).toBe("middle");
+    expect(label1.backdrop).toBeUndefined();
+    expect(label1.color).toBe(PALETTES.midnight.surface);
+    expect(label1.y).toBe(320 + 100); // Centered at shapeY
+
+    expect(label2).toBeDefined();
+    expect(label2.verticalAlign).toBe("middle");
+    expect(label2.backdrop).toBeDefined();
+    expect(label2.color).toBe(PALETTES.midnight.text);
+    expect(label2.y).toBe(320 + 100); // Centered at shapeY
+
+    expect(label3).toBeDefined();
+    expect(label3.verticalAlign).toBe("middle");
+    expect(label3.backdrop).toBeDefined(); // Defaults to true for outline circles
+    expect(label3.color).toBe(PALETTES.midnight.text);
+    expect(label3.y).toBe(320 + 100 - 40); // Offset to shapeY - radius
+  });
 });

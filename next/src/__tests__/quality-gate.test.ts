@@ -339,6 +339,7 @@ describe("runQualityGate", () => {
           x: 100,
           y: 100,
           maxWidth: 500,
+          color: "#fff",
           fontSize: 32,
         },
         {
@@ -351,6 +352,7 @@ describe("runQualityGate", () => {
           x: 100,
           y: 120, // overlapping Y
           maxWidth: 500,
+          color: "#fff",
           fontSize: 24,
         },
       ],

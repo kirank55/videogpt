@@ -56,6 +56,12 @@ function drawTextLines(
 
   const lines = splitLines(context, event.text, event.maxWidth);
   const lineHeight = event.lineHeight ?? event.fontSize * 1.15;
+  const totalHeight = lines.length * lineHeight;
+
+  let baseY = event.y + offsetY;
+  if (event.verticalAlign === "middle") {
+    baseY -= totalHeight / 2;
+  }
 
   if (event.backdrop) {
     let maxLineWidth = 0;
@@ -63,13 +69,12 @@ function drawTextLines(
       maxLineWidth = Math.max(maxLineWidth, context.measureText(line).width);
     });
 
-    const totalHeight = lines.length * lineHeight;
     const padX = event.backdrop.paddingX ?? 10;
     const padY = event.backdrop.paddingY ?? 6;
     const radius = event.backdrop.radius ?? 6;
 
     let bx = event.x + offsetX;
-    const by = event.y + offsetY - padY;
+    const by = baseY - padY;
     const align = event.align ?? "left";
 
     if (align === "center") {
@@ -98,7 +103,7 @@ function drawTextLines(
   }
 
   lines.forEach((line, index) => {
-    context.fillText(line, event.x + offsetX, event.y + offsetY + index * lineHeight);
+    context.fillText(line, event.x + offsetX, baseY + index * lineHeight);
   });
 
   context.restore();
