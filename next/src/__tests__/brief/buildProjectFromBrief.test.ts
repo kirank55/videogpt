@@ -380,4 +380,46 @@ describe("buildProjectFromBrief", () => {
       expect(labelEvent.x).toBe(1210);
     }
   });
+
+  it("handles grow-x, grow-y, and draw visualElement entry animations", () => {
+    const brief = singleColBrief({
+      visualElements: [
+        {
+          type: "rect",
+          blockIndex: 0,
+          x: 10, y: 10, width: 100, height: 100,
+          entry: "grow-y"
+        },
+        {
+          type: "rect",
+          blockIndex: 1,
+          x: 20, y: 20, width: 100, height: 100,
+          entry: "grow-x"
+        },
+        {
+          type: "line",
+          blockIndex: 2,
+          x1: 10, y1: 10, x2: 100, y2: 100,
+          entry: "draw"
+        }
+      ]
+    });
+
+    const project = buildProjectFromBrief(brief, DUR);
+
+    const growYRect = project.events.find((e) => e.id === "vis-shape-0");
+    const growXRect = project.events.find((e) => e.id === "vis-shape-1");
+    const drawLine = project.events.find((e) => e.id === "vis-shape-2");
+
+    expect(growYRect).toBeDefined();
+    expect(growYRect?.scaleY).toBeDefined();
+    expect(growYRect?.scaleX).toBeUndefined();
+
+    expect(growXRect).toBeDefined();
+    expect(growXRect?.scaleX).toBeDefined();
+    expect(growXRect?.scaleY).toBeUndefined();
+
+    expect(drawLine).toBeDefined();
+    expect(drawLine?.drawProgress).toBeDefined();
+  });
 });

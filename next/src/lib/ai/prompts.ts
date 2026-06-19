@@ -61,17 +61,23 @@ SOFT COMPATIBILITY GUIDANCE:
 
 const DIAGRAM_GUIDE = `
 ━━━ DIAGRAM DESIGN & COORDINATES GUIDE ━━━
-Use visualElements to build a beautiful diagram on the right half of the canvas.
+Use visualElements to build a high-quality, creative, and animated diagram on the right half of the canvas.
 - Coordinate box: width=700 (x: 0 to 700), height=600 (y: 0 to 600).
 - Origin: Top-left is (0,0). Bottom-right is (700,600). y=0 is TOP, y=600 is BOTTOM.
-- Stacking / Buildings (e.g. skyscraper, layers):
-  * Start from the bottom (e.g. foundation at y=480, height=80, y-span 480 to 560).
-  * Stack upwards by using SMALLER y values for each next block (e.g. next block at y=380, height=100, sitting directly on top of the foundation).
-  * Center the stack horizontally around x=350 (e.g. width=300 starting at x=200).
+- Choose entry animations carefully for high visual quality:
+  * "draw": Use this for lines, outline circles, connecting lines, and arrows. They will draw from start to end progressively.
+  * "grow-y": Use this for vertical pillars, skyscraper construction blocks, or bar charts. They will scale vertically.
+  * "grow-x": Use this for horizontal progress meters, horizontal dividers, or horizontal path connectors.
+  * "bounce-in" or "scale-up": Use this for icons, badges, text labels, and structural nodes (circles).
+  * "slide-up" / "slide-down": Use this for blocks of text or side panels.
+- Creative Designs:
+  * Stacking / Pillars (e.g., Skyscrapers, database layers): horizontal-center at x=350. Stack upwards starting from the bottom (e.g. foundation at y=480, height=80, next level at y=380, height=100). Use "grow-y" entry.
+  * Networking / Client-Server: Draw multiple nodes (circles with icons) connected by lines. Set element fillType="outline" and entry="draw" on connectors.
+  * Flow / Sequences: Use lines with arrows (y1=y2 for horizontal) using entry="draw" to direct the user's eye from step to step.
 - Label Formatting:
-  * Only put labels on rectangles/circles if they are wide/large enough (width >= 160) to fit the text without overflowing.
-  * If a rect/circle is narrow (width < 120), leave the label blank.
-- Timing: Match blockIndex of visualElements to the corresponding block index on the left (e.g. blockIndex=0 is the first block, blockIndex=1 is the second block).
+  * Only put labels on rectangles/circles if they are wide/large enough (width >= 160) to fit text.
+  * For narrow shapes, leave the label blank and put a text label element next to it.
+- Timing: Match blockIndex of visualElements to the corresponding block index on the left (e.g., elements for the first step get blockIndex=0).
 `.trim();
 
 // ── JSON Schema for VideoBrief (must match src/lib/schemas/brief.ts) ──────────
@@ -189,7 +195,7 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
           fillType: { type: "string", enum: ["solid", "outline", "dashed"] },
           iconName: { type: "string", enum: ["browser","server","database","cloud","lock","globe","gear","code","api","mobile","router","shield","cpu","cache","app"] },
           label: { type: "string", maxLength: 40, description: "Text label centered within/on the element" },
-          entry: { type: "string", enum: ["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x"] },
+          entry: { type: "string", enum: ["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x", "draw"] },
         },
       },
     },
@@ -241,7 +247,7 @@ SINGLE-COLUMN (when layout=single-column):
                       blockIndex: 0-4 (optional, triggers entry when that content block enters)
                       color: "accent1" | "accent2" | "muted" | "text" | "surface" (optional)
                       fillType: "solid" | "outline" | "dashed" (optional)
-                      entry: "fade" | "slide-up" | "slide-down" | "scale-up" | "grow-y" | "grow-x" (optional)
+                      entry: "fade" | "slide-up" | "slide-down" | "scale-up" | "grow-y" | "grow-x" | "draw" (optional)
                       label: optional centered overlay text label (max 40 chars)
                       For "rect": x, y (relative 0-700, 0-600), width, height, radius (optional)
                       For "circle": x, y, radius

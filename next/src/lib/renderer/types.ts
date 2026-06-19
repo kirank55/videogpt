@@ -55,7 +55,10 @@ export type BaseTimelineEvent = {
   translateX?: AnimatedValue;
   translateY?: AnimatedValue;
   scale?: AnimatedValue;
+  scaleX?: AnimatedValue;
+  scaleY?: AnimatedValue;
   rotate?: AnimatedValue;
+  drawProgress?: AnimatedValue;
   shadow?: Shadow;
   path?: PathAnimation;
 };

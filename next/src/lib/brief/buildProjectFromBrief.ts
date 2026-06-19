@@ -1000,7 +1000,6 @@ function buildTwoColumn(
 
       const sRY = rowTop(k, rRH, rightOffsetY);
       const sLY = labelY(sRY, rRH, 20);
-      const iconSzR = Math.min(rRH * 0.55, 48);
       const arrowX = SL + SW_R - 220;
       const textX  = SL + SW_R - 188;
 
@@ -1254,10 +1253,22 @@ function resolveShapeEntry(
       scale: transitionValue(0.5, 1, start, end, easing, transitionDuration),
     };
   }
-  if (entry === "grow-y" || entry === "grow-x") {
+  if (entry === "grow-y") {
     return {
       opacity: transitionValue(0, 1, start, end, easing, transitionDuration),
-      scale: transitionValue(0, 1, start, end, easing, transitionDuration),
+      scaleY: transitionValue(0, 1, start, end, easing, transitionDuration),
+    };
+  }
+  if (entry === "grow-x") {
+    return {
+      opacity: transitionValue(0, 1, start, end, easing, transitionDuration),
+      scaleX: transitionValue(0, 1, start, end, easing, transitionDuration),
+    };
+  }
+  if (entry === "draw") {
+    return {
+      opacity: transitionValue(0, 1, start, end, easing, transitionDuration),
+      drawProgress: transitionValue(0, 1, start, end, easing, transitionDuration),
     };
   }
   return {
@@ -1537,7 +1548,7 @@ function buildSingleColumn(
           stroke: baseColor,
           lineWidth: element.width ?? s.strokeWeight ?? 3,
           lineDash: element.fillType === "dashed" ? [6, 6] : undefined,
-          opacity: transitionValue(0, 1, blkStart, blkEnd, elementEase, 0.5),
+          ...entryAnims,
         });
       } else if (element.type === "icon") {
         ev.push({

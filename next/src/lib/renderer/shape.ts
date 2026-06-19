@@ -96,7 +96,7 @@ function drawRectShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
   }
 }
 
-function drawCircleShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
+function drawCircleShape(context: CanvasRenderingContext2D, event: ShapeEvent, time: number) {
   if (event.shapeType !== "circle") return;
 
   const bounds = {
@@ -106,10 +106,21 @@ function drawCircleShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
     height: event.radius * 2,
   };
 
+  const { drawProgress } = getAnimatedStyle(event, time);
+  const isOutline = event.fill === "transparent" || event.fill === "none";
+
   context.beginPath();
   context.fillStyle = resolveShapeFill(context, event.fill, bounds);
-  context.arc(event.x, event.y, event.radius, 0, Math.PI * 2);
-  context.fill();
+  
+  if (isOutline && drawProgress < 1) {
+    context.arc(event.x, event.y, event.radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * drawProgress);
+  } else {
+    context.arc(event.x, event.y, event.radius, 0, Math.PI * 2);
+  }
+
+  if (!isOutline) {
+    context.fill();
+  }
 
   if (event.stroke && event.strokeWidth) {
     context.strokeStyle = event.stroke;
@@ -161,8 +172,10 @@ function drawArrowhead(
   context.restore();
 }
 
-function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
+function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent, time: number) {
   if (event.shapeType !== "line") return;
+
+  const { drawProgress } = getAnimatedStyle(event, time);
 
   if (event.lineDash) {
     context.setLineDash(event.lineDash);
@@ -172,8 +185,12 @@ function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
   context.strokeStyle = event.stroke;
   context.lineWidth = event.lineWidth;
   context.lineCap = "round";
+  
+  const currentX2 = event.x1 + (event.x2 - event.x1) * drawProgress;
+  const currentY2 = event.y1 + (event.y2 - event.y1) * drawProgress;
+  
   context.moveTo(event.x1, event.y1);
-  context.lineTo(event.x2, event.y2);
+  context.lineTo(currentX2, currentY2);
   context.stroke();
 
   if (event.lineDash) {
@@ -183,11 +200,11 @@ function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent) {
   const angle = Math.atan2(event.y2 - event.y1, event.x2 - event.x1);
   const size = event.arrowSize ?? event.lineWidth * 3;
 
-  if (event.arrowEnd) {
+  if (event.arrowEnd && drawProgress >= 0.98) {
     drawArrowhead(context, event.x2, event.y2, angle, size, event.stroke);
   }
 
-  if (event.arrowStart) {
+  if (event.arrowStart && drawProgress >= 0.02) {
     drawArrowhead(context, event.x1, event.y1, angle + Math.PI, size, event.stroke);
   }
 }
@@ -570,13 +587,13 @@ function drawShapeBody(context: CanvasRenderingContext2D, event: ShapeEvent, tim
       drawRectShape(context, event);
       return;
     case "circle":
-      drawCircleShape(context, event);
+      drawCircleShape(context, event, time);
       return;
     case "triangle":
       drawTriangleShape(context, event);
       return;
     case "line":
-      drawLineShape(context, event);
+      drawLineShape(context, event, time);
       return;
     case "icon":
       drawIconShape(context, event);
@@ -597,7 +614,7 @@ function applyShapeTransform(
   event: ShapeEvent,
   time: number,
 ) {
-  const { opacity, offsetX, offsetY, scale, rotation, pathOffset } =
+  const { opacity, offsetX, offsetY, scale, scaleX, scaleY, rotation, pathOffset } =
     getAnimatedStyle(event, time);
   const center = getShapeCenter(event);
 
@@ -616,7 +633,7 @@ function applyShapeTransform(
 
   context.translate(center.x + finalOffsetX, center.y + finalOffsetY);
   context.rotate((rotation * Math.PI) / 180);
-  context.scale(scale, scale);
+  context.scale(scale * scaleX, scale * scaleY);
   context.translate(-center.x, -center.y);
 }
 

@@ -193,7 +193,10 @@ export function getAnimatedStyle(event: BaseTimelineEvent, time: number) {
     offsetX: readAnimatedValue(event.translateX, 0, progress, time),
     offsetY: readAnimatedValue(event.translateY, 0, progress, time),
     scale: readAnimatedValue(event.scale, 1, progress, time),
+    scaleX: readAnimatedValue(event.scaleX, 1, progress, time),
+    scaleY: readAnimatedValue(event.scaleY, 1, progress, time),
     rotation: readAnimatedValue(event.rotate, 0, progress, time),
+    drawProgress: readAnimatedValue(event.drawProgress, 1, progress, time),
     pathOffset,
   };
 }
