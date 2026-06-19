@@ -174,7 +174,7 @@ describe("buildProjectFromBrief", () => {
 
   // ── 5. Every expanded project passes validateProject ─────────────────────
 
-  it.each([5, 10, 15, 20, 30] as SupportedDuration[])(
+  it.each([5, 10, 15, 20] as SupportedDuration[])(
     "two-column flow:false %ds project has no errors",
     (dur) => {
       const project = buildProjectFromBrief(twoColBrief({ flow: false }), dur);
@@ -185,7 +185,7 @@ describe("buildProjectFromBrief", () => {
     },
   );
 
-  it.each([5, 10, 15, 20, 30] as SupportedDuration[])(
+  it.each([5, 10, 15, 20] as SupportedDuration[])(
     "two-column flow:true %ds project has no errors",
     (dur) => {
       const project = buildProjectFromBrief(twoColBrief({ flow: true, requestLabel: "REQ", responseLabel: "RES", processingSteps: ["Step 1"] }), dur);
@@ -196,7 +196,7 @@ describe("buildProjectFromBrief", () => {
     },
   );
 
-  it.each([5, 10, 15, 20, 30] as SupportedDuration[])(
+  it.each([5, 10, 15, 20] as SupportedDuration[])(
     "single-column %ds project has no errors",
     (dur) => {
       const project = buildProjectFromBrief(singleColBrief(), dur);
@@ -277,12 +277,13 @@ describe("buildProjectFromBrief", () => {
     expect(bg).toBeDefined();
   });
 
-  it("project duration matches the requested duration", () => {
-    for (const dur of [5, 10, 15, 20, 30] as SupportedDuration[]) {
+  it.each([5, 10, 15, 20] as SupportedDuration[])(
+    "project duration matches the requested duration",
+    (dur) => {
       const project = buildProjectFromBrief(singleColBrief(), dur);
       expect(project.duration).toBe(dur);
-    }
-  });
+    },
+  );
 
   it("project name matches brief title", () => {
     const brief = singleColBrief({ title: "My Custom Title" });

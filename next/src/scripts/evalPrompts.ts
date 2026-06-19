@@ -86,8 +86,8 @@ const TEST_CASES: TestCase[] = [
     description: "biology explainer → single-column",
   },
   {
-    prompt: "the history of the internet in 30 seconds",
-    duration: 30,
+    prompt: "the history of the internet in 20 seconds",
+    duration: 20,
     expectedLayout: "single-column",
     description: "history topic → single-column",
   },

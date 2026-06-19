@@ -86,6 +86,7 @@ function fallbackBrief(title: string): VideoBrief {
 export async function runGeneratePipeline(
   userPrompt: string,
   duration: SupportedDuration,
+  customApiKey?: string,
 ): Promise<PipelineResult> {
   const systemPrompt = buildSystemPrompt(duration);
 
@@ -94,6 +95,7 @@ export async function runGeneratePipeline(
     rawBrief = await callOpenRouter(
       systemPrompt,
       userPrompt,
+      { apiKey: customApiKey }
     );
   } catch (err) {
     const llmError = err instanceof Error ? err.message : String(err);
@@ -119,6 +121,7 @@ export async function runModifyPipeline(
   currentBrief: VideoBrief,
   instruction: string,
   duration: SupportedDuration,
+  customApiKey?: string,
 ): Promise<PipelineResult> {
   const systemPrompt = buildSystemPrompt(duration);
   const userPrompt   = buildModifyPrompt(currentBrief, instruction);
@@ -128,6 +131,7 @@ export async function runModifyPipeline(
     rawBrief = await callOpenRouter(
       systemPrompt,
       userPrompt,
+      { apiKey: customApiKey }
     );
   } catch (err) {
     // On failure: preserve the current brief, just re-expand it

@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { PlayerCard } from "@/components/player";
-import { QualityPanel } from "@/components/generate/QualityPanel";
 import type { VideoProject } from "@/lib/renderer";
 import type { QualityResult } from "@/lib/renderer";
 
@@ -13,6 +12,7 @@ type MessageBubbleProps = {
   messageId?: string;
   isError?: boolean;
   onRetry?: () => void;
+  isLoading?: boolean;
 };
 
 export function MessageBubble({
@@ -24,6 +24,7 @@ export function MessageBubble({
   messageId,
   isError,
   onRetry,
+  isLoading = false,
 }: MessageBubbleProps) {
   const isUser = role === "user";
 
@@ -87,15 +88,15 @@ export function MessageBubble({
             children
           )}
         </div>
-        {project ? (
+        {project || isLoading ? (
           <div className="mt-3 max-w-xl w-full">
-            <PlayerCard project={project} showControls sessionId={sessionId} messageId={messageId} />
-          </div>
-        ) : null}
-        {/* Quality panel — shown below canvas when diagnostics present */}
-        {diagnostics ? (
-          <div className="mt-2 max-w-xl w-full">
-            <QualityPanel result={diagnostics} defaultOpen={!diagnostics.passed} />
+            <PlayerCard
+              project={project}
+              isLoading={isLoading}
+              showControls={!isLoading}
+              sessionId={sessionId}
+              messageId={messageId}
+            />
           </div>
         ) : null}
       </div>

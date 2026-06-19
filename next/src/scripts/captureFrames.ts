@@ -9,7 +9,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function main() {
   const args = process.argv.slice(2);
   let prompt = "how are skyscrapper built";
-  let duration: 5 | 10 | 15 | 20 | 30 = 5;
+  let duration: 5 | 10 | 15 | 20 = 5;
   let times = ["1.0", "3.0", "5.0"];
   let outDir = process.cwd();
 
@@ -18,7 +18,7 @@ async function main() {
       prompt = args[i + 1];
       i++;
     } else if (args[i] === "--duration" && args[i + 1]) {
-      duration = parseInt(args[i + 1], 10) as 5 | 10 | 15 | 20 | 30;
+      duration = parseInt(args[i + 1], 10) as 5 | 10 | 15 | 20;
       i++;
     } else if (args[i] === "--times" && args[i + 1]) {
       times = args[i + 1].split(",").map((t) => t.trim());

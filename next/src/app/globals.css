@@ -32,7 +32,7 @@
 }
 
 /* Explicit class-based themes */
-.dark {
+.dark, :fullscreen, :-webkit-full-screen {
   --background: #09090b;
   --foreground: #fafafa;
   --primary: #fafafa;

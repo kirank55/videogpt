@@ -21,6 +21,7 @@ export type PersistedState = {
   duration: number;
   stylePreset: string;
   theme: "light" | "dark" | "system";
+  customApiKey?: string;
 };
 
 // ── Write ─────────────────────────────────────────────────────────────────────

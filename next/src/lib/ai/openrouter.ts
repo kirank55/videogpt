@@ -20,6 +20,8 @@ export interface OpenRouterOptions {
   maxTokens?: number;
   /** temperature (default 0.7). */
   temperature?: number;
+  /** Custom user API key (BYOK) */
+  apiKey?: string;
 }
 
 /**
@@ -37,7 +39,9 @@ export async function callOpenRouter(
   opts: OpenRouterOptions = {},
 ): Promise<unknown> {
   const apiKey =
-    process.env.OPENROUTER_API_KEY ?? process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+    opts.apiKey ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
 
   if (!apiKey) {
     throw new Error(

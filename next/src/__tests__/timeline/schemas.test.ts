@@ -32,7 +32,7 @@ function invalid(schema: { safeParse: (x: unknown) => { success: boolean } }, in
 // ── SupportedDurationSchema ───────────────────────────────────────────────────
 
 describe("SupportedDurationSchema", () => {
-  it.each([5, 10, 15, 20, 30])("accepts %d", (n) => {
+  it.each([5, 10, 15, 20])("accepts %d", (n) => {
     expect(SupportedDurationSchema.parse(n)).toBe(n);
   });
 

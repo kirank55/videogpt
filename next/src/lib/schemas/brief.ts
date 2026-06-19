@@ -3,7 +3,7 @@ import { EasingNameSchema } from "./timeline";
 
 // ── Supported durations ──────────────────────────────────────────────────────
 
-export const SUPPORTED_DURATIONS = [5, 10, 15, 20, 30] as const;
+export const SUPPORTED_DURATIONS = [5, 10, 15, 20] as const;
 export type SupportedDuration = (typeof SUPPORTED_DURATIONS)[number];
 
 /**
@@ -15,7 +15,6 @@ export const SupportedDurationSchema = z.union([
   z.literal(10),
   z.literal(15),
   z.literal(20),
-  z.literal(30),
 ]);
 
 // ── Style preset catalog keys ─────────────────────────────────────────────────

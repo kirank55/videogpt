@@ -18,6 +18,7 @@ interface StoreState {
   error: string | null;
   isLoading: boolean;
   theme: "light" | "dark" | "system";
+  customApiKey: string;
 
   // Setters
   setPrompt: (prompt: string) => void;
@@ -26,6 +27,7 @@ interface StoreState {
   clearError: () => void;
   setActiveSessionId: (id: string | null) => void;
   setTheme: (theme: "light" | "dark" | "system") => void;
+  setCustomApiKey: (key: string) => void;
 
   // Actions
   submitInitialPrompt: (prompt: string) => Promise<void>;
@@ -45,6 +47,7 @@ export const useStore = create<StoreState>((set, get) => ({
   error: null,
   isLoading: false,
   theme: "system",
+  customApiKey: "",
 
   setPrompt: (prompt) => set({ prompt }),
   setDuration: (duration) => set({ duration }),
@@ -52,6 +55,7 @@ export const useStore = create<StoreState>((set, get) => ({
   clearError: () => set({ error: null }),
   setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
   setTheme: (theme) => set({ theme }),
+  setCustomApiKey: (customApiKey) => set({ customApiKey }),
 
   submitInitialPrompt: async (prompt) => {
     console.group(`[store] submitInitialPrompt`);
@@ -86,7 +90,10 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(get().customApiKey ? { "Authorization": `Bearer ${get().customApiKey}` } : {}),
+        },
         body: JSON.stringify({
           prompt,
           duration: get().duration,
@@ -180,7 +187,10 @@ export const useStore = create<StoreState>((set, get) => ({
       const session = get().sessions.find((s) => s.id === sessionId);
       const res = await fetch("/api/modify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(get().customApiKey ? { "Authorization": `Bearer ${get().customApiKey}` } : {}),
+        },
         body: JSON.stringify({
           sessionId,
           prompt,
@@ -271,7 +281,10 @@ export const useStore = create<StoreState>((set, get) => ({
       try {
         const res = await fetch("/api/modify", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(get().customApiKey ? { "Authorization": `Bearer ${get().customApiKey}` } : {}),
+          },
           body: JSON.stringify({
             sessionId,
             prompt: userPrompt,
@@ -336,7 +349,10 @@ export const useStore = create<StoreState>((set, get) => ({
       try {
         const res = await fetch("/api/generate", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(get().customApiKey ? { "Authorization": `Bearer ${get().customApiKey}` } : {}),
+          },
           body: JSON.stringify({
             prompt: userPrompt,
             duration: get().duration,
@@ -421,6 +437,7 @@ export const useStore = create<StoreState>((set, get) => ({
         duration: persisted.duration ?? state.duration,
         stylePreset: persisted.stylePreset ?? state.stylePreset,
         theme: persisted.theme ?? state.theme,
+        customApiKey: persisted.customApiKey ?? state.customApiKey,
       };
     });
   },
@@ -437,5 +454,6 @@ useStore.subscribe((state) => {
     duration: state.duration,
     stylePreset: state.stylePreset,
     theme: state.theme,
+    customApiKey: state.customApiKey,
   });
 });
