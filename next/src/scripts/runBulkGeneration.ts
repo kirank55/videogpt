@@ -6,41 +6,46 @@ import { type VideoProject } from "../lib/renderer";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const PROMPTS = [
+  "explain how skyscrappers are built",
+  "Explain how the global GPS network knows exactly where my phone is.",
+  "How do credit card transactions work in the 2 seconds after I tap my card?",
+  "Explain how noise-canceling headphones actually block out sound.",
+  "How does a modern container ship stay upright and navigate across oceans?",
+  "Explain how search engines index the entire internet to give me results in milliseconds."
+];
+
 async function main() {
   const args = process.argv.slice(2);
-  let prompt = "how are skyscrapper built";
-  let duration: 5 | 10 | 15 | 20 | 30 = 5;
-  let times = ["1.0", "3.0", "5.0"];
-  let outDir = process.cwd();
-
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--prompt" && args[i + 1]) {
-      prompt = args[i + 1];
-      i++;
-    } else if (args[i] === "--duration" && args[i + 1]) {
-      duration = parseInt(args[i + 1], 10) as 5 | 10 | 15 | 20 | 30;
-      i++;
-    } else if (args[i] === "--times" && args[i + 1]) {
-      times = args[i + 1].split(",").map((t) => t.trim());
-      i++;
-    } else if (args[i] === "--outDir" && args[i + 1]) {
-      outDir = args[i + 1];
-      i++;
-    }
+  const indexArg = args.indexOf("--index");
+  if (indexArg === -1) {
+    console.error("Please specify a prompt index, e.g. --index 1");
+    process.exit(1);
+  }
+  const idx = parseInt(args[indexArg + 1], 10);
+  if (isNaN(idx) || idx < 0 || idx >= PROMPTS.length) {
+    console.error(`Invalid index. Must be between 0 and ${PROMPTS.length - 1}`);
+    process.exit(1);
   }
 
-  console.log(`\n=== Visual Frame Capture CLI ===`);
+  const prompt = PROMPTS[idx];
+  const duration = 5;
+  const times = ["0.5", "1.2", "3.0", "4.8"];
+  const brainDir = "C:\\Users\\kiran\\.gemini\\antigravity-ide\\brain\\d459c086-a14c-4f2c-8b3c-0c521d1b36b9";
+  const outDir = path.join(brainDir, `bulk_captures`, `prompt_${idx}`);
+
+  console.log(`\n=== runBulkGeneration CLI (Prompt ${idx}) ===`);
   console.log(`Prompt:       "${prompt}"`);
-  console.log(`Duration:     ${duration}s`);
-  console.log(`Timestamps:   ${times.join(", ")}s`);
   console.log(`Output Dir:   ${outDir}\n`);
 
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
   }
 
+
+
   // 1. Run AI generation pipeline
-  console.log("1. Running AI pipeline (OpenRouter)...");
+  console.log(`1. Running AI pipeline (OpenRouter) for prompt ${idx}...`);
   const start = Date.now();
   const result = await runGeneratePipeline(prompt, duration);
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
@@ -53,9 +58,8 @@ async function main() {
   }
 
   console.log(`   Brief: "${brief.title}" | Layout: ${brief.layout} | Score: ${diagnostics.qualityResult.score}/100`);
-  console.log(`   VisualElements: ${brief.visualElements ? brief.visualElements.length : 0} items`);
 
-  // 2. Save project temporarily to public folder as a synchronous script file
+  // Write temporary project js data to public folder
   console.log("2. Writing temporary project js data to public folder...");
   const tempJSPath = path.join(__dirname, "../../public/temp-project-data.js");
   
@@ -83,9 +87,13 @@ async function main() {
 
   const jsContent = `window.tempProject = ${JSON.stringify(project, null, 2)};\nwindow.tempProjects = ${JSON.stringify(projectsList, null, 2)};\n`;
   fs.writeFileSync(tempJSPath, jsContent);
-  
+
+  // Also write project.json in output directory
+  fs.writeFileSync(path.join(outDir, "project.json"), JSON.stringify(project, null, 2));
+  fs.writeFileSync(path.join(outDir, "brief.json"), JSON.stringify(brief, null, 2));
+
   // Flush file write wait
-  await sleep(300);
+  await sleep(500);
 
   // 3. Capture screenshot of each requested timestamp
   console.log("3. Capturing screenshots via headless Chrome...");
@@ -99,21 +107,13 @@ async function main() {
 
     console.log(`   [${t}s] -> ${outFileName}...`);
     try {
-      // Add a slight virtual time budget delay in Chrome (1000ms) to allow canvas rendering script to complete
-      execSync(`"${chromePath}" --headless --disable-gpu --window-size=1920,1080 --virtual-time-budget=1000 --screenshot="${outPath}" "${url}"`, { stdio: "ignore" });
+      execSync(`"${chromePath}" --headless --disable-gpu --window-size=1920,1080 --virtual-time-budget=2000 --screenshot="${outPath}" "${url}"`, { stdio: "ignore" });
     } catch (err) {
       console.error(`   ❌ Failed to capture frame at ${t}s:`, err);
     }
   }
 
-  // 4. Clean up temporary files (disabled to allow viewing on /brief-only page)
-  console.log("4. Preserving temp project data for /brief-only viewer...");
-  // if (fs.existsSync(tempJSPath)) {
-  //   fs.unlinkSync(tempJSPath);
-  // }
-
-
-  console.log("\n=== Success! Frame captures completed successfully ===\n");
+  console.log(`\n=== Prompt ${idx} bulk generation & capture completed successfully ===\n`);
 }
 
 main().catch((err) => {

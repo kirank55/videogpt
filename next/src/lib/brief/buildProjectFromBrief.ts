@@ -90,34 +90,57 @@ function pickVariant(title: string): TwoColVariant {
   return seededChoice(TWO_COL_VARIANTS, seededHash(title));
 }
 
+function transitionValue(
+  from: number,
+  to: number,
+  start: number,
+  end: number,
+  easing: EasingName,
+  transitionDuration = 0.5,
+): AnimatedValue {
+  const transEnd = Math.min(start + transitionDuration, end);
+  if (transEnd <= start) {
+    return { from: to, to, easing };
+  }
+  return {
+    keyframes: [
+      { time: start,    value: from, easing },
+      { time: transEnd, value: to,   easing },
+    ],
+  };
+}
+
 // ── Entry animation resolver ─────────────────────────────────────────────────
 
 type EntryTransform = {
-  translateX?: { from: number; to: number; easing: EasingName };
-  translateY?: { from: number; to: number; easing: EasingName };
-  scale?: { from: number; to: number; easing: EasingName };
+  translateX?: AnimatedValue;
+  translateY?: AnimatedValue;
+  scale?: AnimatedValue;
 };
 
 function resolveEntryAnimation(
   anim: VideoBrief["entryAnimation"],
   ease: EasingName,
+  start: number,
+  end: number,
+  transitionDuration = 0.5,
 ): EntryTransform {
   switch (anim) {
     case "slide-down":
-      return { translateY: { from: -40, to: 0, easing: ease } };
+      return { translateY: transitionValue(-40, 0, start, end, ease, transitionDuration) };
     case "slide-left":
-      return { translateX: { from: 60, to: 0, easing: ease } };
+      return { translateX: transitionValue(60, 0, start, end, ease, transitionDuration) };
     case "slide-right":
-      return { translateX: { from: -60, to: 0, easing: ease } };
+      return { translateX: transitionValue(-60, 0, start, end, ease, transitionDuration) };
     case "fade-only":
       return {};
     case "scale-up":
-      return { scale: { from: 0.5, to: 1, easing: ease } };
+      return { scale: transitionValue(0.5, 1, start, end, ease, transitionDuration) };
     case "bounce-in":
-      return { scale: { from: 0.5, to: 1, easing: "bounce" } };
+      return { scale: transitionValue(0.5, 1, start, end, "bounce", transitionDuration) };
     case "slide-up":
     default:
-      return { translateY: { from: 40, to: 0, easing: ease } };
+      return { translateY: transitionValue(40, 0, start, end, ease, transitionDuration) };
   }
 }
 
@@ -288,8 +311,8 @@ function estimateTextLines(text: string, fontSize: number, maxWidth: number): nu
   const lines: string[] = [];
   let currentLine = "";
   
-  // Approximate character width as 0.55 of fontSize.
-  const charWidth = fontSize * 0.55;
+  // Approximate character width as 0.70 of fontSize.
+  const charWidth = fontSize * 0.70;
 
   for (const word of words) {
     if (!word) continue;
@@ -680,7 +703,6 @@ function buildTwoColumn(
   );
 
   // Left rows
-  const entryL = resolveEntryAnimation(brief.entryAnimation, easings.stacks);
   leftRows.forEach((label, i) => {
     const delay = i * act2.stagger;
     const ry = rowTop(i, lRH);
@@ -688,6 +710,8 @@ function buildTwoColumn(
     const rStart = ce(act2.start + 0.2 + delay, dur);
     const lStart = ce(act2.start + 0.4 + delay, dur);
     const isEmph = emphL >= 0 && i === emphL;
+
+    const entryL = resolveEntryAnimation(brief.entryAnimation, easings.stacks, rStart, end, 0.5);
 
     // Row rect
     ev.push({
@@ -698,7 +722,7 @@ function buildTwoColumn(
       fill: p.surface,
       stroke: isEmph ? p.text : p.muted,
       strokeWidth: isEmph ? s.strokeWeight * 1.5 : s.strokeWeight,
-      opacity: { from: 0, to: 1, easing: easings.stacks },
+      opacity: transitionValue(0, 1, rStart, end, easings.stacks, 0.5),
       ...entryL,
     });
 
@@ -713,8 +737,8 @@ function buildTwoColumn(
       cx: iconX, cy: iconCY, size: iconSz,
       color: isEmph ? p.accent1 : withAlpha(p.muted, 0.7),
       shadow: glow > 0 && isEmph ? { color: p.accent1Glow, blur: Math.round(glow * 0.6) } : undefined,
-      opacity: { from: 0, to: 1, easing: easings.stacks },
-      scale: { from: 0.5, to: 1, easing: "bounce" },
+      opacity: transitionValue(0, 1, lStart, end, easings.stacks, 0.5),
+      scale: transitionValue(0.5, 1, lStart, end, "bounce", 0.5),
     });
 
     // Label
@@ -726,26 +750,26 @@ function buildTwoColumn(
       x: textX, y: ly, maxWidth: SW_L - (textX - CL) - PAD,
       color: isEmph ? p.text : p.muted,
       fontSize: lFS, fontWeight: isEmph ? 900 : 700,
-      opacity: { from: 0, to: 1, easing: easings.stacks },
+      opacity: transitionValue(0, 1, lStart, end, easings.stacks, 0.5),
     });
 
     // Connector between rows
     if (i < lCount - 1) {
+      const connStart = ce(act2.start + 0.6 + delay, dur);
       ev.push({
         id: `left-conn-${i}`, type: "shape", shapeType: "line",
-        start: ce(act2.start + 0.6 + delay, dur), end, layer: 1,
+        start: connStart, end, layer: 1,
         x1: CL + SW_L / 2, y1: ry + lRH,
         x2: CL + SW_L / 2, y2: rowTop(i + 1, lRH),
         stroke: p.muted, lineWidth: s.strokeWeight * 0.75,
         lineDash: s.lineDash ?? [6, 5],
         arrowEnd: true, arrowSize: 7,
-        opacity: { from: 0, to: 1, easing: ease },
+        opacity: transitionValue(0, 1, connStart, end, ease, 0.5),
       });
     }
   });
 
   // Right rows
-  const entryR = resolveEntryAnimation(brief.entryAnimation, easings.stacks);
   rightRows.forEach((label, j) => {
     const delay = j * act2.stagger;
     const ry = rowTop(j, rRH, rightOffsetY);
@@ -753,6 +777,8 @@ function buildTwoColumn(
     const rStart = ce(act2.start + 0.3 + delay, dur);
     const lStart = ce(act2.start + 0.5 + delay, dur);
     const isEmph = emphR >= 0 && j === emphR;
+
+    const entryR = resolveEntryAnimation(brief.entryAnimation, easings.stacks, rStart, end, 0.5);
 
     ev.push({
       id: `right-rect-${j}`, type: "shape", shapeType: "rect",
@@ -762,7 +788,7 @@ function buildTwoColumn(
       fill: p.surface,
       stroke: isEmph ? p.text : p.muted,
       strokeWidth: isEmph ? s.strokeWeight * 1.5 : s.strokeWeight,
-      opacity: { from: 0, to: 1, easing: easings.stacks },
+      opacity: transitionValue(0, 1, rStart, end, easings.stacks, 0.5),
       ...entryR,
     });
 
@@ -778,8 +804,8 @@ function buildTwoColumn(
       cx: iconX, cy: iconCY, size: iconSzR,
       color: isEmph ? p.accent2 : withAlpha(p.muted, 0.7),
       shadow: glow > 0 && isEmph ? { color: p.accent2Glow, blur: Math.round(glow * 0.6) } : undefined,
-      opacity: { from: 0, to: 1, easing: easings.stacks },
-      scale: { from: 0.5, to: 1, easing: "bounce" },
+      opacity: transitionValue(0, 1, lStart, end, easings.stacks, 0.5),
+      scale: transitionValue(0.5, 1, lStart, end, "bounce", 0.5),
     });
 
     // Label
@@ -791,13 +817,14 @@ function buildTwoColumn(
       x: textXR, y: ly, maxWidth: flow ? (SL + SW_R - 230) - textXR : SW_R - (textXR - SL) - PAD,
       color: isEmph ? p.text : p.muted,
       fontSize: rFS, fontWeight: isEmph ? 900 : 700,
-      opacity: { from: 0, to: 1, easing: easings.stacks },
+      opacity: transitionValue(0, 1, lStart, end, easings.stacks, 0.5),
     });
 
     if (j < rCount - 1) {
+      const connStart = ce(act2.start + 0.7 + delay, dur);
       ev.push({
         id: `right-conn-${j}`, type: "shape", shapeType: "line",
-        start: ce(act2.start + 0.7 + delay, dur), end, layer: 1,
+        start: connStart, end, layer: 1,
         x1: SL + SW_R / 2, y1: ry + rRH,
         x2: SL + SW_R / 2, y2: rowTop(j + 1, rRH, rightOffsetY),
         stroke: p.muted, lineWidth: s.strokeWeight * 0.75,
@@ -1205,33 +1232,36 @@ function buildTwoColumn(
 function resolveShapeEntry(
   entry: string | undefined,
   easing: EasingName,
+  start: number,
+  end: number,
+  transitionDuration = 0.5,
 ) {
   if (entry === "slide-up") {
     return {
-      opacity: { from: 0, to: 1, easing },
-      translateY: { from: 40, to: 0, easing },
+      opacity: transitionValue(0, 1, start, end, easing, transitionDuration),
+      translateY: transitionValue(40, 0, start, end, easing, transitionDuration),
     };
   }
   if (entry === "slide-down") {
     return {
-      opacity: { from: 0, to: 1, easing },
-      translateY: { from: -40, to: 0, easing },
+      opacity: transitionValue(0, 1, start, end, easing, transitionDuration),
+      translateY: transitionValue(-40, 0, start, end, easing, transitionDuration),
     };
   }
   if (entry === "scale-up") {
     return {
-      opacity: { from: 0, to: 1, easing },
-      scale: { from: 0.5, to: 1, easing },
+      opacity: transitionValue(0, 1, start, end, easing, transitionDuration),
+      scale: transitionValue(0.5, 1, start, end, easing, transitionDuration),
     };
   }
   if (entry === "grow-y" || entry === "grow-x") {
     return {
-      opacity: { from: 0, to: 1, easing },
-      scale: { from: 0, to: 1, easing },
+      opacity: transitionValue(0, 1, start, end, easing, transitionDuration),
+      scale: transitionValue(0, 1, start, end, easing, transitionDuration),
     };
   }
   return {
-    opacity: { from: 0, to: 1, easing },
+    opacity: transitionValue(0, 1, start, end, easing, transitionDuration),
   };
 }
 
@@ -1268,9 +1298,25 @@ function buildSingleColumn(
   const startX = 160;
   const blockMaxWidth = hasVisuals ? 750 : W - 320;
 
-  const blockStartY = 430;
+  // Dynamically adjust block text styling and layouts to prevent vertical overlaps
+  let headFS = 44;
+  let descFS = 28;
+  let descLH = 42;
+  let descYOffset = 60;
+  let blockStartY = 430;
+  let blockMaxHeight = 440; // Avoid overrunning outro at 900 (430 + 440 = 870)
+
+  if (n > 3) {
+    headFS = 30;
+    descFS = 20;
+    descLH = 28;
+    descYOffset = 42;
+    blockStartY = 390; // Start slightly higher to gain space
+    blockMaxHeight = 460; // 390 + 460 = 850 (comfortably fits before 900)
+  }
+
   const maxSpacing  = 200;
-  const spacing     = n <= 1 ? maxSpacing : Math.min(maxSpacing, 500 / (n - 1));
+  const spacing     = n <= 1 ? maxSpacing : Math.min(maxSpacing, blockMaxHeight / (n - 1));
 
   const titleSeed  = seededHash(brief.title);
   const titleFS    = resolveTitleFontSize(brief.titleSize);
@@ -1278,34 +1324,35 @@ function buildSingleColumn(
   const titleX     = hasVisuals ? startX : (brief.titleAlign === "center" ? W / 2 - 720 : 160);
   const titleMaxW  = hasVisuals ? 750 : 1600;
   const subtitleMaxW = hasVisuals ? 750 : 1200;
-  const entryBlk   = resolveEntryAnimation(brief.entryAnimation, easings.stacks);
 
   // ── ACT 1: Title ──────────────────────────────────────────────────────────────────
 
+  const titleEnd = ce(act2.start + Math.min(0.5, (act2.end - act2.start) * 0.2), dur);
   ev.push({
     id: "title", type: "text",
     start: act1.start,
-    end: ce(act2.start + Math.min(0.5, (act2.end - act2.start) * 0.2), dur),
+    end: titleEnd,
     layer: 5,
     text: brief.title,
     x: titleX, y: 270, maxWidth: titleMaxW,
     color: p.text, fontSize: titleFS, fontWeight: 800, lineHeight: titleLH,
     shadow: glow > 0 ? { color: p.glow, blur: glow * 2 } : undefined,
-    opacity: { from: 0, to: 1, easing: easings.title },
-    translateY: { from: 30, to: 0, easing: easings.title },
+    opacity: transitionValue(0, 1, act1.start, titleEnd, easings.title, 0.5),
+    translateY: transitionValue(30, 0, act1.start, titleEnd, easings.title, 0.5),
   });
 
   if (brief.subtitle) {
     const titleLines = estimateTextLines(brief.title, titleFS, titleMaxW);
     const subtitleY = 270 + titleLines * titleLH + 24;
+    const subStart = ce(act1.start + lerp(0, act1.end - act1.start, 0.4), dur);
     ev.push({
       id: "subtitle", type: "text",
-      start: ce(act1.start + lerp(0, act1.end - act1.start, 0.4), dur),
+      start: subStart,
       end: act2.start, layer: 5,
       text: brief.subtitle,
       x: titleX, y: subtitleY, maxWidth: subtitleMaxW,
       color: p.muted, fontSize: 32, fontWeight: 400,
-      opacity: { from: 0, to: 1, easing: easings.title },
+      opacity: transitionValue(0, 1, subStart, act2.start, easings.title, 0.5),
     });
   }
 
@@ -1315,6 +1362,9 @@ function buildSingleColumn(
     const blkStart = ce(act2.start + i * (act2.stagger + 0.3), dur);
     const blkEnd   = ce(cs - 0.3, dur);
     if (blkStart >= blkEnd) return;
+
+    const entryBlk = resolveEntryAnimation(brief.entryAnimation, easings.stacks, blkStart, blkEnd, 0.5);
+    const entryDesc = resolveEntryAnimation(brief.entryAnimation, easings.stacks, ce(blkStart + 0.2, dur), blkEnd, 0.5);
 
     const by = blockStartY + i * spacing;
 
@@ -1332,8 +1382,8 @@ function buildSingleColumn(
         x: timelineDotX, y: by + 22, radius: 8,
         fill: p.accent1,
         shadow: glow > 0 ? { color: p.accent1Glow, blur: Math.round(glow * 0.5) } : undefined,
-        opacity: { from: 0, to: 1, easing: ease },
-        scale: { from: 0, to: 1, easing: "bounce" },
+        opacity: transitionValue(0, 1, blkStart, blkEnd, ease, 0.5),
+        scale: transitionValue(0, 1, blkStart, blkEnd, "bounce", 0.5),
       });
       if (i < n - 1) {
         ev.push({
@@ -1342,7 +1392,7 @@ function buildSingleColumn(
           x1: timelineDotX, y1: by + 30, x2: timelineDotX, y2: by + spacing,
           stroke: withAlpha(p.accent1, 0.35), lineWidth: s.strokeWeight,
           lineDash: s.lineDash ?? [4, 4],
-          opacity: { from: 0, to: 1, easing: ease },
+          opacity: transitionValue(0, 1, ce(blkStart + 0.3, dur), blkEnd, ease, 0.5),
         });
       }
     }
@@ -1356,7 +1406,7 @@ function buildSingleColumn(
         radius: s.radius,
         fill: p.surface,
         stroke: p.muted, strokeWidth: s.strokeWeight * 0.8,
-        opacity: { from: 0, to: 1, easing: ease },
+        opacity: transitionValue(0, 1, blkStart, blkEnd, ease, 0.5),
         ...entryBlk,
       });
     }
@@ -1369,7 +1419,7 @@ function buildSingleColumn(
         text: String(i + 1).padStart(2, "0"),
         x: numX, y: by, maxWidth: 60,
         color: withAlpha(p.accent1, 0.5), fontSize: 60, fontWeight: 900,
-        opacity: { from: 0, to: 1, easing: ease },
+        opacity: transitionValue(0, 1, blkStart, blkEnd, ease, 0.5),
       });
     }
 
@@ -1382,8 +1432,8 @@ function buildSingleColumn(
       cx: iconLeft, cy: by + 22, size: 44,
       color: p.accent1,
       shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 0.4) } : undefined,
-      opacity: { from: 0, to: 1, easing: ease },
-      scale: { from: 0.4, to: 1, easing: "bounce" },
+      opacity: transitionValue(0, 1, blkStart, blkEnd, ease, 0.5),
+      scale: transitionValue(0.4, 1, blkStart, blkEnd, "bounce", 0.5),
     });
 
     const textLeft = iconLeft + 48;
@@ -1393,19 +1443,19 @@ function buildSingleColumn(
       start: blkStart, end: blkEnd, layer: 4,
       text: block.heading,
       x: textLeft, y: by, maxWidth: headingMaxW,
-      color: p.text, fontSize: 44, fontWeight: 700,
+      color: p.text, fontSize: headFS, fontWeight: 700,
       shadow: glow > 0 ? { color: p.glow, blur: Math.round(glow * 0.3) } : undefined,
-      opacity: { from: 0, to: 1, easing: easings.stacks },
+      opacity: transitionValue(0, 1, blkStart, blkEnd, easings.stacks, 0.5),
       ...entryBlk,
     });
     ev.push({
       id: `block-desc-${i}`, type: "text",
       start: ce(blkStart + 0.2, dur), end: blkEnd, layer: 4,
       text: block.description,
-      x: textLeft, y: by + 60, maxWidth: headingMaxW - 20,
-      color: p.muted, fontSize: 28, fontWeight: 400, lineHeight: 42,
-      opacity: { from: 0, to: 1, easing: easings.stacks },
-      ...entryBlk,
+      x: textLeft, y: by + descYOffset, maxWidth: headingMaxW - 20,
+      color: p.muted, fontSize: descFS, fontWeight: 400, lineHeight: descLH,
+      opacity: transitionValue(0, 1, ce(blkStart + 0.2, dur), blkEnd, easings.stacks, 0.5),
+      ...entryDesc,
     });
   });
 
@@ -1422,7 +1472,7 @@ function buildSingleColumn(
       if (blkStart >= blkEnd) return;
 
       const elementEase = easings.stacks;
-      const entryAnims = resolveShapeEntry(element.entry, elementEase);
+      const entryAnims = resolveShapeEntry(element.entry, elementEase, blkStart, blkEnd);
 
       let baseColor = p.accent1;
       if (element.color === "accent2") baseColor = p.accent2;
@@ -1487,7 +1537,7 @@ function buildSingleColumn(
           stroke: baseColor,
           lineWidth: element.width ?? s.strokeWeight ?? 3,
           lineDash: element.fillType === "dashed" ? [6, 6] : undefined,
-          opacity: { from: 0, to: 1, easing: elementEase },
+          opacity: transitionValue(0, 1, blkStart, blkEnd, elementEase, 0.5),
         });
       } else if (element.type === "icon") {
         ev.push({
@@ -1522,15 +1572,16 @@ function buildSingleColumn(
           ? (element.color === "surface" || element.color === "muted" ? p.text : p.surface)
           : p.text;
 
+        const subStart = ce(blkStart + 0.1, dur);
         ev.push({
           id: `vis-label-${idx}`, type: "text",
-          start: ce(blkStart + 0.1, dur), end: blkEnd, layer: 4,
+          start: subStart, end: blkEnd, layer: 4,
           text: element.label,
           x: labelCX, y: labelCY, maxWidth: element.width ?? 200,
           color: labelColor, fontSize: 22, fontWeight: 700, align: "center",
-          opacity: { from: 0, to: 1, easing: elementEase },
-          ...(element.entry === "slide-up" && { translateY: { from: 20, to: 0, easing: elementEase } }),
-          ...(element.entry === "slide-down" && { translateY: { from: -20, to: 0, easing: elementEase } }),
+          opacity: transitionValue(0, 1, subStart, blkEnd, elementEase, 0.5),
+          ...(element.entry === "slide-up" && { translateY: transitionValue(20, 0, subStart, blkEnd, elementEase, 0.5) }),
+          ...(element.entry === "slide-down" && { translateY: transitionValue(-20, 0, subStart, blkEnd, elementEase, 0.5) }),
         });
       }
     });

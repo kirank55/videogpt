@@ -30,41 +30,288 @@ function ProjectThumbnail({ project }: { project: VideoProject }) {
   );
 }
 
-// Modal video player component using the same PlayerCard as the generate page
+function parseProjectBrief(project: VideoProject) {
+  const titleEvent = project.events.find(e => e.id === "title" && e.type === "text") as any;
+  const subtitleEvent = project.events.find(e => e.id === "subtitle" && e.type === "text") as any;
+  const closingLineEvent = project.events.find(e => e.id === "closing-line" && e.type === "text") as any;
+
+  const title = titleEvent?.text || project.name;
+  const subtitle = subtitleEvent?.text || "";
+  const closingLine = closingLineEvent?.text || "";
+
+  // Parse blocks (single-column)
+  const blocks: Array<{ heading: string; description: string }> = [];
+  project.events.forEach((e: any) => {
+    if (e.type === "text" && e.id.startsWith("block-heading-")) {
+      const index = e.id.replace("block-heading-", "");
+      const descEvent = project.events.find(d => d.id === `block-desc-${index}` && d.type === "text") as any;
+      blocks.push({
+        heading: e.text,
+        description: descEvent?.text || ""
+      });
+    }
+  });
+
+  // Parse two-column elements
+  const leftRows: string[] = [];
+  const rightRows: string[] = [];
+  project.events.forEach((e: any) => {
+    if (e.type === "text" && e.id.startsWith("left-label-")) {
+      leftRows.push(e.text);
+    }
+    if (e.type === "text" && e.id.startsWith("right-label-")) {
+      rightRows.push(e.text);
+    }
+  });
+
+  // Flow details
+  const hasFlow = project.events.some(e => e.id === "req-packet");
+
+  return {
+    title,
+    subtitle,
+    closingLine,
+    blocks,
+    leftRows,
+    rightRows,
+    hasFlow
+  };
+}
+
+// Modal video player component with split details view
 function VideoPlayerModal({ project, onClose }: { project: VideoProject; onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState<"brief" | "events" | "json">("brief");
+  const briefInfo = parseProjectBrief(project);
+
   return (
-    <div className="fixed inset-0 z-99999 flex flex-col items-center justify-center bg-black/95 p-4 md:p-8">
-      {/* Top Close Control */}
-      <div className="absolute top-4 right-4 z-50">
+    <div className="fixed inset-0 z-99999 flex flex-col items-center justify-center bg-black/95 p-4 md:p-6">
+      {/* Header Bar */}
+      <div className="w-full max-w-7xl flex items-center justify-between mb-4 z-50">
+        <h2 className="text-xl font-bold text-white truncate max-w-2xl">{project.name}</h2>
         <button
           onClick={onClose}
-          className="rounded-full bg-surface-raised border border-border px-5 py-2 text-sm font-semibold text-foreground hover:bg-muted transition cursor-pointer shadow-md"
+          className="rounded-full bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-white px-5 py-2 text-sm font-semibold transition cursor-pointer shadow-md"
         >
           Close Player
         </button>
       </div>
 
-      {/* Real Player Card Container from the generate page */}
-      <div className="w-full max-w-5xl relative">
-        <PlayerCard
-          project={project}
-          autoPlay={true}
-          showControls={true}
-        />
+      {/* Split Layout Container */}
+      <div className="w-full max-w-7xl flex-1 grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-0">
+        {/* Left Side: Video Player */}
+        <div className="lg:col-span-3 flex flex-col justify-center min-h-0">
+          <PlayerCard
+            project={project}
+            autoPlay={true}
+            showControls={true}
+          />
+        </div>
+
+        {/* Right Side: Details Inspector Sidebar */}
+        <div className="lg:col-span-2 flex flex-col bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden min-h-0 text-white shadow-xl">
+          {/* Tabs */}
+          <div className="flex border-b border-zinc-800 text-sm font-medium">
+            <button
+              onClick={() => setActiveTab("brief")}
+              className={`flex-1 py-3 text-center transition-colors cursor-pointer border-b border-b-2 ${
+                activeTab === "brief"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Brief Info
+            </button>
+            <button
+              onClick={() => setActiveTab("events")}
+              className={`flex-1 py-3 text-center transition-colors cursor-pointer border-b border-b-2 ${
+                activeTab === "events"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Timeline ({project.events.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("json")}
+              className={`flex-1 py-3 text-center transition-colors cursor-pointer border-b border-b-2 ${
+                activeTab === "json"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-zinc-400 hover:text-zinc-200"
+              }`}
+            >
+              Raw JSON
+            </button>
+          </div>
+
+          {/* Tab Contents */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-5 text-zinc-300">
+            {activeTab === "brief" && (
+              <div className="space-y-4 font-sans text-left">
+                {/* Meta */}
+                <div>
+                  <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Title & Subtitle</h3>
+                  <h4 className="text-lg font-bold text-white">{briefInfo.title}</h4>
+                  {briefInfo.subtitle && <p className="text-sm text-zinc-400 mt-1">{briefInfo.subtitle}</p>}
+                </div>
+
+                {/* Layout Type */}
+                <div className="grid grid-cols-2 gap-4 border-t border-zinc-800/80 pt-4">
+                  <div>
+                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Layout</h3>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-800 text-zinc-300 uppercase">
+                      {briefInfo.blocks.length > 0 ? "Single-Column" : "Two-Column (Split)"}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Duration</h3>
+                    <span className="text-sm font-mono text-zinc-300">{project.duration} seconds</span>
+                  </div>
+                </div>
+
+                {/* Content Details */}
+                {briefInfo.blocks.length > 0 ? (
+                  <div className="border-t border-zinc-800/80 pt-4">
+                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-3">Blocks / Steps</h3>
+                    <div className="space-y-3">
+                      {briefInfo.blocks.map((block, idx) => (
+                        <div key={idx} className="bg-zinc-950 p-3 rounded-lg border border-zinc-800/50">
+                          <h5 className="text-sm font-bold text-white flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold">
+                              {idx + 1}
+                            </span>
+                            {block.heading}
+                          </h5>
+                          {block.description && (
+                            <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">{block.description}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-t border-zinc-800/80 pt-4 space-y-4">
+                    {/* Two Column details */}
+                    {briefInfo.leftRows.length > 0 && (
+                      <div>
+                        <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-2">Left Stack Layers</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {briefInfo.leftRows.map((row, idx) => (
+                            <span key={idx} className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-xs font-medium">
+                              {row}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {briefInfo.rightRows.length > 0 && (
+                      <div>
+                        <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-2">Right Stack Layers</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {briefInfo.rightRows.map((row, idx) => (
+                            <span key={idx} className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-xs font-medium">
+                              {row}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Interactive Flow</h3>
+                      <span className="text-sm">{briefInfo.hasFlow ? "Enabled (Request / Response animation)" : "Disabled"}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Closing Line */}
+                {briefInfo.closingLine && (
+                  <div className="border-t border-zinc-800/80 pt-4">
+                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Closing Outro</h3>
+                    <p className="text-sm italic text-zinc-300">&ldquo;{briefInfo.closingLine}&rdquo;</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "events" && (
+              <div className="space-y-3 font-mono text-xs text-left">
+                {project.events.map((e) => (
+                  <div key={e.id} className="bg-zinc-950 p-3 rounded-lg border border-zinc-800/50 flex flex-col gap-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white">{e.id}</span>
+                      <span className="px-2 py-0.5 rounded bg-zinc-800 text-[10px] text-zinc-400 uppercase font-semibold">
+                        {e.type}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-zinc-500 mt-1">
+                      Time: {e.start}s - {e.end}s (Duration: {(e.end - e.start).toFixed(2)}s)
+                    </div>
+                    {e.type === "text" && (
+                      <div className="text-[11px] text-primary/80 mt-1 bg-primary/5 p-1.5 rounded border border-primary/10 truncate">
+                        &ldquo;{e.text}&rdquo;
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeTab === "json" && (
+              <div className="h-full flex flex-col text-left">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs text-zinc-500">Copy project config JSON</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(project, null, 2));
+                    }}
+                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-white rounded text-[11px] font-semibold active:scale-95 transition-all cursor-pointer"
+                  >
+                    Copy JSON
+                  </button>
+                </div>
+                <pre className="flex-1 bg-zinc-950 p-4 rounded-lg border border-zinc-800 overflow-auto font-mono text-[11px] text-emerald-400 select-all max-h-[50vh]">
+                  {JSON.stringify(project, null, 2)}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
+interface CustomWindow extends Window {
+  tempProject?: VideoProject;
+  tempProjects?: VideoProject[];
+}
+
 function BriefOnlyContent() {
   const sessions = useStore((s) => s.sessions);
-  const [tempProject, setTempProject] = useState<VideoProject | null>(null);
+  const [tempProjects, setTempProjects] = useState<VideoProject[]>([]);
   const [activeProject, setActiveProject] = useState<VideoProject | null>(null);
 
   useEffect(() => {
-    // Check if the script tempProject is loaded on window
-    if (typeof window !== "undefined" && (window as any).tempProject) {
-      setTempProject((window as any).tempProject);
+    if (typeof window !== "undefined") {
+      const win = window as unknown as CustomWindow;
+      const projects: VideoProject[] = [];
+      if (win.tempProject) {
+        projects.push(win.tempProject);
+      }
+      if (Array.isArray(win.tempProjects)) {
+        projects.push(...win.tempProjects);
+      }
+      // Deduplicate by ID
+      const uniqueProjects: VideoProject[] = [];
+      const seenIds = new Set<string>();
+      for (const p of projects) {
+        if (p && p.id && !seenIds.has(p.id)) {
+          seenIds.add(p.id);
+          uniqueProjects.push(p);
+        }
+      }
+      setTimeout(() => {
+        setTempProjects(uniqueProjects);
+      }, 0);
     }
   }, []);
 
@@ -77,20 +324,25 @@ function BriefOnlyContent() {
     isTemp?: boolean;
   }> = [];
 
-  if (tempProject) {
-    displayProjects.push({
-      id: "temp-capture",
-      name: tempProject.name || "Latest Capture (CLI)",
-      updatedAt: "Just now",
-      project: tempProject,
-      isTemp: true
-    });
-  }
+  const tempProjectIds = new Set<string>();
+
+  tempProjects.forEach((proj, idx) => {
+    if (proj && proj.id) {
+      tempProjectIds.add(proj.id);
+      displayProjects.push({
+        id: `temp-${proj.id}`,
+        name: proj.name || `Latest Capture ${idx + 1} (CLI)`,
+        updatedAt: "Generated by Script",
+        project: proj,
+        isTemp: true
+      });
+    }
+  });
 
   sessions.forEach((s) => {
     if (s.project) {
-      // Avoid duplicating the project if it has the same ID
-      if (tempProject && s.project.id === tempProject.id) return;
+      // Avoid duplicating the project if it was already loaded from script tempProjects
+      if (tempProjectIds.has(s.project.id)) return;
       displayProjects.push({
         id: s.id,
         name: s.name,
@@ -140,7 +392,7 @@ function BriefOnlyContent() {
 
               {/* Card Meta */}
               <div className="flex items-start justify-between gap-4 px-5 py-4">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1 text-left">
                   <div className="flex items-center gap-2">
                     <h2 className="truncate text-base font-semibold text-foreground group-hover:text-primary transition-colors">
                       {item.name}
@@ -151,7 +403,19 @@ function BriefOnlyContent() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.updatedAt}</p>
+                  {/* Summary of layout details */}
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    <span>
+                      {item.project.events.some(e => e.id.startsWith("block-heading-")) ? "Single Column" : "Two-Column Split"}
+                    </span>
+                    <span>•</span>
+                    <span>
+                      {item.project.events.filter(e => e.type === "text" && (e.id.startsWith("block-heading-") || e.id.startsWith("left-label-") || e.id.startsWith("right-label-"))).length} Steps
+                    </span>
+                    <span>•</span>
+                    <span>{item.project.duration}s</span>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{item.updatedAt}</p>
                 </div>
                 <div className="shrink-0 rounded-full border border-border px-3.5 py-1.5 text-xs font-semibold text-muted-foreground transition-all group-hover:border-foreground/60 group-hover:bg-foreground/5 group-hover:text-foreground active:scale-95">
                   Play Brief
