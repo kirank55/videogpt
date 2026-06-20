@@ -10,14 +10,6 @@ import {
   usePlayerContext,
 } from "@/components/player/PlayerProvider";
 
-type PlayerCardProps = {
-  project: VideoProject;
-  autoPlay?: boolean;
-  initialTime?: number;
-  showControls?: boolean;
-  sessionId?: string;
-  messageId?: string;
-};
 
 function formatSeconds(value: number) {
   return `${value.toFixed(1)}s`;

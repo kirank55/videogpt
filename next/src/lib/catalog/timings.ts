@@ -51,11 +51,4 @@ export const TIMINGS: Record<SupportedDuration, ActTiming> = {
     act4: { start: 11.0, end: 15.0, stepStagger: 0.50 },
     act5: { start: 15.0, end: 20.0, closingStart: 17.0 },
   },
-  30: {
-    act1: { start: 0,    end: 4.0  },
-    act2: { start: 4.0,  end: 9.5,  stagger: 0.50 },
-    act3: { start: 9.5,  end: 16.0 },
-    act4: { start: 16.0, end: 22.0, stepStagger: 0.70 },
-    act5: { start: 22.0, end: 30.0, closingStart: 25.0 },
-  },
 };

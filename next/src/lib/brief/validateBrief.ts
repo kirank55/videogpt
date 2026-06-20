@@ -1,4 +1,5 @@
-import type { VideoBrief } from "@/lib/schemas/brief";
+import type { VideoBrief, IconName } from "@/lib/schemas/brief";
+import { ICON_NAMES } from "@/lib/schemas/brief";
 import { PALETTES, DEFAULT_PALETTE } from "@/lib/catalog/palettes";
 import { STYLES, DEFAULT_STYLE } from "@/lib/catalog/styles";
 
@@ -6,6 +7,7 @@ import { STYLES, DEFAULT_STYLE } from "@/lib/catalog/styles";
 
 const VALID_PALETTES = new Set(Object.keys(PALETTES));
 const VALID_STYLES   = new Set(Object.keys(STYLES));
+const VALID_ICON_NAMES = new Set<string>(ICON_NAMES);
 
 function isObject(x: unknown): x is Record<string, unknown> {
   return x !== null && typeof x === "object" && !Array.isArray(x);
@@ -22,6 +24,10 @@ function optStr(x: unknown): string | undefined {
 
 function bool(x: unknown, fallback: boolean): boolean {
   return typeof x === "boolean" ? x : fallback;
+}
+
+function iconName(x: unknown, fallback: IconName): IconName {
+  return typeof x === "string" && VALID_ICON_NAMES.has(x) ? (x as IconName) : fallback;
 }
 
 /**
@@ -176,9 +182,9 @@ export function validateBrief(raw: unknown): VideoBrief {
   const emphasizeLeft = typeof src.emphasizeLeft === "number" ? src.emphasizeLeft : undefined;
   const emphasizeRight = typeof src.emphasizeRight === "number" ? src.emphasizeRight : undefined;
 
-  const leftIcons = Array.isArray(src.leftIcons) ? src.leftIcons.map(i => str(i, "gear")) : undefined;
-  const rightIcons = Array.isArray(src.rightIcons) ? src.rightIcons.map(i => str(i, "gear")) : undefined;
-  const blockIcons = Array.isArray(src.blockIcons) ? src.blockIcons.map(i => str(i, "gear")) : undefined;
+  const leftIcons = Array.isArray(src.leftIcons) ? src.leftIcons.map(i => iconName(i, "gear")) : undefined;
+  const rightIcons = Array.isArray(src.rightIcons) ? src.rightIcons.map(i => iconName(i, "gear")) : undefined;
+  const blockIcons = Array.isArray(src.blockIcons) ? src.blockIcons.map(i => iconName(i, "gear")) : undefined;
 
   const decorations = isObject(src.decorations) ? {
     cornerBrackets: typeof src.decorations.cornerBrackets === "boolean" ? src.decorations.cornerBrackets : undefined,
