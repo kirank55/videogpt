@@ -11,7 +11,8 @@
 // the pipeline catches and returns as diagnostics.
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL      = "moonshotai/kimi-k2.5";
+
+const FREE_MODELS = ["cohere/north-mini-code:free", "nvidia/nemotron-3-ultra-550b-a55b:free", "poolside/laguna-m.1:free"]
 
 export interface OpenRouterOptions {
   /** OpenRouter model id.  Falls back to env var, then DEFAULT_MODEL. */
@@ -50,95 +51,107 @@ export async function callOpenRouter(
     );
   }
 
-  const model =
-    opts.model ??
-    process.env.OPENROUTER_MODEL ??
-    DEFAULT_MODEL;
+  // Helper to run a single request against a model
+  async function attemptRequest(modelName: string): Promise<unknown> {
+    console.log(`[ai/openrouter] Requesting model: ${modelName}`);
 
-  const body = {
-    model,
-    // kimi-k2.5 is a reasoning model: it generates internal chain-of-thought
-    // (reasoning_tokens) before the visible content.  Those tokens do NOT count
-    // against max_tokens, but the model may still time-out or return empty
-    // content if max_tokens is too small for the combined budget.  8192 gives
-    // ample room for the ~200-token VideoBrief output.
-    max_tokens: opts.maxTokens ?? 8192,
-    temperature: opts.temperature ?? 0.7,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user",   content: userPrompt   },
-    ],
-    // json_object is supported by virtually all OpenRouter models.
-    // strict json_schema mode is rejected by many models (including kimi-k2.5).
-    // validateBrief normalises whatever shape the model returns.
-    response_format: { type: "json_object" },
-  };
+    const body = {
+      model: modelName,
+      max_tokens: opts.maxTokens ?? 8192,
+      temperature: opts.temperature ?? 0.7,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: { type: "json_object" },
+    };
 
-  const res = await fetch(OPENROUTER_API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type":  "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-      // Recommended by OpenRouter for attribution / rate-limit tiers
-      "HTTP-Referer":  "https://videogpt.local",
-      "X-Title":       "VideoGPT",
-    },
-    body: JSON.stringify(body),
-  });
+    const res = await fetch(OPENROUTER_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://videogpt.local",
+        "X-Title": "VideoGPT",
+      },
+      body: JSON.stringify(body),
+    });
 
-  if (!res.ok) {
-    const text = await res.text().catch(() => "(no body)");
-    throw new Error(
-      `OpenRouter HTTP ${res.status} ${res.statusText}: ${text.slice(0, 400)}`,
-    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => "(no body)");
+      throw new Error(
+        `OpenRouter HTTP ${res.status} ${res.statusText}: ${text.slice(0, 400)}`,
+      );
+    }
+
+    console.log(`[ai/openrouter] Response received from ${modelName} (status ${res.status})`);
+
+    const data = (await res.json()) as {
+      choices?: Array<{
+        finish_reason?: string;
+        message?: {
+          content?: string | null;
+          parsed?: unknown;
+          reasoning?: string | null;
+        };
+      }>;
+      error?: { message?: string };
+    };
+
+    if (data.error?.message) {
+      throw new Error(`OpenRouter API error: ${data.error.message}`);
+    }
+
+    const choice = data.choices?.[0];
+    if (!choice) {
+      throw new Error("OpenRouter returned no choices");
+    }
+
+    if (choice.message?.parsed !== undefined) {
+      return choice.message.parsed;
+    }
+
+    const raw = choice.message?.content;
+    if (!raw) {
+      const reason = choice.finish_reason ?? "unknown";
+      throw new Error(
+        `OpenRouter returned empty content (finish_reason=${reason}).`,
+      );
+    }
+
+    const cleaned = raw.trim().replace(/^```(?:json)?\s*\n?|\n?```\s*$/g, "").trim();
+
+    try {
+      return JSON.parse(cleaned) as unknown;
+    } catch {
+      throw new Error(
+        `OpenRouter content is not valid JSON: ${cleaned.slice(0, 300)}`,
+      );
+    }
   }
 
-  const data = (await res.json()) as {
-    choices?: Array<{
-      finish_reason?: string;
-      message?: {
-        content?: string | null;
-        parsed?: unknown;
-        reasoning?: string | null;
-      };
-    }>;
-    error?: { message?: string };
-  };
+  const defaultModel = opts.model ?? process.env.DEFAULT_MODEL;
 
-  if (data.error?.message) {
-    throw new Error(`OpenRouter API error: ${data.error.message}`);
+  if (defaultModel) {
+    return await attemptRequest(defaultModel);
   }
 
-  const choice = data.choices?.[0];
-  if (!choice) {
-    throw new Error("OpenRouter returned no choices");
+  // Otherwise, loop through free models until valid JSON is generated
+  console.log(`[ai/openrouter] No DEFAULT_MODEL in env. Looping through free models: ${FREE_MODELS.join(", ")}`);
+  const errors: Error[] = [];
+  for (const model of FREE_MODELS) {
+    try {
+      const result = await attemptRequest(model);
+      return result;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.warn(`[ai/openrouter] Model ${model} failed: ${errMsg}`);
+      errors.push(err instanceof Error ? err : new Error(errMsg));
+    }
   }
 
-  // Some providers return `parsed` directly when using structured output.
-  if (choice.message?.parsed !== undefined) {
-    return choice.message.parsed;
-  }
-
-  const raw = choice.message?.content;
-
-  // Some reasoning models (e.g. kimi-k2.5) return content="" when max_tokens
-  // is exhausted by internal chain-of-thought.  Throw a clear error.
-  if (!raw) {
-    const reason = choice.finish_reason ?? "unknown";
-    throw new Error(
-      `OpenRouter returned empty content (finish_reason=${reason}). ` +
-      `The model may need more max_tokens or a shorter system prompt.`,
-    );
-  }
-
-  // Strip markdown fences that some models add despite being told not to
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*\n?|\n?```\s*$/g, "").trim();
-
-  try {
-    return JSON.parse(cleaned) as unknown;
-  } catch {
-    throw new Error(
-      `OpenRouter content is not valid JSON: ${cleaned.slice(0, 300)}`,
-    );
-  }
+  throw new Error(
+    `All free models failed to generate valid JSON. Errors:\n` +
+    errors.map((e, idx) => `[${FREE_MODELS[idx]}]: ${e.message}`).join("\n")
+  );
 }

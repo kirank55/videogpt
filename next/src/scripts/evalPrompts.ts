@@ -27,10 +27,10 @@ import type { SupportedDuration } from "@/lib/schemas/brief";
 // ── Test cases ────────────────────────────────────────────────────────────────
 
 interface TestCase {
-  prompt:            string;
-  duration:          SupportedDuration;
-  expectedLayout:    "two-column" | "single-column" | "any";
-  description:       string;
+  prompt: string;
+  duration: SupportedDuration;
+  expectedLayout: "two-column" | "single-column" | "any";
+  description: string;
 }
 
 const TEST_CASES: TestCase[] = [
@@ -141,20 +141,20 @@ async function sleep(ms: number) {
 }
 
 interface ResultRow {
-  idx:     number;
-  prompt:  string;
-  pass:    boolean;
-  layout:  string;
-  errors:  number;
+  idx: number;
+  prompt: string;
+  pass: boolean;
+  layout: string;
+  errors: number;
   warnings: number;
   llmError?: string;
-  note:    string;
+  note: string;
 }
 
 async function runEval() {
   console.log("\n═══════════════════════════════════════════════════════════════");
   console.log(" VideoGPT Phase 6B — Eval Harness");
-  console.log(`  ${TEST_CASES.length} prompts  |  model: ${process.env.OPENROUTER_MODEL ?? "default"}`);
+  console.log(`  ${TEST_CASES.length} prompts  |  model: ${process.env.DEFAULT_MODEL ?? "default"}`);
   console.log("═══════════════════════════════════════════════════════════════\n");
 
   const results: ResultRow[] = [];
@@ -172,11 +172,11 @@ async function runEval() {
         diagnostics.errorCount === 0 && !diagnostics.llmError && layoutOk;
 
       result = {
-        idx:      i + 1,
-        prompt:   tc.prompt,
+        idx: i + 1,
+        prompt: tc.prompt,
         pass,
-        layout:   brief.layout,
-        errors:   diagnostics.errorCount,
+        layout: brief.layout,
+        errors: diagnostics.errorCount,
         warnings: diagnostics.warningCount,
         llmError: diagnostics.llmError,
         note: [
@@ -195,14 +195,14 @@ async function runEval() {
       };
     } catch (err) {
       result = {
-        idx:      i + 1,
-        prompt:   tc.prompt,
-        pass:     false,
-        layout:   "?",
-        errors:   -1,
+        idx: i + 1,
+        prompt: tc.prompt,
+        pass: false,
+        layout: "?",
+        errors: -1,
         warnings: 0,
         llmError: err instanceof Error ? err.message : String(err),
-        note:     "threw unexpectedly",
+        note: "threw unexpectedly",
       };
     }
 
@@ -217,8 +217,8 @@ async function runEval() {
   // ── Summary matrix ─────────────────────────────────────────────────────────
 
   const passed = results.filter((r) => r.pass).length;
-  const total  = results.length;
-  const rate   = Math.round((passed / total) * 100);
+  const total = results.length;
+  const rate = Math.round((passed / total) * 100);
 
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(" RESULTS");
