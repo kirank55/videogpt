@@ -1,10 +1,8 @@
-export const runtime = "edge";
-
 import { NextRequest, NextResponse } from "next/server";
 import { GenerateRequestSchema } from "@/lib/schemas/api";
-import { runGeneratePipeline }   from "@/lib/ai/pipeline";
+import { runGeneratePipeline } from "@/lib/ai/pipeline";
 import type { SupportedDuration } from "@/lib/schemas/brief";
-import { SUPPORTED_DURATIONS }   from "@/lib/schemas/brief";
+import { SUPPORTED_DURATIONS } from "@/lib/schemas/brief";
 
 const VALID_DURATIONS = new Set<number>(SUPPORTED_DURATIONS);
 
@@ -55,9 +53,9 @@ export async function POST(req: NextRequest) {
     llmError
       ? `⚠️ AI generation failed: ${llmError.slice(0, 120)}`
       : `Here's a ${duration}s animation for: "${prompt}". ` +
-        (errorCount === 0
-          ? "Canvas looks clean — modify it or ask for changes."
-          : `${errorCount} issue(s) detected — see diagnostics.`);
+      (errorCount === 0
+        ? "Canvas looks clean — modify it or ask for changes."
+        : `${errorCount} issue(s) detected — see diagnostics.`);
 
   if (llmError) {
     return NextResponse.json({

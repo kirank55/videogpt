@@ -1,11 +1,9 @@
-export const runtime = "edge";
-
 import { NextRequest, NextResponse } from "next/server";
-import { ModifyRequestSchema }      from "@/lib/schemas/api";
-import { runModifyPipeline }        from "@/lib/ai/pipeline";
-import { validateBrief }            from "@/lib/brief/validateBrief";
-import type { SupportedDuration }   from "@/lib/schemas/brief";
-import { SUPPORTED_DURATIONS }      from "@/lib/schemas/brief";
+import { ModifyRequestSchema } from "@/lib/schemas/api";
+import { runModifyPipeline } from "@/lib/ai/pipeline";
+import { validateBrief } from "@/lib/brief/validateBrief";
+import type { SupportedDuration } from "@/lib/schemas/brief";
+import { SUPPORTED_DURATIONS } from "@/lib/schemas/brief";
 
 const VALID_DURATIONS = new Set<number>(SUPPORTED_DURATIONS);
 
@@ -35,8 +33,8 @@ export async function POST(req: NextRequest) {
   // Recover duration from the stored brief object if the client sent it
   const rawDur =
     typeof rawBrief === "object" &&
-    rawBrief !== null &&
-    "duration" in rawBrief
+      rawBrief !== null &&
+      "duration" in rawBrief
       ? (rawBrief as Record<string, unknown>).duration
       : 15;
 
@@ -78,7 +76,7 @@ export async function POST(req: NextRequest) {
     llmError
       ? `⚠️ AI modification failed: ${llmError.slice(0, 120)}`
       : `Updated: "${prompt}". Canvas has been refreshed.` +
-        (errorCount > 0 ? ` (${errorCount} issue(s) — see diagnostics)` : "");
+      (errorCount > 0 ? ` (${errorCount} issue(s) — see diagnostics)` : "");
 
   if (llmError) {
     return NextResponse.json({
