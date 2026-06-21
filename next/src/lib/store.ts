@@ -431,13 +431,17 @@ export const useStore = create<StoreState>((set, get) => ({
           mergedSessions.push(initS);
         }
       }
+      let customApiKey = persisted.customApiKey ?? state.customApiKey;
+      if (customApiKey === "undefined" || customApiKey === "null") {
+        customApiKey = "";
+      }
       return {
         sessions: mergedSessions,
         activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
         duration: persisted.duration ?? state.duration,
         stylePreset: persisted.stylePreset ?? state.stylePreset,
         theme: persisted.theme ?? state.theme,
-        customApiKey: persisted.customApiKey ?? state.customApiKey,
+        customApiKey,
       };
     });
   },

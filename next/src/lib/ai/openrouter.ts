@@ -39,10 +39,29 @@ export async function callOpenRouter(
   userPrompt: string,
   opts: OpenRouterOptions = {},
 ): Promise<unknown> {
+  let requestApiKey = opts.apiKey;
+  if (
+    requestApiKey === "undefined" ||
+    requestApiKey === "null" ||
+    requestApiKey === "" ||
+    (requestApiKey && requestApiKey.trim() === "")
+  ) {
+    requestApiKey = undefined;
+  }
+
   const apiKey =
-    opts.apiKey ||
+    requestApiKey ||
     process.env.OPENROUTER_API_KEY ||
     process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+
+  console.log("[ai/openrouter] ApiKey check:", {
+    hasRequestKey: !!requestApiKey,
+    requestKeyLen: requestApiKey?.length,
+    hasEnvKey: !!process.env.OPENROUTER_API_KEY,
+    envKeyLen: process.env.OPENROUTER_API_KEY?.length,
+    finalKeyLen: apiKey?.length,
+    finalKeyPrefix: apiKey ? `${apiKey.slice(0, 10)}...` : "none",
+  });
 
   if (!apiKey) {
     throw new Error(

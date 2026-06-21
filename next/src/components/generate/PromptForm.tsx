@@ -95,6 +95,7 @@ export function PromptForm({
         </div>
 
         <div className="flex items-center gap-3.5">
+          {/* BYOK button hidden for MVP
           <button
             type="button"
             onClick={() => setShowByok(!showByok)}
@@ -121,6 +122,7 @@ export function PromptForm({
             </svg>
             <span>{customApiKey ? "BYOK Active" : "BYOK"}</span>
           </button>
+          */}
 
           <p className="hidden md:inline text-xs text-muted-foreground/85">
             Press Enter to send. Shift+Enter adds a new line.
@@ -142,7 +144,7 @@ export function PromptForm({
         </div>
       </div>
 
-      {/* BYOK Drawer */}
+      {/* BYOK Drawer hidden for MVP
       {showByok && (
         <div className="mt-3 pt-3 border-t border-border/60 flex flex-col gap-2.5 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="flex items-center justify-between">
@@ -181,6 +183,7 @@ export function PromptForm({
           </div>
         </div>
       )}
+      */}
     </form>
   );
 }
