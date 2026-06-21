@@ -10,8 +10,35 @@
  *   npm run analyze -- --project demo  → analyzes demoProject
  */
 
-import { bigDemoProject } from "../app/demo/bigDemoProject";
-import { demoProject } from "../app/demo/demoProject";
+import { buildProjectFromBrief } from "../lib/brief/buildProjectFromBrief";
+
+const bigDemoProject = buildProjectFromBrief({
+  layout: "two-column" as const,
+  title: "Client-Server System Layout",
+  subtitle: "Web Request Flow Sequence",
+  palette: "midnight",
+  style: "modern",
+  leftHeader: "CLIENT",
+  rightHeader: "SERVER",
+  leftRows: ["User Browser", "DOM State", "Fetch Client"],
+  rightRows: ["Load Balancer", "API Router", "SQL Store"],
+  flow: true,
+  requestLabel: "POST /auth",
+  responseLabel: "201 Created",
+  processingSteps: ["Hash Password", "INSERT INTO users"],
+  closingLine: "Dynamic Web Sequence Analysis Done.",
+}, 15);
+
+const demoProject = buildProjectFromBrief({
+  layout: "single-column" as const,
+  title: "Simple Architecture Overview",
+  blocks: [
+    { heading: "Web Layer", description: "Vibrant and interactive client views" },
+    { heading: "Service Layer", description: "Microservices orchestration and caching" },
+  ],
+  palette: "midnight",
+  style: "modern",
+}, 10);
 import type {
   AnimatedValue,
   EasingName,
@@ -483,8 +510,9 @@ function analyze(project: VideoProject): void {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
+const projectIndex = process.argv.indexOf("--project");
 const projectArg = process.argv.find((a) => a.startsWith("--project="))?.split("=")[1]
-  ?? process.argv[process.argv.indexOf("--project") + 1];
+  ?? (projectIndex !== -1 ? process.argv[projectIndex + 1] : undefined);
 
 const project = projectArg === "demo" ? demoProject : bigDemoProject;
 analyze(project);

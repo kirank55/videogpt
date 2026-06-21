@@ -3,10 +3,23 @@
  * Usage: npx tsx src/scripts/runValidator.ts
  */
 
-import { bigDemoProject } from "../app/demo/bigDemoProject";
+import { buildProjectFromBrief } from "../lib/brief/buildProjectFromBrief";
 import { validateProject } from "../lib/renderer/validateProject";
 
-const results = validateProject(bigDemoProject);
+const brief = {
+  layout: "single-column" as const,
+  title: "Demo Validation Project",
+  blocks: [
+    { heading: "Initialization", description: "Initializing the application state" },
+    { heading: "Processing", description: "Processing chunked data pipelines in parallel" },
+    { heading: "Completion", description: "Rendering complete visual timeline frames" },
+  ],
+  palette: "midnight",
+  style: "modern",
+};
+
+const project = buildProjectFromBrief(brief, 10);
+const results = validateProject(project);
 
 if (results.length === 0) {
   console.log("✓ No validation issues found.");

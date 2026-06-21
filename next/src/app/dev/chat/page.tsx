@@ -1,6 +1,42 @@
 import { GenerateWorkspace } from "@/components/generate/GenerateWorkspace";
-import { hybridProject } from "@/app/demo/hybridProject";
 import type { ChatMessage } from "@/types/generate";
+import { type VideoProject } from "@/lib/renderer";
+
+const hybridProject: VideoProject = {
+  id: "hybrid-demo-project",
+  name: "Hybrid Demo",
+  width: 1920,
+  height: 1080,
+  duration: 5,
+  events: [
+    {
+      id: "bg",
+      type: "background",
+      start: 0,
+      end: 5,
+      layer: 1,
+      background: {
+        kind: "solid",
+        color: "#0f172a",
+      },
+    },
+    {
+      id: "title",
+      type: "text",
+      start: 0,
+      end: 5,
+      layer: 2,
+      text: "Hybrid Demo",
+      x: 960,
+      y: 540,
+      maxWidth: 800,
+      color: "#ffffff",
+      fontSize: 64,
+      align: "center",
+      verticalAlign: "middle",
+    },
+  ],
+};
 
 const hybridMessages: ChatMessage[] = [
   {
