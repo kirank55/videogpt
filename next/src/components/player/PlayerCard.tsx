@@ -88,7 +88,7 @@ function PlayerCardFrame({
             {sessionId && messageId && (
               <button
                 type="button"
-                onClick={() => router.push(`/advance?sessionId=${sessionId}&messageId=${messageId}`)}
+                onClick={() => router.push(`/dev/advance?sessionId=${sessionId}&messageId=${messageId}`)}
                 className="rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all duration-150 active:scale-95 cursor-pointer"
               >
                 Advanced Mode

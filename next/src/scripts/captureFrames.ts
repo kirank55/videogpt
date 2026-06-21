@@ -92,7 +92,7 @@ async function main() {
   const chromePath = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
   
   for (const t of times) {
-    const url = `http://localhost:3000/renderer-only?time=${t}`;
+    const url = `http://localhost:3000/dev/renderer-only?time=${t}`;
     const cleanTimeStr = t.replace(".", "_");
     const outFileName = `capture_${cleanTimeStr}s.png`;
     const outPath = path.join(outDir, outFileName);

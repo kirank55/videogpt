@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Inter } from "next/font/google";
-import { Sidebar } from "@/components/layout/Sidebar";
+import { ShellLayout } from "@/components/layout/ShellLayout";
 import { HydrateStore } from "@/components/HydrateStore";
 import "./globals.css";
 
@@ -65,12 +65,7 @@ export default function RootLayout({
           the store.  It is a "use client" leaf — safe inside a server layout.
         */}
         <HydrateStore />
-        <div className="shell">
-          <Sidebar />
-          <section className="flex h-screen flex-col overflow-hidden p-6 md:p-10">
-            {children}
-          </section>
-        </div>
+        <ShellLayout>{children}</ShellLayout>
       </body>
     </html>
   );
