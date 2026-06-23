@@ -3,6 +3,7 @@ import type { ChatMessage, Session } from "@/types/generate";
 import { initialSessions } from "./demoData";
 import { persistToStorage } from "./persistence";
 import type { PersistedState } from "./persistence";
+import { callApi, buildAssistantMessage, applySuccess, applyError } from "./apiClient";
 
 function generateId(prefix: string): string {
   const rand = Math.random().toString(36).substring(2, 8);
@@ -62,13 +63,9 @@ export const useStore = create<StoreState>((set, get) => ({
     console.log("prompt:", prompt);
     console.log("duration:", get().duration, "style:", get().stylePreset);
     set({ isLoading: true, error: null });
-    const sessionId = generateId("session");
-    const userMsg: ChatMessage = {
-      id: generateId("msg"),
-      role: "user",
-      content: prompt,
-    };
 
+    const sessionId = generateId("session");
+    const userMsg: ChatMessage = { id: generateId("msg"), role: "user", content: prompt };
     const newSession: Session = {
       id: sessionId,
       name: prompt.slice(0, 30) || "Untitled Project",
@@ -88,167 +85,49 @@ export const useStore = create<StoreState>((set, get) => ({
     console.log("→ POST /api/generate …");
     console.time("api/generate");
     try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(get().customApiKey ? { "Authorization": `Bearer ${get().customApiKey}` } : {}),
-        },
-        body: JSON.stringify({
-          prompt,
-          duration: get().duration,
-          stylePreset: get().stylePreset,
-        }),
-      });
-
+      const data = await callApi(
+        "/api/generate",
+        { prompt, duration: get().duration, stylePreset: get().stylePreset },
+        get().customApiKey,
+      );
       console.timeEnd("api/generate");
-      console.log("← HTTP", res.status, res.statusText);
-
-      if (!res.ok) {
-        let errMsg = `API Error: ${res.status} ${res.statusText}`;
-        try {
-          const errData = await res.json();
-          if (errData.summary) errMsg = errData.summary;
-          else if (errData.error) errMsg = errData.error;
-        } catch {
-          // ignore
-        }
-        throw new Error(errMsg);
-      }
-
-      const data = await res.json();
       console.log("data.brief:", data.brief);
       console.log("data.diagnostics:", data.diagnostics);
-      console.log("events:", data.project?.events?.length, "total");
-      if (data.diagnostics?.llmError) {
-        console.warn("LLM error:", data.diagnostics.llmError);
-      }
+      console.log("events:", (data.project as { events?: unknown[] } | undefined)?.events?.length, "total");
+      if (data.diagnostics?.llmError) console.warn("LLM error:", data.diagnostics.llmError);
 
-      const assistantMsg: ChatMessage = {
-        id: generateId("msg"),
-        role: "assistant",
-        content: data.summary || "Project generated successfully.",
-        project: data.project,
-        brief: data.brief,
-        diagnostics: data.diagnostics?.qualityResult,
-        rawBrief: data.diagnostics?.rawBrief,
-      };
-
-      set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === sessionId
-            ? {
-              ...s,
-              messages: [...s.messages, assistantMsg],
-              project: data.project,
-              brief: data.brief,
-            }
-            : s
-        ),
-        isLoading: false,
-      }));
+      applySuccess(set, sessionId, buildAssistantMessage(data, "Project generated successfully."), data);
       console.log("✅ done");
     } catch (err) {
       console.timeEnd("api/generate");
       const message = err instanceof Error ? err.message : String(err);
       console.error("❌ error:", message);
-      const errorMsg: ChatMessage = {
-        id: generateId("msg-err"),
-        role: "assistant",
-        content: message,
-        isError: true,
-      };
-      set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === sessionId ? { ...s, messages: [...s.messages, errorMsg] } : s
-        ),
-        error: message,
-        isLoading: false,
-      }));
+      applyError(set, sessionId, message);
     }
     console.groupEnd();
   },
 
   submitModifyPrompt: async (sessionId, prompt) => {
     set({ isLoading: true, error: null });
-    const userMsg: ChatMessage = {
-      id: generateId("msg"),
-      role: "user",
-      content: prompt,
-    };
+    const userMsg: ChatMessage = { id: generateId("msg"), role: "user", content: prompt };
 
     set((state) => ({
       sessions: state.sessions.map((s) =>
-        s.id === sessionId ? { ...s, messages: [...s.messages, userMsg] } : s
+        s.id === sessionId ? { ...s, messages: [...s.messages, userMsg] } : s,
       ),
     }));
 
     try {
       const session = get().sessions.find((s) => s.id === sessionId);
-      const res = await fetch("/api/modify", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(get().customApiKey ? { "Authorization": `Bearer ${get().customApiKey}` } : {}),
-        },
-        body: JSON.stringify({
-          sessionId,
-          prompt,
-          brief: session?.brief,
-        }),
-      });
-
-      if (!res.ok) {
-        let errMsg = `API Error: ${res.status} ${res.statusText}`;
-        try {
-          const errData = await res.json();
-          if (errData.summary) errMsg = errData.summary;
-          else if (errData.error) errMsg = errData.error;
-        } catch {
-          // ignore
-        }
-        throw new Error(errMsg);
-      }
-
-      const data = await res.json();
-      const assistantMsg: ChatMessage = {
-        id: generateId("msg"),
-        role: "assistant",
-        content: data.summary || "Project modified successfully.",
-        project: data.project,
-        brief: data.brief,
-        diagnostics: data.diagnostics?.qualityResult,
-        rawBrief: data.diagnostics?.rawBrief,
-      };
-
-      set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === sessionId
-            ? {
-              ...s,
-              messages: [...s.messages, assistantMsg],
-              project: data.project,
-              brief: data.brief,
-            }
-            : s
-        ),
-        isLoading: false,
-      }));
+      const data = await callApi(
+        "/api/modify",
+        { sessionId, prompt, brief: session?.brief },
+        get().customApiKey,
+      );
+      applySuccess(set, sessionId, buildAssistantMessage(data, "Project modified successfully."), data);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      const errorMsg: ChatMessage = {
-        id: generateId("msg-err"),
-        role: "assistant",
-        content: message,
-        isError: true,
-      };
-      set((state) => ({
-        sessions: state.sessions.map((s) =>
-          s.id === sessionId ? { ...s, messages: [...s.messages, errorMsg] } : s
-        ),
-        error: message,
-        isLoading: false,
-      }));
+      applyError(set, sessionId, message);
     }
   },
 
@@ -270,148 +149,30 @@ export const useStore = create<StoreState>((set, get) => ({
 
     set((state) => ({
       sessions: state.sessions.map((s) =>
-        s.id === sessionId ? { ...s, messages: cleanMessages } : s
+        s.id === sessionId ? { ...s, messages: cleanMessages } : s,
       ),
       isLoading: true,
       error: null,
     }));
 
-    if (session.brief) {
-      // Re-run modify flow
-      try {
-        const res = await fetch("/api/modify", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(get().customApiKey ? { "Authorization": `Bearer ${get().customApiKey}` } : {}),
-          },
-          body: JSON.stringify({
-            sessionId,
-            prompt: userPrompt,
-            brief: session.brief,
-          }),
-        });
+    try {
+      const data = session.brief
+        ? await callApi(
+            "/api/modify",
+            { sessionId, prompt: userPrompt, brief: session.brief },
+            get().customApiKey,
+          )
+        : await callApi(
+            "/api/generate",
+            { prompt: userPrompt, duration: get().duration, stylePreset: get().stylePreset },
+            get().customApiKey,
+          );
 
-        if (!res.ok) {
-          let errMsg = `API Error: ${res.status} ${res.statusText}`;
-          try {
-            const errData = await res.json();
-            if (errData.summary) errMsg = errData.summary;
-            else if (errData.error) errMsg = errData.error;
-          } catch {
-            // ignore
-          }
-          throw new Error(errMsg);
-        }
-
-        const data = await res.json();
-        const assistantMsg: ChatMessage = {
-          id: generateId("msg"),
-          role: "assistant",
-          content: data.summary || "Project modified successfully.",
-          project: data.project,
-          brief: data.brief,
-          diagnostics: data.diagnostics?.qualityResult,
-          rawBrief: data.diagnostics?.rawBrief,
-        };
-
-        set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === sessionId
-              ? {
-                ...s,
-                messages: [...s.messages, assistantMsg],
-                project: data.project,
-                brief: data.brief,
-              }
-              : s
-          ),
-          isLoading: false,
-        }));
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        const errorMsg: ChatMessage = {
-          id: generateId("msg-err"),
-          role: "assistant",
-          content: message,
-          isError: true,
-        };
-        set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === sessionId ? { ...s, messages: [...s.messages, errorMsg] } : s
-          ),
-          error: message,
-          isLoading: false,
-        }));
-      }
-    } else {
-      // Re-run initial generate flow
-      try {
-        const res = await fetch("/api/generate", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(get().customApiKey ? { "Authorization": `Bearer ${get().customApiKey}` } : {}),
-          },
-          body: JSON.stringify({
-            prompt: userPrompt,
-            duration: get().duration,
-            stylePreset: get().stylePreset,
-          }),
-        });
-
-        if (!res.ok) {
-          let errMsg = `API Error: ${res.status} ${res.statusText}`;
-          try {
-            const errData = await res.json();
-            if (errData.summary) errMsg = errData.summary;
-            else if (errData.error) errMsg = errData.error;
-          } catch {
-            // ignore
-          }
-          throw new Error(errMsg);
-        }
-
-        const data = await res.json();
-        const assistantMsg: ChatMessage = {
-          id: generateId("msg"),
-          role: "assistant",
-          content: data.summary || "Project generated successfully.",
-          project: data.project,
-          brief: data.brief,
-          diagnostics: data.diagnostics?.qualityResult,
-          rawBrief: data.diagnostics?.rawBrief,
-        };
-
-        set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === sessionId
-              ? {
-                ...s,
-                messages: [...s.messages, assistantMsg],
-                project: data.project,
-                brief: data.brief,
-              }
-              : s
-          ),
-          isLoading: false,
-        }));
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        const errorMsg: ChatMessage = {
-          id: generateId("msg-err"),
-          role: "assistant",
-          content: message,
-          isError: true,
-        };
-        set((state) => ({
-          sessions: state.sessions.map((s) =>
-            s.id === sessionId ? { ...s, messages: [...s.messages, errorMsg] } : s
-          ),
-          error: message,
-          isLoading: false,
-        }));
-      }
+      const fallback = session.brief ? "Project modified successfully." : "Project generated successfully.";
+      applySuccess(set, sessionId, buildAssistantMessage(data, fallback), data);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      applyError(set, sessionId, message);
     }
   },
 
