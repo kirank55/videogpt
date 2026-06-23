@@ -4,10 +4,6 @@ VideoGPT is an advanced Next.js application that translates natural language pro
 
 https://github.com/user-attachments/assets/cffcbe86-6465-4648-af29-f80287cc9c70
 
-<p align="center">
-  <video src="https://github.com/user-attachments/assets/cffcbe86-6465-4648-af29-f80287cc9c70" width="100%" height="auto" controls autoplay loop muted></video>
-</p>
-
 ## Core Features
 
 - **Natural Language Video Synthesis**: Translates text prompts into structured timeline briefs containing scenes, backgrounds, typography, and complex animation properties.
