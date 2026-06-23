@@ -2,7 +2,7 @@
 
 VideoGPT is an advanced Next.js application that translates natural language prompts into interactive video briefs and renders real-time frame animations. Using a custom Canvas 2D rendering engine, the application acts as a storyboard compiler and renderer, allowing developers and designers to model motion graphics, timelines, text layouts, and particle systems directly from textual descriptions.
 
-https://github.com/user-attachments/assets/cffcbe86-6465-4648-af29-f80287cc9c70
+https://github.com/user-attachments/assets/4a4115fc-a1ac-4b28-bc17-1c8e62f5cc14
 
 ## Core Features
 
