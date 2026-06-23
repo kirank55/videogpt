@@ -3,7 +3,7 @@
 VideoGPT is an advanced Next.js application that translates natural language prompts into interactive video briefs and renders real-time frame animations. Using a custom Canvas 2D rendering engine, the application acts as a storyboard compiler and renderer, allowing developers and designers to model motion graphics, timelines, text layouts, and particle systems directly from textual descriptions.
 
 <p align="center">
-  <video src="next/public/skyscraper_release_capture_1782048318336-ezgif.com-webp-to-mp4-converter.mp4" width="100%" height="auto" controls autoplay loop muted></video>
+  <video src="https://github.com/user-attachments/assets/cffcbe86-6465-4648-af29-f80287cc9c70" width="100%" height="auto" controls autoplay loop muted></video>
 </p>
 
 ## Core Features
@@ -40,6 +40,7 @@ The application codebase is organized as follows:
 ### Installation
 
 1. Navigate to the project directory:
+
    ```bash
    cd next
    ```
@@ -64,6 +65,7 @@ DEFAULT_MODEL=deepseek/deepseek-v4-flash
 ### Running the Application
 
 1. Start the Next.js local development server:
+
    ```bash
    npm run dev
    ```
