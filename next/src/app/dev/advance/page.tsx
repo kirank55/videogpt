@@ -306,7 +306,7 @@ function AdvanceWorkspace() {
   // Redirect if missing critical details
   useEffect(() => {
     if (!targetSessionId || !messageId) {
-      router.replace("/");
+      router.replace("/dev");
     }
   }, [targetSessionId, messageId, router]);
 
@@ -363,10 +363,10 @@ function AdvanceWorkspace() {
         actions={
           <button
             type="button"
-            onClick={() => router.push("/generate")}
+            onClick={() => router.push("/dev")}
             className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-muted-foreground transition-all duration-150 hover:bg-foreground/3 hover:text-foreground active:scale-95 cursor-pointer"
           >
-            Back to Workspace
+            ← Back to Dev
           </button>
         }
       />

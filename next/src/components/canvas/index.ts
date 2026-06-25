@@ -1,2 +1,1 @@
-export { PlayerCanvas } from "./PlayerCanvas";
-export { FabricEditor } from "./FabricEditor";
+export { FabricCanvas } from "./FabricCanvas";

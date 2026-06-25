@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { PlayerCanvas } from "@/components/canvas";
-import { FabricEditor } from "@/components/canvas";
+import { FabricCanvas } from "@/components/canvas";
 import { PlayerControls } from "@/components/player/PlayerControls";
 import type { VideoProject } from "@/lib/renderer";
 import { useRouter } from "next/navigation";
@@ -102,43 +101,21 @@ function PlayerCardFrame({
                 {isEditMode ? "Done" : "Edit Mode"}
               </button>
             )}
-            {sessionId && messageId && (
-              <button
-                type="button"
-                disabled={isEditMode}
-                onClick={() => router.push(`/dev/advance?sessionId=${sessionId}&messageId=${messageId}`)}
-                className={`rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all duration-150 active:scale-95 cursor-pointer ${
-                  isEditMode ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                Advanced Mode
-              </button>
-            )}
+
           </div>
         </div>
       </div>
 
       <div className={`flex-1 flex items-center justify-center bg-black/25 rounded-2xl ${isEditMode && !isFullscreen ? "overflow-visible" : "overflow-hidden"} ${isFullscreen ? "mb-4" : ""}`}>
-        {isEditMode ? (
-          <FabricEditor
-            project={project}
-            currentTime={currentTime}
-            onEventsChange={applyEdits}
-            onDone={toggleEditMode}
-            isFullscreen={isFullscreen}
-            className={isFullscreen ? "w-full h-full" : "w-full"}
-          />
-        ) : (
-          <PlayerCanvas
-            project={project}
-            currentTime={currentTime}
-            className={
-              isFullscreen
-                ? "max-h-[68vh] max-w-full w-auto h-auto object-contain rounded-xl border border-border/20 bg-black/45 shadow-2xl"
-                : undefined
-            }
-          />
-        )}
+        <FabricCanvas
+          project={project}
+          currentTime={currentTime}
+          editable={isEditMode}
+          onEventsChange={applyEdits}
+          onDone={toggleEditMode}
+          isFullscreen={isFullscreen}
+          className={isFullscreen ? "w-full h-full" : "w-full"}
+        />
       </div>
       {showControls ? <PlayerControls /> : null}
     </div>

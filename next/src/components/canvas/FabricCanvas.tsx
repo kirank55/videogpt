@@ -5,30 +5,25 @@ import { createPortal } from "react-dom";
 import type { VideoProject, TimelineEvent } from "@/lib/renderer";
 import { visibleEvents } from "@/lib/renderer";
 import { getAnimatedStyle } from "@/lib/renderer/animation";
-import { drawIcon } from "@/lib/renderer/iconAtlas";
 import { drawText } from "@/lib/renderer/text";
 import { drawShape } from "@/lib/renderer/shape";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type FabricEditorProps = {
+type FabricCanvasProps = {
   project: VideoProject;
   currentTime: number;
-  onEventsChange: (updatedEvents: TimelineEvent[]) => void;
-  onDone: () => void;
+  /** When true, foreground elements are selectable/draggable. */
+  editable?: boolean;
+  /** Called when the user repositions or resizes an element (edit mode). */
+  onEventsChange?: (updatedEvents: TimelineEvent[]) => void;
+  /** Called when the user clicks "Done" in the edit toolbar. */
+  onDone?: () => void;
   isFullscreen?: boolean;
   className?: string;
 };
 
-// ── Helper: resolve color from ShapeFill ──────────────────────────────────────
-
-function resolveFillColor(fill: unknown): string {
-  if (typeof fill === "string") return fill;
-  if (fill && typeof fill === "object" && "from" in fill) {
-    return (fill as { from: string }).from; // Use gradient start for Fabric fill
-  }
-  return "#888888";
-}
+// ── Helper: resolve center of a shape event ───────────────────────────────────
 
 function getShapeCenter(event: TimelineEvent): { x: number; y: number } {
   if (event.type === "text") {
@@ -95,14 +90,15 @@ function applyPositionToEvent(
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function FabricEditor({
+export function FabricCanvas({
   project,
   currentTime,
+  editable = false,
   onEventsChange,
   onDone,
   isFullscreen,
   className,
-}: FabricEditorProps) {
+}: FabricCanvasProps) {
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
   const fabricRef   = useRef<unknown>(null); // fabric.Canvas instance
   const eventsRef   = useRef<TimelineEvent[]>(project.events);
@@ -174,8 +170,7 @@ export function FabricEditor({
       // Dynamic import keeps Fabric out of the main bundle
       const fabricModule = await import("fabric");
       if (!active) return;
-      const { Canvas, Rect, Circle, Triangle, Line, Textbox, Group, FabricText } = fabricModule;
-      const ImageClass = (fabricModule.FabricImage || fabricModule.Image) as any;
+      const { Canvas, Rect } = fabricModule;
 
       const visible = visibleEvents(project, currentTime);
 
@@ -183,7 +178,7 @@ export function FabricEditor({
         width: project.width,
         height: project.height,
         backgroundColor: "#1a1a2e",
-        selection: true,
+        selection: editable,
       });
 
       // Restore scroll position
@@ -223,29 +218,19 @@ export function FabricEditor({
 
       for (const event of visible) {
         if (event.type === "background") {
-          // Background — non-interactive, fills the canvas
-          const bg =
-            event.background.kind === "gradient"
-              ? new Rect({
-                  left: 0,
-                  top: 0,
-                  width: project.width,
-                  height: project.height,
-                  fill: event.background.from,
-                  selectable: false,
-                  evented: false,
-                  data: { eventId: event.id },
-                })
-              : new Rect({
-                  left: 0,
-                  top: 0,
-                  width: project.width,
-                  height: project.height,
-                  fill: event.background.color,
-                  selectable: false,
-                  evented: false,
-                  data: { eventId: event.id },
-                });
+          // Background — always non-interactive
+          const bg = new Rect({
+            left: 0,
+            top: 0,
+            width: project.width,
+            height: project.height,
+            fill: event.background.kind === "gradient"
+              ? event.background.from
+              : event.background.color,
+            selectable: false,
+            evented: false,
+            data: { eventId: event.id },
+          });
           fc_canvas.add(bg);
           continue;
         }
@@ -323,7 +308,9 @@ export function FabricEditor({
           }
         }
 
-        // Create an interactive Fabric shape that wraps our unified renderer
+        // Create a Fabric shape that wraps our unified renderer.
+        // In view mode (editable=false): non-interactive, just renders.
+        // In edit mode (editable=true): selectable, draggable, resizable.
         const obj = new Rect({
           left: posX,
           top: posY,
@@ -334,11 +321,13 @@ export function FabricEditor({
           strokeWidth: 0,
           originX: originX,
           originY: originY,
-          opacity: 1, // Draw method controls actual event opacity
-          angle: 0,   // Draw method controls rotation
+          opacity: 1,
+          angle: 0,
           hasRotatingPoint: false,
           objectCaching: false,
           noScaleCache: true,
+          selectable: editable,
+          evented: editable,
           data: { eventId: event.id },
           _render: function(ctx: CanvasRenderingContext2D) {
             const self = this as any;
@@ -383,48 +372,50 @@ export function FabricEditor({
       fc_canvas.renderAll();
       setFabricReady(true);
 
-      // ── Sync modifications back to event positions ─────────────────────────
-      fc_canvas.on("object:modified", (e: { target?: { data?: { eventId?: string }; left?: number; top?: number; scaleX?: number; scaleY?: number } }) => {
-        const target = e.target;
-        if (!target?.data?.eventId) return;
+      // ── Sync modifications back to event positions (edit mode only) ────────
+      if (editable) {
+        fc_canvas.on("object:modified", (e: { target?: { data?: { eventId?: string }; left?: number; top?: number; scaleX?: number; scaleY?: number } }) => {
+          const target = e.target;
+          if (!target?.data?.eventId) return;
 
-        const eventId = target.data.eventId;
-        const newLeft  = target.left ?? 0;
-        const newTop   = target.top  ?? 0;
-        const newScaleX = target.scaleX ?? 1;
-        const newScaleY = target.scaleY ?? 1;
+          const eventId = target.data.eventId;
+          const newLeft  = target.left ?? 0;
+          const newTop   = target.top  ?? 0;
+          const newScaleX = target.scaleX ?? 1;
+          const newScaleY = target.scaleY ?? 1;
 
-        const updated = eventsRef.current.map((ev) => {
-          if (ev.id !== eventId) return ev;
+          const updated = eventsRef.current.map((ev) => {
+            if (ev.id !== eventId) return ev;
 
-          const anim = getAnimatedStyle(ev, currentTime);
-          let baseLeft = newLeft;
-          let baseTop = newTop;
+            const anim = getAnimatedStyle(ev, currentTime);
+            let baseLeft = newLeft;
+            let baseTop = newTop;
 
-          if (ev.type === "text") {
-            const finalOffsetX = anim.pathOffset ? anim.pathOffset.x - ev.x : anim.offsetX;
-            const finalOffsetY = anim.pathOffset ? anim.pathOffset.y - ev.y : anim.offsetY;
-            baseLeft = newLeft - finalOffsetX;
-            baseTop = newTop - finalOffsetY;
-          } else if (ev.type === "shape") {
-            const center = getShapeCenter(ev);
-            const finalOffsetX = anim.pathOffset ? anim.pathOffset.x - center.x : anim.offsetX;
-            const finalOffsetY = anim.pathOffset ? anim.pathOffset.y - center.y : anim.offsetY;
-            baseLeft = newLeft - finalOffsetX;
-            baseTop = newTop - finalOffsetY;
-          }
+            if (ev.type === "text") {
+              const finalOffsetX = anim.pathOffset ? anim.pathOffset.x - ev.x : anim.offsetX;
+              const finalOffsetY = anim.pathOffset ? anim.pathOffset.y - ev.y : anim.offsetY;
+              baseLeft = newLeft - finalOffsetX;
+              baseTop = newTop - finalOffsetY;
+            } else if (ev.type === "shape") {
+              const center = getShapeCenter(ev);
+              const finalOffsetX = anim.pathOffset ? anim.pathOffset.x - center.x : anim.offsetX;
+              const finalOffsetY = anim.pathOffset ? anim.pathOffset.y - center.y : anim.offsetY;
+              baseLeft = newLeft - finalOffsetX;
+              baseTop = newTop - finalOffsetY;
+            }
 
-          const scaleFactorX = anim.scale * anim.scaleX;
-          const scaleFactorY = anim.scale * anim.scaleY;
-          const baseScaleX = scaleFactorX !== 0 ? newScaleX / scaleFactorX : newScaleX;
-          const baseScaleY = scaleFactorY !== 0 ? newScaleY / scaleFactorY : newScaleY;
+            const scaleFactorX = anim.scale * anim.scaleX;
+            const scaleFactorY = anim.scale * anim.scaleY;
+            const baseScaleX = scaleFactorX !== 0 ? newScaleX / scaleFactorX : newScaleX;
+            const baseScaleY = scaleFactorY !== 0 ? newScaleY / scaleFactorY : newScaleY;
 
-          return applyPositionToEvent(ev, baseLeft, baseTop, baseScaleX, baseScaleY);
+            return applyPositionToEvent(ev, baseLeft, baseTop, baseScaleX, baseScaleY);
+          });
+
+          eventsRef.current = updated;
+          onEventsChange?.(updated);
         });
-
-        eventsRef.current = updated;
-        onEventsChange(updated);
-      });
+      }
 
       fc = fc_canvas as { dispose: () => void };
     }
@@ -437,13 +428,14 @@ export function FabricEditor({
       fabricRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, currentTime, dimensions, isFullscreen]);
+  }, [project, currentTime, dimensions, isFullscreen, editable]);
 
   const handleDone = useCallback(() => {
-    onDone();
+    onDone?.();
   }, [onDone]);
 
-  const toolbarNode = (
+  // ── Edit toolbar (only shown in edit mode) ────────────────────────────────
+  const toolbarNode = editable ? (
     <div className={isFullscreen
       ? "fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2 bg-zinc-950/90 border border-amber-500/30 rounded-full shadow-2xl whitespace-nowrap backdrop-blur-md animate-fade-in"
       : "absolute bottom-1.5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-2 bg-zinc-950/90 border border-amber-500/30 rounded-full shadow-2xl whitespace-nowrap backdrop-blur-md animate-fade-in"
@@ -468,7 +460,7 @@ export function FabricEditor({
         Done
       </button>
     </div>
-  );
+  ) : null;
 
   const portalTarget = typeof document !== "undefined"
     ? (isFullscreen ? document.body : document.getElementById(`edit-toolbar-portal-${project.id}`))
@@ -476,16 +468,16 @@ export function FabricEditor({
 
   return (
     <div className={`relative ${isFullscreen ? "w-full h-full" : "w-full"} ${className ?? ""}`}>
-      {/* Floating Toolbar Overlay rendered outside the card DOM via Portal */}
-      {portalTarget && createPortal(toolbarNode, portalTarget)}
+      {/* Floating Toolbar Overlay rendered outside the card DOM via Portal (edit mode only) */}
+      {editable && toolbarNode && portalTarget && createPortal(toolbarNode, portalTarget)}
 
-      {/* Canvas container - matches PlayerCanvas container exactly */}
+      {/* Canvas container */}
       <div ref={containerRef} className={`${isFullscreen ? "w-full h-full flex items-center justify-center" : "w-full"} bg-background/40 p-4 overflow-hidden`}>
         {!fabricReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10 rounded-2xl">
             <div className="flex flex-col items-center gap-3">
               <div className="size-8 rounded-full border-4 border-amber-400/20 border-t-amber-400 animate-spin" />
-              <span className="text-xs text-amber-400/70">Loading editor…</span>
+              <span className="text-xs text-amber-400/70">Loading canvas…</span>
             </div>
           </div>
         )}
