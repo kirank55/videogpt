@@ -15,7 +15,7 @@ https://github.com/user-attachments/assets/4a4115fc-a1ac-4b28-bc17-1c8e62f5cc14
 
 ## Architecture and Codebase Structure
 
-For a complete stage-by-stage visual representation of how prompts are processed, see the [VideoGPT Architecture and Data Flow Diagram](architecture_flow.md).
+For a complete stage-by-stage visual representation of how prompts are processed, see the [VideoGPT Architecture and Data Flow Diagram](architecture.md).
 
 The application codebase is organized as follows:
 
