@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { ChatMessage, Session } from "@/types/generate";
-import { initialSessions } from "./demoData";
 import { persistToStorage } from "./persistence";
 import type { PersistedState } from "./persistence";
 import { callApi, callApiStream, buildAssistantMessage, applySuccess, applyError } from "./apiClient";
@@ -44,7 +43,7 @@ interface StoreState {
 }
 
 export const useStore = create<StoreState>((set, get) => ({
-  sessions: initialSessions,
+  sessions: [],
   activeSessionId: null,
   prompt: "",
   duration: 5,

@@ -18,6 +18,6 @@ export type Session = {
   name: string;
   messages: ChatMessage[];
   project?: VideoProject;
-  brief?: unknown; // Used in Phase 6+
+  brief?: unknown;
   updatedAt: string;
 };

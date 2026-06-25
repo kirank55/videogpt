@@ -86,7 +86,7 @@ const BackgroundGradientSchema = z.object({
   angle: z.number(),
 });
 
-/** Discriminated union on `kind`. Add `"image"` here in a future phase. */
+/** Discriminated union on `kind`. Add `"image"` here in the future. */
 export const BackgroundPropertiesSchema = z.discriminatedUnion("kind", [
   BackgroundSolidSchema,
   BackgroundGradientSchema,

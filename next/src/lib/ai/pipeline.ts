@@ -26,7 +26,7 @@ import type { VideoProject }     from "@/lib/renderer";
 // ── Shared types ──────────────────────────────────────────────────────────────
 
 export interface PipelineDiagnostics {
-  /** Phase tag for debugging (always "6b-llm" in this file). */
+  /** Tag for debugging (always "6b-llm" in this file). */
   phase: string;
   /** Issues from validateProject() on the expanded VideoProject. */
   issues: ReturnType<typeof validateProject>;
