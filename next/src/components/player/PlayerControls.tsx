@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePlayerContext } from "@/components/player/PlayerProvider";
 
 import type { VideoProject } from "@/lib/renderer";
@@ -105,6 +105,19 @@ export function PlayerControls() {
   const [hoverPct, setHoverPct] = useState<number | null>(null);
   const [hoverTime, setHoverTime] = useState<number>(0);
   const [hoverX, setHoverX] = useState<number>(0);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showExportMenu]);
 
   const chapters = getChapters(project);
   const currentChapter = getChapterAtTime(currentTime, chapters);
@@ -263,63 +276,107 @@ export function PlayerControls() {
           </button>
 
           {/* Export Button */}
-          <button
-            type="button"
-            disabled={isExporting}
-            onClick={startExport}
-            title={isExporting ? `Exporting… ${Math.round(exportProgress * 100)}%` : "Export as WebM"}
-            className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg border transition-all duration-150 active:scale-95 ${
-              isExporting
-                ? "border-primary/40 bg-primary/10 text-primary cursor-wait"
-                : "border-border hover:bg-primary/10 hover:border-primary/40 hover:text-primary text-foreground"
-            }`}
-          >
-            {isExporting ? (
-              <>
-                {/* Spinner */}
-                <svg
-                  className="w-3.5 h-3.5 animate-spin text-primary"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
+          <div className="relative">
+            <button
+              type="button"
+              disabled={isExporting}
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              title={isExporting ? `Exporting… ${Math.round(exportProgress * 100)}%` : "Export options"}
+              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg border transition-all duration-150 active:scale-95 cursor-pointer ${
+                isExporting
+                  ? "border-primary/40 bg-primary/10 text-primary cursor-wait"
+                  : "border-border hover:bg-primary/10 hover:border-primary/40 hover:text-primary text-foreground"
+              }`}
+            >
+              {isExporting ? (
+                <>
+                  {/* Spinner */}
+                  <svg
+                    className="w-3.5 h-3.5 animate-spin text-primary"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                  <span>{Math.round(exportProgress * 100)}%</span>
+                </>
+              ) : (
+                <>
+                  {/* Download icon */}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth="2"
                     stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                  />
-                </svg>
-                <span>{Math.round(exportProgress * 100)}%</span>
-              </>
-            ) : (
-              <>
-                {/* Download icon */}
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2"
-                  stroke="currentColor"
-                  className="w-3.5 h-3.5"
+                    className="w-3.5 h-3.5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                    />
+                  </svg>
+                  <span>Export</span>
+                </>
+              )}
+            </button>
+
+            {/* Dropdown Menu */}
+            {showExportMenu && !isExporting && (
+              <div
+                ref={menuRef}
+                className="absolute right-0 bottom-full mb-2 w-56 rounded-xl border border-border bg-zinc-950/95 backdrop-blur-md shadow-2xl p-1.5 z-50 flex flex-col gap-1 text-left animate-in fade-in slide-in-from-bottom-2 duration-150"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExportMenu(false);
+                    startExport("video");
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-all flex flex-col gap-0.5 group/item cursor-pointer"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
-                  />
-                </svg>
-                <span>Export</span>
-              </>
+                  <span className="text-xs font-semibold text-zinc-100 group-hover/item:text-primary transition-colors flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-zinc-400 group-hover/item:text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Export Video
+                  </span>
+                  <span className="text-[10px] text-zinc-400">MP4 / WebM • 30 FPS • Full Res</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowExportMenu(false);
+                    startExport("gif", { fps: 12, gifWidth: 480, gifColors: 256 });
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 transition-all flex flex-col gap-0.5 group/item cursor-pointer"
+                >
+                  <span className="text-xs font-semibold text-zinc-100 group-hover/item:text-primary transition-colors flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-zinc-400 group-hover/item:text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Export GIF
+                  </span>
+                  <span className="text-[10px] text-zinc-400">Animated GIF • 12 FPS • 480px</span>
+                </button>
+              </div>
             )}
-          </button>
+          </div>
 
           {/* Fullscreen Button */}
           <button

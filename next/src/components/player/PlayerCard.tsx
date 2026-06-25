@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { PlayerCanvas } from "@/components/canvas";
+import { FabricEditor } from "@/components/canvas";
 import { PlayerControls } from "@/components/player/PlayerControls";
 import type { VideoProject } from "@/lib/renderer";
 import { useRouter } from "next/navigation";
@@ -35,6 +36,9 @@ function PlayerCardFrame({
     togglePlayback,
     scrubTo,
     toggleFullscreen,
+    isEditMode,
+    toggleEditMode,
+    applyEdits,
   } = usePlayerContext();
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -70,7 +74,7 @@ function PlayerCardFrame({
       ref={playerRef}
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      className={`card overflow-hidden transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 ${isFullscreen ? "dark fixed inset-0 z-50 w-screen! h-screen flex flex-col justify-between bg-zinc-950 p-6 rounded-none border-none" : ""
+      className={`card relative transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 ${isFullscreen ? "dark fixed inset-0 z-50 w-screen! h-screen flex flex-col justify-between bg-zinc-950 p-6 rounded-none border-none" : "overflow-visible"
         }`}
     >
       <div className={`border-b border-border/80 px-5 py-4 ${isFullscreen ? "bg-zinc-900/50 rounded-xl mb-4" : ""}`}>
@@ -88,8 +92,24 @@ function PlayerCardFrame({
             {sessionId && messageId && (
               <button
                 type="button"
+                onClick={toggleEditMode}
+                className={`rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all duration-150 active:scale-95 cursor-pointer ${
+                  isEditMode
+                    ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                    : "border-border text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                }`}
+              >
+                {isEditMode ? "Done" : "Edit Mode"}
+              </button>
+            )}
+            {sessionId && messageId && (
+              <button
+                type="button"
+                disabled={isEditMode}
                 onClick={() => router.push(`/dev/advance?sessionId=${sessionId}&messageId=${messageId}`)}
-                className="rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all duration-150 active:scale-95 cursor-pointer"
+                className={`rounded-lg border border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all duration-150 active:scale-95 cursor-pointer ${
+                  isEditMode ? "opacity-50 cursor-not-allowed" : ""
+                }`}
               >
                 Advanced Mode
               </button>
@@ -98,16 +118,27 @@ function PlayerCardFrame({
         </div>
       </div>
 
-      <div className={`flex-1 flex items-center justify-center bg-black/25 rounded-2xl overflow-hidden ${isFullscreen ? "mb-4" : ""}`}>
-        <PlayerCanvas
-          project={project}
-          currentTime={currentTime}
-          className={
-            isFullscreen
-              ? "max-h-[68vh] max-w-full w-auto h-auto object-contain rounded-xl border border-border/20 bg-black/45 shadow-2xl"
-              : undefined
-          }
-        />
+      <div className={`flex-1 flex items-center justify-center bg-black/25 rounded-2xl ${isEditMode && !isFullscreen ? "overflow-visible" : "overflow-hidden"} ${isFullscreen ? "mb-4" : ""}`}>
+        {isEditMode ? (
+          <FabricEditor
+            project={project}
+            currentTime={currentTime}
+            onEventsChange={applyEdits}
+            onDone={toggleEditMode}
+            isFullscreen={isFullscreen}
+            className={isFullscreen ? "w-full h-full" : "w-full"}
+          />
+        ) : (
+          <PlayerCanvas
+            project={project}
+            currentTime={currentTime}
+            className={
+              isFullscreen
+                ? "max-h-[68vh] max-w-full w-auto h-auto object-contain rounded-xl border border-border/20 bg-black/45 shadow-2xl"
+                : undefined
+            }
+          />
+        )}
       </div>
       {showControls ? <PlayerControls /> : null}
     </div>

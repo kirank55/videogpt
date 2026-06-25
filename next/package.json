@@ -16,6 +16,8 @@
     "diag": "tsx --env-file=.env.local --tsconfig tsconfig.scripts.json src/scripts/diagPipeline.ts"
   },
   "dependencies": {
+    "fabric": "^7.4.0",
+    "gifenc": "^1.0.3",
     "next": "^16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",

@@ -30,7 +30,7 @@ export function MessageBubble({
 
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className="max-w-[85%]">
+      <div className={project || isLoading ? "w-full max-w-xl" : "max-w-[85%]"}>
         <div
           className={`rounded-2xl px-5 py-3.5 text-sm leading-relaxed border transition-all duration-200
             ${
@@ -89,14 +89,22 @@ export function MessageBubble({
           )}
         </div>
         {project || isLoading ? (
-          <div className="mt-3 max-w-xl w-full">
-            <PlayerCard
-              project={project}
-              isLoading={isLoading}
-              showControls={!isLoading}
-              sessionId={sessionId}
-              messageId={messageId}
-            />
+          <div className="w-full max-w-xl">
+            {project && (
+              <div
+                id={`edit-toolbar-portal-${project.id}`}
+                className="relative w-full flex justify-center overflow-visible"
+              />
+            )}
+            <div className="mt-3 w-full">
+              <PlayerCard
+                project={project}
+                isLoading={isLoading}
+                showControls={!isLoading}
+                sessionId={sessionId}
+                messageId={messageId}
+              />
+            </div>
           </div>
         ) : null}
       </div>

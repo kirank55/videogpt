@@ -73,6 +73,107 @@ export async function callApi(
   return res.json() as Promise<ApiResponse>;
 }
 
+// ── callApiStream ─────────────────────────────────────────────────────────────
+
+export interface StreamCallbacks {
+  /** Called for each "chunk" SSE event with a running token count. */
+  onChunk: (tokenCount: number, charCount: number) => void;
+  /** Called when the stream ends with the complete API response. */
+  onDone: (response: ApiResponse) => void;
+  /** Called on any error (network, parse, API error). */
+  onError: (message: string) => void;
+}
+
+/**
+ * POST `endpoint/stream` with `body` as an SSE streaming request.
+ * Parses `data:` lines from the response and dispatches to callbacks.
+ * Falls back to regular `callApi` if streaming is not supported.
+ */
+export async function callApiStream(
+  endpoint: string,
+  body: Record<string, unknown>,
+  apiKey: string,
+  callbacks: StreamCallbacks,
+): Promise<void> {
+  const streamEndpoint = `${endpoint}/stream`;
+
+  let res: Response;
+  try {
+    res = await fetch(streamEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    // Network error — fall back to regular request
+    try {
+      const data = await callApi(endpoint, body, apiKey);
+      callbacks.onDone(data);
+    } catch (err) {
+      callbacks.onError(err instanceof Error ? err.message : String(err));
+    }
+    return;
+  }
+
+  if (!res.ok || !res.body) {
+    // Non-streaming fallback
+    try {
+      const data = await callApi(endpoint, body, apiKey);
+      callbacks.onDone(data);
+    } catch (err) {
+      callbacks.onError(err instanceof Error ? err.message : String(err));
+    }
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data: ")) continue;
+
+        try {
+          const event = JSON.parse(trimmed.slice(6)) as {
+            type?: string;
+            tokenCount?: number;
+            charCount?: number;
+            message?: string;
+          } & ApiResponse;
+
+          if (event.type === "chunk") {
+            callbacks.onChunk(event.tokenCount ?? 0, event.charCount ?? 0);
+          } else if (event.type === "done") {
+            callbacks.onDone(event);
+          } else if (event.type === "error") {
+            callbacks.onError(event.message ?? "Unknown streaming error");
+          }
+        } catch {
+          // Malformed SSE line — skip
+        }
+      }
+    }
+  } catch (err) {
+    callbacks.onError(err instanceof Error ? err.message : String(err));
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 // ── buildAssistantMessage ─────────────────────────────────────────────────────
 
 /**

@@ -3,9 +3,9 @@
 // Calls the OpenRouter chat-completion API with `response_format: json_schema`
 // so the model is constrained to return a valid JSON object.
 //
-// The schema passed in must be a valid JSON Schema object describing the
-// expected shape.  The response body is parsed and the `parsed` field
-// (or the raw content parsed as JSON) is returned as `unknown`.
+// Two modes:
+//   callOpenRouter        — waits for the full response (used by scripts/eval)
+//   callOpenRouterStream  — SSE streaming; calls onChunk() per delta token
 //
 // Errors thrown here surface to the pipeline as uncaught exceptions, which
 // the pipeline catches and returns as diagnostics.
@@ -23,6 +23,14 @@ export interface OpenRouterOptions {
   temperature?: number;
   /** Custom user API key (BYOK) */
   apiKey?: string;
+}
+
+export interface StreamingOpenRouterOptions extends OpenRouterOptions {
+  /**
+   * Called for each token chunk as the model streams.
+   * `delta` is the new text fragment; `accumulated` is everything so far.
+   */
+  onChunk?: (delta: string, accumulated: string) => void;
 }
 
 /**
@@ -173,4 +181,144 @@ export async function callOpenRouter(
     `All free models failed to generate valid JSON. Errors:\n` +
     errors.map((e, idx) => `[${FREE_MODELS[idx]}]: ${e.message}`).join("\n")
   );
+}
+
+// ── Streaming variant ─────────────────────────────────────────────────────────
+
+/**
+ * Like callOpenRouter but streams the response via SSE.
+ * Calls opts.onChunk() for each token delta so the caller can show live progress.
+ * Returns the fully accumulated + parsed JSON once the stream ends.
+ * Falls back to callOpenRouter (non-streaming) if the model/network doesn't support it.
+ */
+export async function callOpenRouterStream(
+  systemPrompt: string,
+  userPrompt: string,
+  opts: StreamingOpenRouterOptions = {},
+): Promise<unknown> {
+  let requestApiKey = opts.apiKey;
+  if (
+    requestApiKey === "undefined" ||
+    requestApiKey === "null" ||
+    requestApiKey === "" ||
+    (requestApiKey && requestApiKey.trim() === "")
+  ) {
+    requestApiKey = undefined;
+  }
+
+  const apiKey =
+    requestApiKey ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+
+  if (!apiKey) {
+    throw new Error(
+      "OPENROUTER_API_KEY is not set. " +
+      "Add it to .env.local as OPENROUTER_API_KEY=sk-or-...",
+    );
+  }
+
+  const model =
+    opts.model ??
+    process.env.DEFAULT_MODEL ??
+    FREE_MODELS[0];
+
+  console.log(`[ai/openrouter] Streaming request to model: ${model}`);
+
+  const body = {
+    model,
+    max_tokens: opts.maxTokens ?? 8192,
+    temperature: opts.temperature ?? 0.7,
+    stream: true,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    response_format: { type: "json_object" },
+  };
+
+  let res: Response;
+  try {
+    res = await fetch(OPENROUTER_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://videogpt.local",
+        "X-Title": "VideoGPT",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    // Network error — fall back to non-streaming
+    console.warn("[ai/openrouter] Stream fetch failed, falling back:", err);
+    return callOpenRouter(systemPrompt, userPrompt, opts);
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "(no body)");
+    // Fall back for HTTP errors too
+    console.warn(`[ai/openrouter] Stream HTTP ${res.status}, falling back: ${text.slice(0, 200)}`);
+    return callOpenRouter(systemPrompt, userPrompt, opts);
+  }
+
+  if (!res.body) {
+    console.warn("[ai/openrouter] No response body for stream, falling back");
+    return callOpenRouter(systemPrompt, userPrompt, opts);
+  }
+
+  // Read SSE stream
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let accumulated = "";
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      // Process complete SSE lines
+      const lines = buffer.split("\n");
+      // Keep the last (possibly incomplete) line in buffer
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === "data: [DONE]") continue;
+        if (!trimmed.startsWith("data: ")) continue;
+
+        try {
+          const json = JSON.parse(trimmed.slice(6)) as {
+            choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+          };
+          const delta = json.choices?.[0]?.delta?.content ?? "";
+          if (delta) {
+            accumulated += delta;
+            opts.onChunk?.(delta, accumulated);
+          }
+        } catch {
+          // Malformed SSE line — skip
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!accumulated.trim()) {
+    throw new Error("OpenRouter stream returned empty content");
+  }
+
+  const cleaned = accumulated.trim().replace(/^```(?:json)?\s*\n?|\n?```\s*$/g, "").trim();
+
+  try {
+    return JSON.parse(cleaned) as unknown;
+  } catch {
+    throw new Error(
+      `OpenRouter stream content is not valid JSON: ${cleaned.slice(0, 300)}`,
+    );
+  }
 }

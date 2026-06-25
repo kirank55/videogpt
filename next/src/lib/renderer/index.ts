@@ -1,4 +1,5 @@
 export { renderProjectFrame } from "./renderProjectFrame";
+export { visibleEvents } from "./visibleEvents";
 export { DEFAULT_WIDTH, DEFAULT_HEIGHT, DEFAULT_DURATION } from "./constants";
 export {
   validateProject,

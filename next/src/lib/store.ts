@@ -3,7 +3,7 @@ import type { ChatMessage, Session } from "@/types/generate";
 import { initialSessions } from "./demoData";
 import { persistToStorage } from "./persistence";
 import type { PersistedState } from "./persistence";
-import { callApi, buildAssistantMessage, applySuccess, applyError } from "./apiClient";
+import { callApi, callApiStream, buildAssistantMessage, applySuccess, applyError } from "./apiClient";
 
 function generateId(prefix: string): string {
   const rand = Math.random().toString(36).substring(2, 8);
@@ -20,6 +20,10 @@ interface StoreState {
   isLoading: boolean;
   theme: "light" | "dark" | "system";
   customApiKey: string;
+  /** Live token count while an LLM stream is in progress. */
+  streamingTokenCount: number;
+  /** Live character count while an LLM stream is in progress. */
+  streamingCharCount: number;
 
   // Setters
   setPrompt: (prompt: string) => void;
@@ -49,6 +53,8 @@ export const useStore = create<StoreState>((set, get) => ({
   isLoading: false,
   theme: "system",
   customApiKey: "",
+  streamingTokenCount: 0,
+  streamingCharCount: 0,
 
   setPrompt: (prompt) => set({ prompt }),
   setDuration: (duration) => set({ duration }),
@@ -62,7 +68,7 @@ export const useStore = create<StoreState>((set, get) => ({
     console.group(`[store] submitInitialPrompt`);
     console.log("prompt:", prompt);
     console.log("duration:", get().duration, "style:", get().stylePreset);
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, streamingTokenCount: 0, streamingCharCount: 0 });
 
     const sessionId = generateId("session");
     const userMsg: ChatMessage = { id: generateId("msg"), role: "user", content: prompt };
@@ -82,33 +88,35 @@ export const useStore = create<StoreState>((set, get) => ({
       activeSessionId: sessionId,
     }));
 
-    console.log("→ POST /api/generate …");
-    console.time("api/generate");
-    try {
-      const data = await callApi(
-        "/api/generate",
-        { prompt, duration: get().duration, stylePreset: get().stylePreset },
-        get().customApiKey,
-      );
-      console.timeEnd("api/generate");
-      console.log("data.brief:", data.brief);
-      console.log("data.diagnostics:", data.diagnostics);
-      console.log("events:", (data.project as { events?: unknown[] } | undefined)?.events?.length, "total");
-      if (data.diagnostics?.llmError) console.warn("LLM error:", data.diagnostics.llmError);
-
-      applySuccess(set, sessionId, buildAssistantMessage(data, "Project generated successfully."), data);
-      console.log("✅ done");
-    } catch (err) {
-      console.timeEnd("api/generate");
-      const message = err instanceof Error ? err.message : String(err);
-      console.error("❌ error:", message);
-      applyError(set, sessionId, message);
-    }
+    console.log("→ POST /api/generate/stream …");
+    console.time("api/generate/stream");
+    await callApiStream(
+      "/api/generate",
+      { prompt, duration: get().duration, stylePreset: get().stylePreset },
+      get().customApiKey,
+      {
+        onChunk: (tokenCount, charCount) => {
+          set({ streamingTokenCount: tokenCount, streamingCharCount: charCount });
+        },
+        onDone: (data) => {
+          console.timeEnd("api/generate/stream");
+          set({ streamingTokenCount: 0, streamingCharCount: 0 });
+          applySuccess(set, sessionId, buildAssistantMessage(data, "Project generated successfully."), data);
+          console.log("✅ done");
+        },
+        onError: (message) => {
+          console.timeEnd("api/generate/stream");
+          set({ streamingTokenCount: 0, streamingCharCount: 0 });
+          applyError(set, sessionId, message);
+          console.error("❌ error:", message);
+        },
+      },
+    );
     console.groupEnd();
   },
 
   submitModifyPrompt: async (sessionId, prompt) => {
-    set({ isLoading: true, error: null });
+    set({ isLoading: true, error: null, streamingTokenCount: 0, streamingCharCount: 0 });
     const userMsg: ChatMessage = { id: generateId("msg"), role: "user", content: prompt };
 
     set((state) => ({
@@ -117,18 +125,25 @@ export const useStore = create<StoreState>((set, get) => ({
       ),
     }));
 
-    try {
-      const session = get().sessions.find((s) => s.id === sessionId);
-      const data = await callApi(
-        "/api/modify",
-        { sessionId, prompt, brief: session?.brief },
-        get().customApiKey,
-      );
-      applySuccess(set, sessionId, buildAssistantMessage(data, "Project modified successfully."), data);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      applyError(set, sessionId, message);
-    }
+    const session = get().sessions.find((s) => s.id === sessionId);
+    await callApiStream(
+      "/api/modify",
+      { sessionId, prompt, brief: session?.brief },
+      get().customApiKey,
+      {
+        onChunk: (tokenCount, charCount) => {
+          set({ streamingTokenCount: tokenCount, streamingCharCount: charCount });
+        },
+        onDone: (data) => {
+          set({ streamingTokenCount: 0, streamingCharCount: 0 });
+          applySuccess(set, sessionId, buildAssistantMessage(data, "Project modified successfully."), data);
+        },
+        onError: (message) => {
+          set({ streamingTokenCount: 0, streamingCharCount: 0 });
+          applyError(set, sessionId, message);
+        },
+      },
+    );
   },
 
   retryPrompt: async (sessionId) => {

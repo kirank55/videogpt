@@ -9,9 +9,9 @@ import {
   useRef,
   useState,
 } from "react";
-import type { VideoProject } from "@/lib/renderer";
+import type { VideoProject, TimelineEvent } from "@/lib/renderer";
 import { usePlayer } from "@/lib/player";
-import { exportVideo } from "@/lib/core/VideoExporter";
+import { exportVideo, type ExportFormat } from "@/lib/core/VideoExporter";
 
 type PlayerContextValue = {
   project: VideoProject;
@@ -26,7 +26,14 @@ type PlayerContextValue = {
   playerRef: React.RefObject<HTMLDivElement | null>;
   isExporting: boolean;
   exportProgress: number;
-  startExport: () => Promise<void>;
+  startExport: (
+    format?: ExportFormat,
+    options?: { fps?: number; gifWidth?: number; gifColors?: number }
+  ) => Promise<void>;
+  // Edit mode
+  isEditMode: boolean;
+  toggleEditMode: () => void;
+  applyEdits: (updatedEvents: TimelineEvent[]) => void;
 };
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -54,6 +61,16 @@ export function PlayerProvider({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [isEditMode, setIsEditMode] = useState(false);
+  // Local copy of the project with in-memory edits applied
+  const [editedProject, setEditedProject] = useState<VideoProject>(project);
+
+  // Keep editedProject in sync when the source project changes (e.g. after regeneration)
+  useEffect(() => {
+    setEditedProject(project);
+    if (isEditMode) setIsEditMode(false); // Exit edit mode on new project
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -78,13 +95,33 @@ export function PlayerProvider({
     }
   };
 
-  const startExport = useCallback(async () => {
+  const toggleEditMode = useCallback(() => {
+    setIsEditMode((prev) => {
+      const entering = !prev;
+      if (entering && playback.isPlaying) {
+        playback.togglePlayback(); // pause when entering edit mode
+      }
+      return entering;
+    });
+  }, [playback]);
+
+  const applyEdits = useCallback((updatedEvents: TimelineEvent[]) => {
+    setEditedProject((prev) => ({ ...prev, events: updatedEvents }));
+  }, []);
+
+  const startExport = useCallback(async (
+    format: ExportFormat = "video",
+    options?: { fps?: number; gifWidth?: number; gifColors?: number }
+  ) => {
     if (isExporting) return;
     setIsExporting(true);
     setExportProgress(0);
     try {
-      await exportVideo(project, {
-        fps: 30,
+      await exportVideo(editedProject, {
+        format,
+        fps: options?.fps,
+        gifWidth: options?.gifWidth,
+        gifColors: options?.gifColors,
         onProgress: setExportProgress,
       });
     } catch (err) {
@@ -93,12 +130,12 @@ export function PlayerProvider({
       setIsExporting(false);
       setExportProgress(0);
     }
-  }, [isExporting, project]);
+  }, [isExporting, editedProject]);
 
   return (
     <PlayerContext.Provider
       value={{
-        project,
+        project: editedProject,
         ...playback,
         isFullscreen,
         toggleFullscreen,
@@ -106,6 +143,9 @@ export function PlayerProvider({
         isExporting,
         exportProgress,
         startExport,
+        isEditMode,
+        toggleEditMode,
+        applyEdits,
       }}
     >
       {children}
