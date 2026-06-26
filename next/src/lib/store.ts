@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ChatMessage, Session } from "@/types/generate";
+import type { ChatMessage, Session, VisualCheckResult } from "@/types/generate";
 import { persistToStorage } from "./persistence";
 import type { PersistedState } from "./persistence";
 import { callApi, callApiStream, buildAssistantMessage, applySuccess, applyError } from "./apiClient";
@@ -38,6 +38,11 @@ interface StoreState {
   submitModifyPrompt: (sessionId: string, prompt: string) => Promise<void>;
   retryPrompt: (sessionId: string) => Promise<void>;
   deleteSession: (id: string) => void;
+  runVisualCheck: (
+    sessionId: string,
+    messageId: string,
+    frames: Array<{ actIndex: number; timestamp: number; dataUrl: string }>
+  ) => Promise<void>;
   /** Called once on mount by HydrateStore to restore persisted state. */
   hydrate: (persisted: Partial<PersistedState>) => void;
 }
@@ -195,6 +200,79 @@ export const useStore = create<StoreState>((set, get) => ({
       sessions: state.sessions.filter((s) => s.id !== id),
       activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
     }));
+  },
+
+  runVisualCheck: async (sessionId, messageId, frames) => {
+    set((state) => ({
+      sessions: state.sessions.map((s) => {
+        if (s.id !== sessionId) return s;
+        return {
+          ...s,
+          messages: s.messages.map((m) =>
+            m.id === messageId ? { ...m, visualCheckLoading: true } : m
+          ),
+        };
+      }),
+    }));
+
+    try {
+      const session = get().sessions.find((s) => s.id === sessionId);
+      const prompt = session?.project?.name || "Untitled";
+
+      const res = await fetch("/api/visual-check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(get().customApiKey ? { Authorization: `Bearer ${get().customApiKey}` } : {}),
+        },
+        body: JSON.stringify({ prompt, frames }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Visual check failed with HTTP ${res.status}`);
+      }
+
+      const visualCheck = await res.json();
+
+      set((state) => ({
+        sessions: state.sessions.map((s) => {
+          if (s.id !== sessionId) return s;
+          return {
+            ...s,
+            messages: s.messages.map((m) =>
+              m.id === messageId
+                ? { ...m, visualCheck, visualCheckLoading: false }
+                : m
+            ),
+          };
+        }),
+      }));
+    } catch (err) {
+      console.error("[store] Visual check failed:", err);
+      set((state) => ({
+        sessions: state.sessions.map((s) => {
+          if (s.id !== sessionId) return s;
+          return {
+            ...s,
+            messages: s.messages.map((m) =>
+              m.id === messageId
+                ? {
+                    ...m,
+                    visualCheckLoading: false,
+                    visualCheck: {
+                      score: 0,
+                      passed: false,
+                      summary: `Visual check error: ${err instanceof Error ? err.message : String(err)}`,
+                      frames: [],
+                      recommendations: ["Ensure API key is valid and network connectivity is active."],
+                    },
+                  }
+                : m
+            ),
+          };
+        }),
+      }));
+    }
   },
 
   hydrate: (persisted) => {

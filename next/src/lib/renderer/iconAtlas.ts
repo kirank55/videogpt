@@ -169,7 +169,11 @@ function iconApi(ctx: CanvasRenderingContext2D) {
   ctx.stroke();
   ctx.beginPath();
   ctx.arc(0, -0.85, 0.07, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
   ctx.arc(-0.35, 0.85, 0.07, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
   ctx.arc(0.35, 0.85, 0.07, 0, Math.PI * 2);
   ctx.fill();
 }

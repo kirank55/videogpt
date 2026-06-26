@@ -10,9 +10,11 @@ export function ShellLayout({ children }: { children: React.ReactNode }) {
 
   if (isDevPage) {
     return (
-      <div className="flex flex-col">
+      <div className="flex h-screen flex-col">
         <FirefoxWarning />
-        {children}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {children}
+        </div>
       </div>
     );
   }

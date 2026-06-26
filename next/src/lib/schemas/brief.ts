@@ -245,7 +245,13 @@ export const VideoBriefSchema = z.object({
    * Example: [1, 3, 1, 1.5, 1.5] gives Act2 triple the time of Act1.
    * If omitted, uses the catalog defaults.
    */
-  actWeights: z.array(z.number().positive()).length(5).optional(),
+  actWeights: z.preprocess((val) => {
+    if (Array.isArray(val)) {
+      if (val.length > 5) return val.slice(0, 5);
+      if (val.length < 5) return [...val, ...Array(5 - val.length).fill(1)];
+    }
+    return val;
+  }, z.array(z.number().positive()).length(5)).optional(),
 
   // ── Title presentation ────────────────────────────────────────────────────
   /**

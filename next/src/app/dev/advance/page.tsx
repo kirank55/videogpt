@@ -357,7 +357,7 @@ function AdvanceWorkspace() {
   const isJsonTab = activeTab === "raw" || activeTab === "brief" || activeTab === "project";
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden h-full">
+    <div className="flex h-full flex-col overflow-hidden p-6 md:p-10">
       <TopBar
         title="Diagnostics"
         actions={
@@ -371,7 +371,7 @@ function AdvanceWorkspace() {
         }
       />
 
-      <main className="mt-6 flex flex-1 overflow-hidden gap-6 h-[calc(100vh-140px)]">
+      <main className="mt-6 flex flex-1 overflow-hidden gap-6">
         {/* ── Left Column: Data Inspector ─────────────────────────────── */}
         <section className="w-1/2 flex flex-col h-full border border-border bg-surface-raised rounded-xl p-5 overflow-hidden">
           <div className="flex items-center justify-between border-b border-border/60 pb-3 mb-4 gap-2 flex-wrap">

@@ -68,13 +68,14 @@ Use visualElements to build a high-quality, creative, and animated diagram on th
   * NO LAZY STACKED BARS: DO NOT just draw a vertical list of simple horizontal bar rectangles with labels inside them (like a list of text). This looks extremely basic and unprofessional.
   * NODE-ICON COMBINATIONS: Design every diagram using visual "nodes". A node is a circle or styled rectangle, containing a tech icon inside, with a text label positioned either centered inside or just below/above it.
   * CONNECTORS & FLOWS: Connect nodes together using type: "line" elements with "arrowEnd": true. The lines must have "startPadding" and "endPadding" (typically 20 to 45 depending on the node size) so the line and its arrowhead stop exactly at the outer boundary of the node rather than overlapping the center.
+  * NO TEXT OVERLAPPING LINES: Never draw connector lines that cross through the center of rectangles or circles that contain text, as it makes the text unreadable. Connectors must connect outer boundaries.
   * STEP-BY-STEP STAGGER: Use "blockIndex" to reveal elements sequentially. Show Node 1 in blockIndex 0, the connector line in blockIndex 1, Node 2 in blockIndex 1, and so on.
 
 - Standard Layout Templates (Apply to ANY topic):
   * FLOW / PIPELINE (Sequential): Stagger nodes horizontally. Place Node 1 at (150, 300), Node 2 at (350, 300), Node 3 at (550, 300). Connect Node 1 -> Node 2 with a horizontal line, and Node 2 -> Node 3 with another.
   * CLIENT-SERVER / DISTRIBUTED: Place Client nodes/columns on the left (e.g., X=150, Y=200 and Y=400), and Server nodes/columns on the right (e.g., X=550, Y=200 and Y=400). Draw horizontal/diagonal lines with arrows between them representing communication.
   * HUB & SPOKE (Centralized): Place a main central hub node (e.g., cloud or database) at (350, 300). Place peripheral nodes around it (e.g., X=150, Y=300; X=350, Y=120; X=550, Y=300; X=350, Y=480) and connect all of them to the hub.
-  * STRUCTURAL STACK (Vertical): For stacked database layers or physical buildings, stack them vertically from the bottom up (e.g. Foundation at Y=480, height=80; Level 1 at Y=380, height=100; Spire at Y=300, height=80), centered at X=350. Give each layer a distinct fill color, border, and sub-icon.
+  * STRUCTURAL STACK (Vertical): For stacked database layers or physical buildings, stack them vertically from the bottom up (e.g. Foundation at Y=480, height=80; Level 1 at Y=380, height=100; Spire at Y=300, height=80), centered at X=350. IMPORTANT: If drawing connector lines between stacked blocks, space them out with a vertical gap (e.g., a 20-30px gap). Do not draw vertical lines inside or through solid blocks.
 
 - Entry Animations:
   * "draw": Use this for lines, outline circles, connecting lines, and arrows. They will draw from start to end progressively.

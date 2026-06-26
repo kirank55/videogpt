@@ -322,8 +322,8 @@ describe("buildProjectFromBrief", () => {
           blockIndex: 0,
           x1: 10,
           y1: 20,
-          x2: 100,
-          y2: 200,
+          x2: 40,
+          y2: 50,
           color: "muted",
           fillType: "dashed"
         }
@@ -366,8 +366,8 @@ describe("buildProjectFromBrief", () => {
     if (lineShape && lineShape.type === "shape" && lineShape.shapeType === "line") {
       expect(lineShape.x1).toBe(1060 + 10);
       expect(lineShape.y1).toBe(320 + 20);
-      expect(lineShape.x2).toBe(1060 + 100);
-      expect(lineShape.y2).toBe(320 + 200);
+      expect(lineShape.x2).toBe(1060 + 40);
+      expect(lineShape.y2).toBe(320 + 50);
       expect(lineShape.lineDash).toEqual([6, 6]); // dashed fillType should populate lineDash
     }
 
@@ -400,7 +400,7 @@ describe("buildProjectFromBrief", () => {
         {
           type: "line",
           blockIndex: 2,
-          x1: 10, y1: 10, x2: 100, y2: 100,
+          x1: 200, y1: 200, x2: 300, y2: 300,
           entry: "draw"
         }
       ]
@@ -495,7 +495,7 @@ describe("buildProjectFromBrief", () => {
     expect(subtitle.align).toBe("center");
     expect(subtitle.x).toBe(1920 / 2);
 
-    // Now test with visuals: center should be startX + titleMaxW / 2 = 160 + 750 / 2 = 535
+    // Now test with visuals: center should be screen center (1920 / 2 = 960) under the updated layout centering rules
     const briefWithVisuals = singleColBrief({
       titleAlign: "center",
       subtitle: "Trilateration in action",
@@ -506,10 +506,10 @@ describe("buildProjectFromBrief", () => {
     const subtitleWithVisuals = projectWithVisuals.events.find((e) => e.id === "subtitle") as TextEvent;
 
     expect(titleWithVisuals.align).toBe("center");
-    expect(titleWithVisuals.x).toBe(535);
+    expect(titleWithVisuals.x).toBe(1920 / 2);
 
     expect(subtitleWithVisuals.align).toBe("center");
-    expect(subtitleWithVisuals.x).toBe(535);
+    expect(subtitleWithVisuals.x).toBe(1920 / 2);
   });
 
   it("verifies title and subtitle exit transition keyframes in single-column layout", () => {

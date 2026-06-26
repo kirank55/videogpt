@@ -44,7 +44,7 @@ export interface StreamingOpenRouterOptions extends OpenRouterOptions {
  */
 export async function callOpenRouter(
   systemPrompt: string,
-  userPrompt: string,
+  userPrompt: string | Array<unknown>,
   opts: OpenRouterOptions = {},
 ): Promise<unknown> {
   let requestApiKey = opts.apiKey;

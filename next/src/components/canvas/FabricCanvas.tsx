@@ -7,6 +7,7 @@ import { visibleEvents } from "@/lib/renderer";
 import { getAnimatedStyle } from "@/lib/renderer/animation";
 import { drawText } from "@/lib/renderer/text";
 import { drawShape } from "@/lib/renderer/shape";
+import { drawBackground } from "@/lib/renderer/background";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -224,12 +225,32 @@ export function FabricCanvas({
             top: 0,
             width: project.width,
             height: project.height,
-            fill: event.background.kind === "gradient"
-              ? event.background.from
-              : event.background.color,
+            fill: "transparent",
+            stroke: "transparent",
+            strokeWidth: 0,
             selectable: false,
             evented: false,
+            objectCaching: false,
             data: { eventId: event.id },
+            _render: function(ctx: CanvasRenderingContext2D) {
+              const self = this as any;
+              ctx.save();
+              const canvas = self.canvas;
+              if (canvas && canvas.viewportTransform) {
+                const vpt = canvas.viewportTransform;
+                const retinaScale = canvas.getRetinaScaling ? canvas.getRetinaScaling() : 1;
+                ctx.setTransform(
+                  vpt[0] * retinaScale,
+                  vpt[1] * retinaScale,
+                  vpt[2] * retinaScale,
+                  vpt[3] * retinaScale,
+                  vpt[4] * retinaScale,
+                  vpt[5] * retinaScale,
+                );
+              }
+              drawBackground(ctx, event, project);
+              ctx.restore();
+            }
           });
           fc_canvas.add(bg);
           continue;
@@ -337,7 +358,15 @@ export function FabricCanvas({
             const canvas = self.canvas;
             if (canvas && canvas.viewportTransform) {
               const vpt = canvas.viewportTransform;
-              ctx.setTransform(vpt[0], vpt[1], vpt[2], vpt[3], vpt[4], vpt[5]);
+              const retinaScale = canvas.getRetinaScaling ? canvas.getRetinaScaling() : 1;
+              ctx.setTransform(
+                vpt[0] * retinaScale,
+                vpt[1] * retinaScale,
+                vpt[2] * retinaScale,
+                vpt[3] * retinaScale,
+                vpt[4] * retinaScale,
+                vpt[5] * retinaScale,
+              );
             }
 
             // Translate by the current drag offset relative to the initial position
@@ -472,7 +501,7 @@ export function FabricCanvas({
       {editable && toolbarNode && portalTarget && createPortal(toolbarNode, portalTarget)}
 
       {/* Canvas container */}
-      <div ref={containerRef} className={`${isFullscreen ? "w-full h-full flex items-center justify-center" : "w-full"} bg-background/40 p-4 overflow-hidden`}>
+      <div ref={containerRef} className={`${isFullscreen ? "w-full h-full flex items-center justify-center" : "w-full flex items-center justify-center"} bg-background/40 p-4 overflow-hidden`}>
         {!fabricReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-10 rounded-2xl">
             <div className="flex flex-col items-center gap-3">

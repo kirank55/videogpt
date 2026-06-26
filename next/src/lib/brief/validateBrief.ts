@@ -111,7 +111,13 @@ const LenientBriefSchema = z.preprocess(
     particleIntensity: z.number().min(0).max(3).optional().catch(undefined),
     closingStyle:     z.enum(["fade-up", "fade-center", "none"]).optional().catch(undefined),
     blockStyle:       z.enum(["stacked", "cards", "timeline", "numbered"]).optional().catch(undefined),
-    actWeights:       z.array(z.number().positive()).length(5).optional().catch(undefined),
+    actWeights:       z.preprocess((val) => {
+      if (Array.isArray(val)) {
+        if (val.length > 5) return val.slice(0, 5);
+        if (val.length < 5) return [...val, ...Array(5 - val.length).fill(1)];
+      }
+      return val;
+    }, z.array(z.number().positive()).length(5)).optional().catch(undefined),
 
     decorations: z.object({
       cornerBrackets: z.boolean().optional().catch(undefined),
