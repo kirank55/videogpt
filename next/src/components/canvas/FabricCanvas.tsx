@@ -8,6 +8,7 @@ import { getAnimatedStyle } from "@/lib/renderer/animation";
 import { drawText } from "@/lib/renderer/text";
 import { drawShape } from "@/lib/renderer/shape";
 import { drawBackground } from "@/lib/renderer/background";
+import { getEventCenter } from "@/lib/renderer/geometry";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -23,30 +24,6 @@ type FabricCanvasProps = {
   isFullscreen?: boolean;
   className?: string;
 };
-
-// ── Helper: resolve center of a shape event ───────────────────────────────────
-
-function getShapeCenter(event: TimelineEvent): { x: number; y: number } {
-  if (event.type === "text") {
-    return { x: event.x, y: event.y };
-  }
-  if (event.type === "shape") {
-    switch (event.shapeType) {
-      case "rect":
-      case "triangle":
-      case "progress":
-        return { x: event.x + (event.width ?? 0) / 2, y: event.y + (event.height ?? 0) / 2 };
-      case "circle":
-        return { x: event.x, y: event.y };
-      case "line":
-        return { x: (event.x1 + event.x2) / 2, y: (event.y1 + event.y2) / 2 };
-      case "icon":
-      case "badge":
-        return { x: event.cx, y: event.cy };
-    }
-  }
-  return { x: 0, y: 0 };
-}
 
 // ── Helper: mutate a specific event's position fields ─────────────────────────
 
@@ -260,7 +237,7 @@ export function FabricCanvas({
 
         // Resolve animation values at current time to position the interactive Fabric container
         const anim = getAnimatedStyle(event, currentTime);
-        const center = getShapeCenter(event);
+        const center = getEventCenter(event);
         const finalOffsetX = anim.pathOffset ? anim.pathOffset.x - center.x : anim.offsetX;
         const finalOffsetY = anim.pathOffset ? anim.pathOffset.y - center.y : anim.offsetY;
 
@@ -426,7 +403,7 @@ export function FabricCanvas({
               baseLeft = newLeft - finalOffsetX;
               baseTop = newTop - finalOffsetY;
             } else if (ev.type === "shape") {
-              const center = getShapeCenter(ev);
+              const center = getEventCenter(ev);
               const finalOffsetX = anim.pathOffset ? anim.pathOffset.x - center.x : anim.offsetX;
               const finalOffsetY = anim.pathOffset ? anim.pathOffset.y - center.y : anim.offsetY;
               baseLeft = newLeft - finalOffsetX;

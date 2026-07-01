@@ -1,25 +1,31 @@
 // ── AI Pipeline ───────────────────────────────────────────────────────────────
 //
 // Orchestrates the full path from user prompt → VideoBrief → VideoProject.
+// Owns both the non-streaming and streaming intake so every API route (generate,
+// modify, generate/stream, modify/stream) is a shallow HTTP adapter over one seam.
 //
-//   runGeneratePipeline(prompt, duration)
-//     → callOpenRouter → validateBrief → buildProjectFromBrief → validateProject
-//     → { project, brief, diagnostics }
+//   runGeneratePipeline(prompt, duration, opts?)
+//       → buildSystemPrompt → (callOpenRouter | callOpenRouterStream)
+//       → validateBrief → hydrateBrief → buildProjectFromBrief → qualityDiagnostics
 //
-//   runModifyPipeline(currentBrief, instruction, duration)
-//     → callOpenRouter(modifyPrompt) → validateBrief → buildProjectFromBrief → validateProject
-//     → { project, brief, diagnostics }
+//   runModifyPipeline(currentBrief, instruction, duration, opts?)
+//       → buildModifyPrompt → (callOpenRouter | callOpenRouterStream)
+//       → validateBrief → hydrateBrief → buildProjectFromBrief → qualityDiagnostics
 //
-// Both functions catch LLM/network errors and surface them in diagnostics rather
-// than throwing, so the API routes can always return a 200 with structured error
-// info.  The caller inspects `diagnostics.llmError` to check for failures.
+// Streaming is selected by passing opts.onChunk — the stream/non-stream split is an
+// implementation detail, not a separate interface. The shared tail (validate →
+// hydrate → build → quality) lives in one place so it cannot drift between the
+// streaming and non-streaming routes.
+//
+// Never throws. LLM/intake failures are captured as diagnostics.llmError with a
+// deterministic fallback project (generate) or the unchanged current brief (modify).
 
-import { callOpenRouter }        from "@/lib/ai/openrouter";
+import { callOpenRouter, callOpenRouterStream } from "@/lib/ai/openrouter";
 import { buildSystemPrompt, buildModifyPrompt } from "@/lib/ai/prompts";
-import { validateBrief }         from "@/lib/brief/validateBrief";
+import { validateBrief } from "@/lib/brief/validateBrief";
 import { buildProjectFromBrief, hydrateBrief } from "@/lib/brief/buildProjectFromBrief";
-import { validateProject, runQualityGate } from "@/lib/renderer";
-import type { QualityResult }    from "@/lib/renderer";
+import { runQualityGate, toValidationResults } from "@/lib/renderer";
+import type { QualityResult, ValidationResult } from "@/lib/renderer";
 import type { VideoBrief, SupportedDuration } from "@/lib/schemas/brief";
 import type { VideoProject }     from "@/lib/renderer";
 
@@ -29,7 +35,7 @@ export interface PipelineDiagnostics {
   /** Tag for debugging (always "6b-llm" in this file). */
   phase: string;
   /** Issues from validateProject() on the expanded VideoProject. */
-  issues: ReturnType<typeof validateProject>;
+  issues: ValidationResult[];
   errorCount:   number;
   warningCount: number;
   /** Full quality gate result (score, passed, all issues). */
@@ -46,14 +52,30 @@ export interface PipelineResult {
   diagnostics: PipelineDiagnostics;
 }
 
+/** Streamed-token callback — same shape as callOpenRouterStream's onChunk. */
+export type ChunkCallback = (delta: string, accumulated: string) => void;
+
+export interface PipelineOptions {
+  /** Custom user API key (BYOK). */
+  apiKey?: string;
+  /**
+   * When provided, the LLM is called in streaming mode and onChunk fires per
+   * token delta. Absent ⇒ non-streaming call. The streaming decision is an
+   * implementation detail of this module, not a separate interface.
+   */
+  onChunk?: ChunkCallback;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function qualityDiagnostics(
   project: VideoProject,
   extras: Partial<PipelineDiagnostics> = {},
 ): PipelineDiagnostics {
+  // Run the quality gate once; derive the legacy ValidationResult[] from it
+  // rather than calling validateProject (which would re-run the gate).
   const qualityResult = runQualityGate(project);
-  const issues       = validateProject(project);
+  const issues       = toValidationResults(qualityResult);
   const errorCount   = issues.filter((d) => d.severity === "error").length;
   const warningCount = issues.filter((d) => d.severity === "warning").length;
   return { phase: "6b-llm", issues, errorCount, warningCount, qualityResult, ...extras };
@@ -75,38 +97,67 @@ function fallbackBrief(title: string): VideoBrief {
   });
 }
 
+/**
+ * Shared intake tail: validate the raw LLM output, hydrate creative defaults,
+ * expand into a VideoProject, and run the quality gate. Both the streaming and
+ * non-streaming paths funnel through here so the brief→project expansion cannot
+ * drift between them.
+ */
+function expandAndValidate(
+  rawBrief: unknown,
+  duration: SupportedDuration,
+  extras: Partial<PipelineDiagnostics> = {},
+): { brief: VideoBrief; project: VideoProject; diagnostics: PipelineDiagnostics } {
+  const brief   = hydrateBrief(validateBrief(rawBrief));
+  const project = buildProjectFromBrief(brief, duration);
+  return { brief, project, diagnostics: qualityDiagnostics(project, extras) };
+}
+
+/**
+ * Deep intake implementation behind the two public functions.
+ *
+ * Calls the LLM (streaming iff onChunk is provided), runs the shared tail, and
+ * captures any failure as diagnostics.llmError using the caller-supplied
+ * fallback (a fresh fallback brief for generate; the unchanged current brief
+ * for modify). Never throws.
+ */
+async function runIntake(
+  systemPrompt: string,
+  userPrompt: string,
+  duration: SupportedDuration,
+  opts: PipelineOptions,
+  onFallback: () => { brief: VideoBrief; project: VideoProject },
+): Promise<PipelineResult> {
+  try {
+    const rawBrief = opts.onChunk
+      ? await callOpenRouterStream(systemPrompt, userPrompt, { apiKey: opts.apiKey, onChunk: opts.onChunk })
+      : await callOpenRouter(systemPrompt, userPrompt, { apiKey: opts.apiKey });
+    return expandAndValidate(rawBrief, duration, { rawBrief });
+  } catch (err) {
+    const llmError = err instanceof Error ? err.message : String(err);
+    const { brief, project } = onFallback();
+    return { project, brief, diagnostics: qualityDiagnostics(project, { llmError }) };
+  }
+}
+
 // ── runGeneratePipeline ───────────────────────────────────────────────────────
 
 /**
  * Full generate pipeline: user prompt → LLM → VideoBrief → VideoProject.
  *
- * Never throws.  On LLM failure, returns a fallback project with
- * `diagnostics.llmError` set.
+ * Pass opts.onChunk to stream tokens; omit it for a single-shot call. Never
+ * throws — on failure, returns a fallback project with diagnostics.llmError set.
  */
 export async function runGeneratePipeline(
   userPrompt: string,
   duration: SupportedDuration,
-  customApiKey?: string,
+  opts: PipelineOptions = {},
 ): Promise<PipelineResult> {
   const systemPrompt = buildSystemPrompt(duration);
-
-  let rawBrief: unknown;
-  try {
-    rawBrief = await callOpenRouter(
-      systemPrompt,
-      userPrompt,
-      { apiKey: customApiKey }
-    );
-  } catch (err) {
-    const llmError = err instanceof Error ? err.message : String(err);
-    const brief    = fallbackBrief(userPrompt.slice(0, 60) || "Untitled");
-    const project  = buildProjectFromBrief(brief, duration);
-    return { project, brief, diagnostics: qualityDiagnostics(project, { llmError, rawBrief }) };
-  }
-
-  const brief   = hydrateBrief(validateBrief(rawBrief));
-  const project = buildProjectFromBrief(brief, duration);
-  return { project, brief, diagnostics: qualityDiagnostics(project, { rawBrief }) };
+  return runIntake(systemPrompt, userPrompt, duration, opts, () => {
+    const brief = fallbackBrief(userPrompt.slice(0, 60) || "Untitled");
+    return { brief, project: buildProjectFromBrief(brief, duration) };
+  });
 }
 
 // ── runModifyPipeline ─────────────────────────────────────────────────────────
@@ -115,36 +166,20 @@ export async function runGeneratePipeline(
  * Modify pipeline: sends the current brief + user instruction to the LLM,
  * gets back an updated brief, re-expands into a VideoProject.
  *
- * Never throws.  On LLM failure, re-expands the *current* brief unchanged.
+ * Pass opts.onChunk to stream tokens; omit it for a single-shot call. Never
+ * throws — on failure, re-expands the current brief unchanged with
+ * diagnostics.llmError set.
  */
 export async function runModifyPipeline(
   currentBrief: VideoBrief,
   instruction: string,
   duration: SupportedDuration,
-  customApiKey?: string,
+  opts: PipelineOptions = {},
 ): Promise<PipelineResult> {
   const systemPrompt = buildSystemPrompt(duration);
   const userPrompt   = buildModifyPrompt(currentBrief, instruction);
-
-  let rawBrief: unknown;
-  try {
-    rawBrief = await callOpenRouter(
-      systemPrompt,
-      userPrompt,
-      { apiKey: customApiKey }
-    );
-  } catch (err) {
-    // On failure: preserve the current brief, just re-expand it
-    const llmError = err instanceof Error ? err.message : String(err);
-    const project  = buildProjectFromBrief(currentBrief, duration);
-    return {
-      project,
-      brief: currentBrief,
-      diagnostics: qualityDiagnostics(project, { llmError, rawBrief }),
-    };
-  }
-
-  const brief   = hydrateBrief(validateBrief(rawBrief));
-  const project = buildProjectFromBrief(brief, duration);
-  return { project, brief, diagnostics: qualityDiagnostics(project, { rawBrief }) };
+  return runIntake(systemPrompt, userPrompt, duration, opts, () => ({
+    brief: currentBrief,
+    project: buildProjectFromBrief(currentBrief, duration),
+  }));
 }

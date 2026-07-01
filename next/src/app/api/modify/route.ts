@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ModifyRequestSchema } from "@/lib/schemas/api";
 import { runModifyPipeline } from "@/lib/ai/pipeline";
 import { validateBrief } from "@/lib/brief/validateBrief";
-import type { SupportedDuration } from "@/lib/schemas/brief";
-import { SUPPORTED_DURATIONS } from "@/lib/schemas/brief";
-
-const VALID_DURATIONS = new Set<number>(SUPPORTED_DURATIONS);
+import { resolveDuration } from "@/lib/schemas/brief";
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -37,11 +34,7 @@ export async function POST(req: NextRequest) {
       "duration" in rawBrief
       ? (rawBrief as Record<string, unknown>).duration
       : 15;
-
-  const duration: SupportedDuration =
-    typeof rawDur === "number" && VALID_DURATIONS.has(rawDur)
-      ? (rawDur as SupportedDuration)
-      : 15;
+  const duration = resolveDuration(rawDur, 15);
 
   const authHeader = req.headers.get("authorization");
   const customApiKey = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
@@ -56,7 +49,7 @@ export async function POST(req: NextRequest) {
     currentBrief,
     prompt,
     duration,
-    customApiKey,
+    { apiKey: customApiKey },
   );
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);

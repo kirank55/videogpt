@@ -5,6 +5,7 @@ import type {
   PathAnimation,
   TimelineEvent,
 } from "@/lib/renderer/types";
+import { isKeyframed } from "@/lib/renderer/geometry";
 
 // ── Easing functions ─────────────────────────────────────────────────────────
 
@@ -60,12 +61,6 @@ export function animatedNumber(
 }
 
 // ── AnimatedValue resolution (supports both classic and keyframed) ───────────
-
-function isKeyframed(
-  av: AnimatedValue,
-): av is { keyframes: { time: number; value: number; easing: EasingName }[] } {
-  return "keyframes" in av;
-}
 
 function resolveKeyframedValue(
   av: { keyframes: { time: number; value: number; easing: EasingName }[] },

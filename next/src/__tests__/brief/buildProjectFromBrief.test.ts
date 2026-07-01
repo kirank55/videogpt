@@ -607,3 +607,45 @@ describe("buildProjectFromBrief", () => {
     expect(labelLine.backdrop?.paddingY).toBe(6);
   });
 });
+
+// ── Numbered block style: number watermark vs icon collision ──────────────────
+
+describe("numbered block layout", () => {
+  it("places the icon clear of the big number watermark (no overlap)", () => {
+    const brief: VideoBrief = {
+      layout: "single-column",
+      title: "How Are Skyscrapers Built?",
+      subtitle: "From foundation to spire",
+      blocks: [
+        { heading: "Foundation", description: "Deep excavation.", icon: "gear" },
+        { heading: "Core & Steel", description: "Central core.", icon: "server" },
+        { heading: "Floors & Facade", description: "Slabs and glass.", icon: "app" },
+        { heading: "Finishing", description: "MEP and spire.", icon: "gear" },
+      ],
+      palette: "ember",
+      style: "modern",
+      blockStyle: "numbered",
+      blockIcons: ["gear", "server", "app", "gear"],
+    } as unknown as VideoBrief;
+
+    const project = buildProjectFromBrief(brief, DUR);
+
+    for (let i = 0; i < 4; i++) {
+      const num  = project.events.find((e) => e.id === `block-num-${i}`) as TextEvent;
+      const icon = project.events.find(
+        (e): e is ShapeEvent & { shapeType: "icon" } =>
+          e.type === "shape" && e.shapeType === "icon" && e.id === `block-icon-${i}`,
+      );
+
+      expect(num).toBeDefined();
+      expect(icon).toBeDefined();
+      expect(num.text).toBe(String(i + 1).padStart(2, "0"));
+
+      // The big number's slot right edge vs the icon's left edge. Bold 60px
+      // digits overflow the 60px slot, so the icon must sit clear of it.
+      const numRight  = num.x + num.maxWidth;
+      const iconLeftEdge = icon?.cx ? icon.cx - icon.size / 2 : undefined;
+      iconLeftEdge && expect(iconLeftEdge - numRight).toBeGreaterThanOrEqual(30);
+    }
+  });
+});

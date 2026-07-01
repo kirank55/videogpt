@@ -1,27 +1,7 @@
 import { getAnimatedStyle } from "@/lib/renderer/animation";
 import { drawIcon } from "@/lib/renderer/iconAtlas";
+import { getShapeCenter } from "@/lib/renderer/geometry";
 import type { GradientFill, ShapeFill, ShapeEvent } from "@/lib/renderer/types";
-
-// ── Geometry helpers ─────────────────────────────────────────────────────────
-
-function getShapeCenter(event: ShapeEvent) {
-  switch (event.shapeType) {
-    case "rect":
-      return { x: event.x + event.width / 2, y: event.y + event.height / 2 };
-    case "circle":
-      return { x: event.x, y: event.y };
-    case "triangle":
-      return { x: event.x + event.width / 2, y: event.y + event.height / 2 };
-    case "line":
-      return { x: (event.x1 + event.x2) / 2, y: (event.y1 + event.y2) / 2 };
-    case "icon":
-      return { x: event.cx, y: event.cy };
-    case "badge":
-      return { x: event.cx, y: event.cy };
-    case "progress":
-      return { x: event.x + event.width / 2, y: event.y + event.height / 2 };
-  }
-}
 
 // ── Fill resolution ──────────────────────────────────────────────────────────
 

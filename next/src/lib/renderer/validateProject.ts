@@ -1,12 +1,16 @@
 import type {
-  AnimatedValue,
-  EasingName,
   TextEvent,
   TimelineEvent,
   VideoProject,
-  ShapeEvent,
-  ShapeFill,
 } from "@/lib/renderer/types";
+import {
+  getEventBounds,
+  getStaticEventBounds,
+  boundsOverlap,
+  timeOverlap,
+  isLowOpacityFill,
+  type Bounds,
+} from "@/lib/renderer/geometry";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,186 +36,30 @@ export type ValidationResult = {
   message: string;
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Layout-group collision exclusions ─────────────────────────────────────────
+//
+// The build step emits some events as parts of the same visual group, where
+// overlap is intentional (a card's background, heading, icon, and timeline all
+// share space). These prefixes declare that contract so the collision check's
+// exclusions are named and in one place, not magic strings sprinkled inline.
+// (The build side still hardcodes these prefixes — sharing the declaration with
+// briefHelpers is a follow-up deepening.)
 
-function isKeyframed(
-  av: AnimatedValue,
-): av is { keyframes: { time: number; value: number; easing: EasingName }[] } {
-  return "keyframes" in av;
+const VIS_PREFIX = "vis-";
+const BLOCK_GROUP_PREFIXES = ["block-", "timeline-", "card-bg-"] as const;
+
+function isSameLayoutGroup(a: TimelineEvent, b: TimelineEvent): boolean {
+  if (a.id.startsWith(VIS_PREFIX) && b.id.startsWith(VIS_PREFIX)) return true;
+  const inBlockGroup = (e: TimelineEvent) =>
+    BLOCK_GROUP_PREFIXES.some((p) => e.id.startsWith(p));
+  return inBlockGroup(a) && inBlockGroup(b);
 }
 
-function resolveAnimatedBounds(
-  av: AnimatedValue | undefined,
-  fallback: number,
-): { min: number; max: number } {
-  if (!av) return { min: fallback, max: fallback };
-  if (isKeyframed(av)) {
-    const values = av.keyframes.map((k) => k.value);
-    return { min: Math.min(...values), max: Math.max(...values) };
-  }
-  return { min: Math.min(av.from, av.to), max: Math.max(av.from, av.to) };
-}
-
-type Bounds = { left: number; top: number; right: number; bottom: number };
-
-function getEventBounds(event: TimelineEvent): Bounds | null {
-  const txBounds = resolveAnimatedBounds(event.translateX, 0);
-  const tyBounds = resolveAnimatedBounds(event.translateY, 0);
-  const scaleBounds = resolveAnimatedBounds(event.scale, 1);
-  const maxScale = Math.max(
-    Math.abs(scaleBounds.min),
-    Math.abs(scaleBounds.max),
-  );
-
-  switch (event.type) {
-    case "background":
-      return null;
-    case "text": {
-      const align = event.align ?? "left";
-      let left = event.x + txBounds.min;
-      let right = event.x + event.maxWidth + txBounds.max;
-      if (align === "center") {
-        left = event.x - event.maxWidth / 2 + txBounds.min;
-        right = event.x + event.maxWidth / 2 + txBounds.max;
-      } else if (align === "right") {
-        left = event.x - event.maxWidth + txBounds.min;
-        right = event.x + txBounds.max;
-      }
-      const top = event.y + tyBounds.min;
-      const bottom = event.y + event.fontSize * 3 + tyBounds.max;
-      return scaleBox({ left, top, right, bottom }, maxScale, event.x, event.y);
-    }
-    case "shape": {
-      switch (event.shapeType) {
-        case "rect": {
-          const left = event.x + txBounds.min;
-          const top = event.y + tyBounds.min;
-          const right = event.x + event.width + txBounds.max;
-          const bottom = event.y + event.height + tyBounds.max;
-          const cx = event.x + event.width / 2;
-          const cy = event.y + event.height / 2;
-          return scaleBox({ left, top, right, bottom }, maxScale, cx, cy);
-        }
-        case "circle": {
-          const r = event.radius * maxScale;
-          return {
-            left: event.x - r + txBounds.min,
-            top: event.y - r + tyBounds.min,
-            right: event.x + r + txBounds.max,
-            bottom: event.y + r + tyBounds.max,
-          };
-        }
-        case "triangle": {
-          const left = event.x + txBounds.min;
-          const top = event.y + tyBounds.min;
-          const right = event.x + event.width + txBounds.max;
-          const bottom = event.y + event.height + tyBounds.max;
-          const cx = event.x + event.width / 2;
-          const cy = event.y + event.height / 2;
-          return scaleBox({ left, top, right, bottom }, maxScale, cx, cy);
-        }
-        case "line": {
-          const left = Math.min(event.x1, event.x2) + txBounds.min;
-          const top = Math.min(event.y1, event.y2) + tyBounds.min;
-          const right = Math.max(event.x1, event.x2) + txBounds.max;
-          const bottom = Math.max(event.y1, event.y2) + tyBounds.max;
-          return { left, top, right, bottom };
-        }
-      }
-      break;
-    }
-    case "particle":
-      return null;
-  }
-  return null;
-}
-
-function getStaticEventBounds(event: TimelineEvent): Bounds | null {
-  switch (event.type) {
-    case "background":
-      return null;
-    case "text": {
-      const align = event.align ?? "left";
-      let left = event.x;
-      let right = event.x + event.maxWidth;
-      if (align === "center") {
-        left = event.x - event.maxWidth / 2;
-        right = event.x + event.maxWidth / 2;
-      } else if (align === "right") {
-        left = event.x - event.maxWidth;
-        right = event.x;
-      }
-      const top = event.y;
-      const bottom = event.y + event.fontSize * 3;
-      return { left, top, right, bottom };
-    }
-    case "shape": {
-      switch (event.shapeType) {
-        case "rect": {
-          const left = event.x;
-          const top = event.y;
-          const right = event.x + event.width;
-          const bottom = event.y + event.height;
-          return { left, top, right, bottom };
-        }
-        case "circle": {
-          const r = event.radius;
-          return {
-            left: event.x - r,
-            top: event.y - r,
-            right: event.x + r,
-            bottom: event.y + r,
-          };
-        }
-        case "triangle": {
-          const left = event.x;
-          const top = event.y;
-          const right = event.x + event.width;
-          const bottom = event.y + event.height;
-          return { left, top, right, bottom };
-        }
-        case "line": {
-          const left = Math.min(event.x1, event.x2);
-          const top = Math.min(event.y1, event.y2);
-          const right = Math.max(event.x1, event.x2);
-          const bottom = Math.max(event.y1, event.y2);
-          return { left, top, right, bottom };
-        }
-      }
-      break;
-    }
-    case "particle":
-      return null;
-  }
-  return null;
-}
-
-function scaleBox(
-  bounds: Bounds,
-  scale: number,
-  cx: number,
-  cy: number,
-): Bounds {
-  if (scale === 1) return bounds;
-  return {
-    left: cx + (bounds.left - cx) * scale,
-    top: cy + (bounds.top - cy) * scale,
-    right: cx + (bounds.right - cx) * scale,
-    bottom: cy + (bounds.bottom - cy) * scale,
-  };
-}
-
-function boundsOverlap(a: Bounds, b: Bounds): boolean {
+function isTitleSubtitleStack(a: TimelineEvent, b: TimelineEvent): boolean {
   return (
-    a.left < b.right &&
-    a.right > b.left &&
-    a.top < b.bottom &&
-    a.bottom > b.top
+    (a.id === "title" && b.id === "subtitle") ||
+    (a.id === "subtitle" && b.id === "title")
   );
-}
-
-function timeOverlap(a: TimelineEvent, b: TimelineEvent): boolean {
-  return a.start < b.end && a.end > b.start;
 }
 
 const SAFE_ZONE_MARGIN = 80; // px inset from each canvas edge
@@ -421,13 +269,6 @@ export function checkOffCanvas(project: VideoProject): QualityIssue[] {
 /**
  * Checks for same-layer, same-time, overlapping-bounds collisions.
  */
-function isLowOpacityFill(fill: ShapeFill): boolean {
-  if (typeof fill === "string") {
-    return fill === "transparent" || /\/\s*0\.[0-2]\d*\)/.test(fill);
-  }
-  return /\/\s*0\.[0-2]\d*\)/.test(fill.from) || /\/\s*0\.[0-2]\d*\)/.test(fill.to);
-}
-
 export function checkLayerCollisions(project: VideoProject): QualityIssue[] {
   const issues: QualityIssue[] = [];
   const nonBg = project.events.filter((e) => e.type !== "background" && e.type !== "particle");
@@ -443,13 +284,8 @@ export function checkLayerCollisions(project: VideoProject): QualityIssue[] {
       if (a.type === "shape" && a.shapeType === "line") continue;
       if (b.type === "shape" && b.shapeType === "line") continue;
 
-      // Exclude visual diagram elements from colliding with each other
-      if (a.id.startsWith("vis-") && b.id.startsWith("vis-")) continue;
-
-      // Exclude block column layout elements from colliding with each other (headings, descriptions, icons, backgrounds, timelines)
-      const isBlockA = a.id.startsWith("block-") || a.id.startsWith("timeline-") || a.id.startsWith("card-bg-");
-      const isBlockB = b.id.startsWith("block-") || b.id.startsWith("timeline-") || b.id.startsWith("card-bg-");
-      if (isBlockA && isBlockB) continue;
+      // Exclude events that belong to the same intentional layout group
+      if (isSameLayoutGroup(a, b)) continue;
 
       // Exclude transparent or low opacity overlay shapes (e.g. glows, highlights)
       if (
@@ -482,12 +318,7 @@ export function checkLayerCollisions(project: VideoProject): QualityIssue[] {
       }
 
       // Exclude title/subtitle stack collisions
-      if (
-        (a.id === "title" && b.id === "subtitle") ||
-        (a.id === "subtitle" && b.id === "title")
-      ) {
-        continue;
-      }
+      if (isTitleSubtitleStack(a, b)) continue;
 
       const boundsA = getStaticEventBounds(a);
       const boundsB = getStaticEventBounds(b);
@@ -547,12 +378,13 @@ export function runQualityGate(project: VideoProject): QualityResult {
 // ── Legacy adapter ───────────────────────────────────────────────────────────
 
 /**
- * Backwards-compatible wrapper used by existing pipeline code.
- * Returns the same `ValidationResult[]` shape as before.
+ * Project the full QualityResult onto the legacy error/warning-only shape used
+ * by older callers. Derived from a result already computed by runQualityGate,
+ * so callers that already have one should pass it here rather than re-running
+ * the gate via validateProject.
  */
-export function validateProject(project: VideoProject): ValidationResult[] {
-  const issues = runQualityGate(project).issues;
-  return issues
+export function toValidationResults(quality: QualityResult): ValidationResult[] {
+  return quality.issues
     .filter((i): i is QualityIssue & { severity: "error" | "warning" } =>
       i.severity === "error" || i.severity === "warning",
     )
@@ -561,4 +393,12 @@ export function validateProject(project: VideoProject): ValidationResult[] {
       severity: i.severity,
       message: i.message,
     }));
+}
+
+/**
+ * Backwards-compatible wrapper used by existing pipeline code.
+ * Returns the same `ValidationResult[]` shape as before.
+ */
+export function validateProject(project: VideoProject): ValidationResult[] {
+  return toValidationResults(runQualityGate(project));
 }

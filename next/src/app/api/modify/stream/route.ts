@@ -1,14 +1,8 @@
 import { NextRequest } from "next/server";
 import { ModifyRequestSchema } from "@/lib/schemas/api";
-import { buildSystemPrompt, buildModifyPrompt } from "@/lib/ai/prompts";
-import { callOpenRouterStream } from "@/lib/ai/openrouter";
+import { runModifyPipeline } from "@/lib/ai/pipeline";
 import { validateBrief } from "@/lib/brief/validateBrief";
-import { buildProjectFromBrief, hydrateBrief } from "@/lib/brief/buildProjectFromBrief";
-import { validateProject, runQualityGate } from "@/lib/renderer";
-import type { SupportedDuration } from "@/lib/schemas/brief";
-import { SUPPORTED_DURATIONS } from "@/lib/schemas/brief";
-
-const VALID_DURATIONS = new Set<number>(SUPPORTED_DURATIONS);
+import { resolveDuration } from "@/lib/schemas/brief";
 
 function sseEvent(type: string, data: unknown): string {
   return `data: ${JSON.stringify({ type, ...(typeof data === "object" && data !== null ? data : { payload: data }) })}\n\n`;
@@ -45,17 +39,10 @@ export async function POST(req: NextRequest) {
       "duration" in rawBrief
       ? (rawBrief as Record<string, unknown>).duration
       : 15;
-
-  const duration: SupportedDuration =
-    typeof rawDur === "number" && VALID_DURATIONS.has(rawDur)
-      ? (rawDur as SupportedDuration)
-      : 15;
+  const duration = resolveDuration(rawDur, 15);
 
   const authHeader = req.headers.get("authorization");
   const customApiKey = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
-
-  const systemPrompt = buildSystemPrompt(duration);
-  const userPrompt   = buildModifyPrompt(currentBrief, prompt);
 
   console.log(`[api/modify/stream] instruction="${prompt}" duration=${duration}s`);
   const t0 = Date.now();
@@ -76,23 +63,29 @@ export async function POST(req: NextRequest) {
 
       let tokenCount = 0;
 
-      try {
-        const rawBriefResult = await callOpenRouterStream(systemPrompt, userPrompt, {
+      // The intake (LLM call → validate → hydrate → build → quality) lives in the
+      // pipeline module; this route only owns the SSE framing + token progress.
+      // On failure the pipeline re-expands the current brief unchanged, so the
+      // error event still carries a renderable project.
+      const { project, brief, diagnostics } = await runModifyPipeline(
+        currentBrief,
+        prompt,
+        duration,
+        {
           apiKey: customApiKey,
           onChunk: (_delta, accumulated) => {
             tokenCount = Math.round(accumulated.length / 4);
             send("chunk", { tokenCount, charCount: accumulated.length });
           },
-        });
+        },
+      );
 
-        const brief   = hydrateBrief(validateBrief(rawBriefResult));
-        const project = buildProjectFromBrief(brief, duration);
+      const { errorCount, warningCount, llmError, rawBrief: rawResult } = diagnostics;
 
-        const qualityResult = runQualityGate(project);
-        const issues        = validateProject(project);
-        const errorCount    = issues.filter((d) => d.severity === "error").length;
-        const warningCount  = issues.filter((d) => d.severity === "warning").length;
-
+      if (llmError) {
+        console.error("[api/modify/stream] error:", llmError);
+        send("error", { message: llmError, project, brief });
+      } else {
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         console.log(`[api/modify/stream] done (${elapsed}s) events=${project.events.length} errors=${errorCount}`);
 
@@ -104,22 +97,16 @@ export async function POST(req: NextRequest) {
           project,
           brief,
           summary,
-          diagnostics: { qualityResult, errorCount, warningCount, rawBrief: rawBriefResult },
+          diagnostics: { qualityResult: diagnostics.qualityResult, errorCount, warningCount, rawBrief: rawResult },
         });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        console.error("[api/modify/stream] error:", message);
-        // On failure, re-expand the current brief unchanged
-        const project = buildProjectFromBrief(currentBrief, duration);
-        send("error", { message, project, brief: currentBrief });
-      } finally {
-        try {
-          if (controller.desiredSize !== null) {
-            controller.close();
-          }
-        } catch (e) {
-          // Ignore close errors
+      }
+
+      try {
+        if (controller.desiredSize !== null) {
+          controller.close();
         }
+      } catch {
+        // Ignore close errors
       }
     },
   });

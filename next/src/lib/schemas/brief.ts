@@ -17,6 +17,17 @@ export const SupportedDurationSchema = z.union([
   z.literal(20),
 ]);
 
+/**
+ * Coerce an arbitrary value into a SupportedDuration, falling back to `fallback`
+ * (default 15) when it is not a known duration. The single place the duration
+ * set is consulted, so routes stop redeclaring their own VALID_DURATIONS Set.
+ */
+export function resolveDuration(value: unknown, fallback: SupportedDuration = 15): SupportedDuration {
+  return typeof value === "number" && (SUPPORTED_DURATIONS as readonly number[]).includes(value)
+    ? (value as SupportedDuration)
+    : fallback;
+}
+
 // ── Style preset catalog keys ─────────────────────────────────────────────────
 //
 // Must stay in sync with the STYLES record in catalog/styles.ts.

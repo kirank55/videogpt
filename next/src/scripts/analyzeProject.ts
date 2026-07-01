@@ -41,13 +41,19 @@ const demoProject = buildProjectFromBrief({
 }, 10);
 import type {
   AnimatedValue,
-  EasingName,
   VideoProject,
   TimelineEvent,
   ShapeEvent,
-  ShapeFill,
   TextEvent,
 } from "../lib/renderer/types";
+import {
+  isKeyframed,
+  resolveAnimatedBounds,
+  isLowOpacityFill,
+  getStaticEventBounds,
+  getEventBounds,
+  type Bounds,
+} from "../lib/renderer/geometry";
 
 // ── ANSI colours ──────────────────────────────────────────────────────────────
 const R = "\x1b[31m";   // red
@@ -64,19 +70,11 @@ function warn(msg: string) { return `  ${Y}⚠${RESET} ${msg}`; }
 function err(msg: string) { return `  ${R}✗${RESET} ${msg}`; }
 function info(msg: string) { return `  ${DIM}ℹ${RESET} ${DIM}${msg}${RESET}`; }
 
-// ── AnimatedValue helpers ─────────────────────────────────────────────────────
-
-function isKeyframed(av: AnimatedValue): av is { keyframes: { time: number; value: number; easing: EasingName }[] } {
-  return "keyframes" in av;
-}
+// ── AnimatedValue helpers (thin adapters over the shared geometry seam) ───────
 
 function getAnimRange(av: AnimatedValue | undefined): { min: number; max: number } | null {
   if (!av) return null;
-  if (isKeyframed(av)) {
-    const values = av.keyframes.map((k) => k.value);
-    return { min: Math.min(...values), max: Math.max(...values) };
-  }
-  return { min: Math.min(av.from, av.to), max: Math.max(av.from, av.to) };
+  return resolveAnimatedBounds(av, 0);
 }
 
 function describeAV(name: string, av: AnimatedValue | undefined): string | null {
@@ -89,12 +87,19 @@ function describeAV(name: string, av: AnimatedValue | undefined): string | null 
 }
 
 // ── Bounding box helpers ──────────────────────────────────────────────────────
+//
+// Delegate to the renderer's geometry module so bounds are computed in one
+// place. Particles are the one case the geometry seam excludes (returns null),
+// so the analyser keeps a particle-specific branch for its spread-based bbox.
 
 type BBox = { x1: number; y1: number; x2: number; y2: number };
 
-/** Static bounding box — ignores animations */
+function toBBox(b: Bounds): BBox {
+  return { x1: b.left, y1: b.top, x2: b.right, y2: b.bottom };
+}
+
+/** Static bounding box — ignores animations. */
 function staticBBox(event: TimelineEvent): BBox | null {
-  if (event.type === "background") return null;
   if (event.type === "particle") {
     return {
       x1: event.origin.x - event.spread.x,
@@ -103,65 +108,31 @@ function staticBBox(event: TimelineEvent): BBox | null {
       y2: event.origin.y + event.spread.y,
     };
   }
-
-  if (event.type === "text") {
-    const e = event as TextEvent;
-    // Approximate text width as maxWidth (conservative upper bound)
-    return { x1: e.x, y1: e.y, x2: e.x + e.maxWidth, y2: e.y + e.fontSize };
-  }
-
-  const e = event as ShapeEvent;
-  switch (e.shapeType) {
-    case "rect":
-      return { x1: e.x, y1: e.y, x2: e.x + e.width, y2: e.y + e.height };
-    case "circle":
-      return { x1: e.x - e.radius, y1: e.y - e.radius, x2: e.x + e.radius, y2: e.y + e.radius };
-    case "triangle":
-      return { x1: e.x, y1: e.y, x2: e.x + e.width, y2: e.y + e.height };
-    case "line":
-      return {
-        x1: Math.min(e.x1, e.x2), y1: Math.min(e.y1, e.y2),
-        x2: Math.max(e.x1, e.x2), y2: Math.max(e.y1, e.y2),
-      };
-    default:
-      return null;
-  }
+  const b = getStaticEventBounds(event);
+  return b ? toBBox(b) : null;
 }
 
 /**
- * Animated extremes — expands the bbox by the full animation range.
- * This shows the absolute min/max canvas footprint the element can occupy.
+ * Animated extremes — the absolute min/max canvas footprint the element can
+ * occupy across its full animation range.
  */
 function animatedBBox(event: TimelineEvent): BBox | null {
-  const base = staticBBox(event);
-  if (!base) return null;
-
-  let { x1, y1, x2, y2 } = base;
-
-  const txRange = getAnimRange(event.translateX);
-  if (txRange) {
-    x1 += txRange.min; x2 += txRange.max;
+  if (event.type === "particle") {
+    const x1 = event.origin.x - event.spread.x;
+    const y1 = event.origin.y - event.spread.y;
+    const x2 = event.origin.x + event.spread.x;
+    const y2 = event.origin.y + event.spread.y;
+    const txRange = getAnimRange(event.translateX);
+    const tyRange = getAnimRange(event.translateY);
+    return {
+      x1: x1 + (txRange?.min ?? 0),
+      y1: y1 + (tyRange?.min ?? 0),
+      x2: x2 + (txRange?.max ?? 0),
+      y2: y2 + (tyRange?.max ?? 0),
+    };
   }
-  const tyRange = getAnimRange(event.translateY);
-  if (tyRange) {
-    y1 += tyRange.min; y2 += tyRange.max;
-  }
-
-  // Scale expands from center
-  const scaleRange = getAnimRange(event.scale);
-  if (scaleRange) {
-    const maxScale = scaleRange.max;
-    if (maxScale > 1) {
-      const cx = (x1 + x2) / 2;
-      const cy = (y1 + y2) / 2;
-      const hw = ((x2 - x1) / 2) * maxScale;
-      const hh = ((y2 - y1) / 2) * maxScale;
-      x1 = cx - hw; x2 = cx + hw;
-      y1 = cy - hh; y2 = cy + hh;
-    }
-  }
-
-  return { x1, y1, x2, y2 };
+  const b = getEventBounds(event);
+  return b ? toBBox(b) : null;
 }
 
 // ── Checks ────────────────────────────────────────────────────────────────────
@@ -303,14 +274,6 @@ function checkLayerConflicts(events: TimelineEvent[]): string[] {
     }
   }
   return issues;
-}
-
-function isLowOpacityFill(fill: ShapeFill): boolean {
-  if (typeof fill === "string") {
-    return /\/\s*0\.[0-2]\d*\)/.test(fill);
-  }
-  // Gradient fills — check both stops
-  return /\/\s*0\.[0-2]\d*\)/.test(fill.from) || /\/\s*0\.[0-2]\d*\)/.test(fill.to);
 }
 
 function checkPacketTravelPath(event: TimelineEvent, project: VideoProject): string[] {

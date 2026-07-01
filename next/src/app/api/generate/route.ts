@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GenerateRequestSchema } from "@/lib/schemas/api";
 import { runGeneratePipeline } from "@/lib/ai/pipeline";
-import type { SupportedDuration } from "@/lib/schemas/brief";
-import { SUPPORTED_DURATIONS } from "@/lib/schemas/brief";
-
-const VALID_DURATIONS = new Set<number>(SUPPORTED_DURATIONS);
+import { resolveDuration } from "@/lib/schemas/brief";
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -23,10 +20,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { prompt, duration: rawDuration } = parsed.data;
-
-  const duration: SupportedDuration = VALID_DURATIONS.has(rawDuration)
-    ? (rawDuration as SupportedDuration)
-    : 15;
+  const duration = resolveDuration(rawDuration, 15);
 
   const authHeader = req.headers.get("authorization");
   const customApiKey = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
@@ -34,7 +28,7 @@ export async function POST(req: NextRequest) {
   console.log(`[api/generate] prompt="${prompt}" duration=${duration}s`);
   const t0 = Date.now();
 
-  const { project, brief, diagnostics } = await runGeneratePipeline(prompt, duration, customApiKey);
+  const { project, brief, diagnostics } = await runGeneratePipeline(prompt, duration, { apiKey: customApiKey });
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   const { errorCount, warningCount, llmError } = diagnostics;

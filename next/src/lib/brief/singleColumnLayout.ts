@@ -316,7 +316,10 @@ export function buildSingleColumn(
     const cardX        = startX - 60;
     const cardW        = hasVisuals ? blockMaxWidth + 80 : W - 200;
     const numX         = startX - 60;
-    const iconLeft     = blockStyle === "numbered" ? startX + 25 : blockStyle === "timeline" ? startX - 30 : startX - 40;
+    // For numbered style the big "01" watermark (fontSize 60, bold) overflows its
+    // 60px slot by ~15-20px, so the icon must sit clear of startX — not at
+    // startX+25 where it collides with the number.
+    const iconLeft     = blockStyle === "numbered" ? startX + 60 : blockStyle === "timeline" ? startX - 30 : startX - 40;
 
     if (blockStyle === "timeline") {
       ev.push({
