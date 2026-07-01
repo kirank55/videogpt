@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "VideoGPT Studio",
+  title: "VideoGPT - Free Video Generator",
   description:
     "Shape short-form visuals, prompts, and animated previews in one AI-powered workspace.",
 };
