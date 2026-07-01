@@ -319,7 +319,15 @@ export function buildSingleColumn(
     // For numbered style the big "01" watermark (fontSize 60, bold) overflows its
     // 60px slot by ~15-20px, so the icon must sit clear of startX — not at
     // startX+25 where it collides with the number.
-    const iconLeft     = blockStyle === "numbered" ? startX + 60 : blockStyle === "timeline" ? startX - 30 : startX - 40;
+    // For cards style the icon must be inset from the card's left edge (cardX),
+    // otherwise its 44px body pokes out of the box while the heading has padding.
+    const iconLeft     = blockStyle === "numbered"
+      ? startX + 60
+      : blockStyle === "timeline"
+        ? startX - 30
+        : blockStyle === "cards"
+          ? cardX + 42   // 20px left padding (icon radius 22) to match the card's 20px top inset
+          : startX - 40;
 
     if (blockStyle === "timeline") {
       ev.push({

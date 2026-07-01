@@ -644,8 +644,50 @@ describe("numbered block layout", () => {
       // The big number's slot right edge vs the icon's left edge. Bold 60px
       // digits overflow the 60px slot, so the icon must sit clear of it.
       const numRight  = num.x + num.maxWidth;
-      const iconLeftEdge = icon?.cx ? icon.cx - icon.size / 2 : undefined;
-      iconLeftEdge && expect(iconLeftEdge - numRight).toBeGreaterThanOrEqual(30);
+      const iconLeftEdge = icon.cx - icon.size / 2;
+      expect(iconLeftEdge - numRight).toBeGreaterThanOrEqual(30);
+    }
+  });
+});
+
+// ── Cards block style: icon must sit inside the card with padding ─────────────
+
+describe("cards block layout", () => {
+  it("insets the icon from the card's left edge (no poke-through)", () => {
+    const brief: VideoBrief = {
+      layout: "single-column",
+      title: "How Skyscrapers Are Built",
+      blocks: [
+        { heading: "Foundation & Piling", description: "Deep foundations.", icon: "shield" },
+        { heading: "Steel Framework", description: "Vertical steel skeleton.", icon: "gear" },
+        { heading: "Floor Construction", description: "Concrete slabs.", icon: "app" },
+        { heading: "Facade & Interior", description: "Glass curtain walls.", icon: "browser" },
+      ],
+      palette: "slate",
+      style: "modern",
+      blockStyle: "cards",
+      blockIcons: ["shield", "gear", "app", "browser"],
+    } as unknown as VideoBrief;
+
+    const project = buildProjectFromBrief(brief, DUR);
+
+    for (let i = 0; i < 4; i++) {
+      const card = project.events.find(
+        (e): e is ShapeEvent & { shapeType: "rect" } =>
+          e.type === "shape" && e.shapeType === "rect" && e.id === `card-bg-${i}`,
+      );
+      const icon = project.events.find(
+        (e): e is ShapeEvent & { shapeType: "icon" } =>
+          e.type === "shape" && e.shapeType === "icon" && e.id === `block-icon-${i}`,
+      );
+
+      expect(card).toBeDefined();
+      expect(icon).toBeDefined();
+
+      // The icon's left edge must sit inside the card with padding (the heading
+      // already has ~20px top inset; the icon should match on the left).
+      const iconLeftEdge = icon.cx - icon.size / 2;
+      expect(iconLeftEdge - card.x).toBeGreaterThanOrEqual(15);
     }
   });
 });
