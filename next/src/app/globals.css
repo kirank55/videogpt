@@ -29,8 +29,6 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-danger: var(--danger);
-  --font-sans: var(--font-inter);
-  --font-mono: var(--font-geist-mono);
 }
 
 @utility shell {

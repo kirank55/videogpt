@@ -13,9 +13,9 @@ export function HydrateStore() {
     hydrated.current = true;
 
     const persisted = hydrateFromStorage();
-    if (persisted) {
-      hydrate(persisted);
-    }
+    // guarded — no data no hydrate call
+    if (persisted) hydrate(persisted);
+
   }, [hydrate]);
 
   // Renders nothing — this is a behaviour-only component.

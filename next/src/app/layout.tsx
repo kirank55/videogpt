@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Geist_Mono, Inter } from "next/font/google";
-import { ShellLayout } from "@/components/layout/ShellLayout";
+import { Inter } from "next/font/google";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { FirefoxWarning } from "@/components/layout/FirefoxWarning";
 import { HydrateStore } from "@/components/HydrateStore";
 import "./globals.css";
 
@@ -9,15 +10,11 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "VideoGPT - Free Video Generator",
   description:
-    "Shape short-form visuals, prompts, and animated previews in one AI-powered workspace.",
+    "Text to short-form visuals and animated previews in one AI-powered Video Generation Platform.",
 };
 
 export default function RootLayout({
@@ -28,23 +25,18 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
-      suppressHydrationWarning
+      className={`${inter.variable} h-full antialiased dark`}
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `document.documentElement.classList.add('dark');`,
-          }}
-        />
-      </head>
       <body className="h-full overflow-hidden">
-        {/*
-          HydrateStore must render before any page component that reads from
-          the store.  It is a "use client" leaf — safe inside a server layout.
-        */}
+        {/* HydrateStore must render before any page component that reads from the store. */}
         <HydrateStore />
-        <ShellLayout>{children}</ShellLayout>
+        <div className="shell">
+          <Sidebar />
+          <section className="flex h-dvh flex-col overflow-hidden p-6 md:p-10">
+            <FirefoxWarning />
+            {children}
+          </section>
+        </div>
       </body>
     </html>
   );

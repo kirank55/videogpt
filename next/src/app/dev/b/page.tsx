@@ -146,7 +146,7 @@ function VideoPlayerModal({ project, onClose }: { project: VideoProject; onClose
           {/* Tab Contents */}
           <div className="flex-1 overflow-y-auto p-5 space-y-5 text-zinc-300">
             {activeTab === "brief" && (
-              <div className="space-y-4 font-sans text-left">
+              <div className="space-y-4 text-left">
                 {/* Meta */}
                 <div>
                   <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Title & Subtitle</h3>
@@ -424,7 +424,7 @@ function BriefOnlyContent() {
 export default function BriefOnlyPage() {
   return (
     <Suspense fallback={
-      <div className="fixed inset-0 bg-black flex items-center justify-center text-muted-foreground font-sans text-2xl">
+      <div className="fixed inset-0 bg-black flex items-center justify-center text-muted-foreground text-2xl">
         Loading video brief player...
       </div>
     }>
