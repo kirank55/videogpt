@@ -70,11 +70,7 @@ export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
 
   return (
     <div className="card flex flex-col">
-      <div className="border-b border-border px-5 py-4">
-        <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
-          Chat thread
-        </p>
-      </div>
+
       <div className="space-y-4 px-5 py-5">
         {messages.map((message) => (
           <MessageBubble

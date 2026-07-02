@@ -22,7 +22,7 @@ export function ShellLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
       <Sidebar />
-      <section className="flex h-screen flex-col overflow-hidden p-6 md:p-10">
+      <section className="flex h-dvh flex-col overflow-hidden p-6 md:p-10">
         <FirefoxWarning />
         {children}
       </section>

@@ -50,7 +50,7 @@ export function PromptForm({
 
   return (
     <form
-      className="card sticky bottom-0 mt-2 p-3.5"
+      className="card mt-2 p-3.5"
       onSubmit={(event) => {
         event.preventDefault();
         submit();

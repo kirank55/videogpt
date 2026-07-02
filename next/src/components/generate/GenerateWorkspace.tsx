@@ -59,7 +59,7 @@ export function GenerateWorkspace({
   return (
     <div className="flex flex-1 flex-col overflow-hidden h-full">
       {/* Scrollable area containing TopBar and ChatThread */}
-      <div className="flex-1 overflow-y-auto pr-1 space-y-6 pb-4">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-6 pb-4">
         <TopBar
           title={title}
           actions={
