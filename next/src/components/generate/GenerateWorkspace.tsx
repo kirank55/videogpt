@@ -4,7 +4,7 @@ import { ChatThread, defaultMessages as defaultWelcomeMessages } from "@/compone
 import { PromptForm } from "@/components/generate/PromptForm";
 import { TopBar } from "@/components/layout/TopBar";
 import { useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { useStore } from "@/lib/ui/store";
 import type { ChatMessage } from "@/types/generate";
 
 type GenerateWorkspaceProps = {

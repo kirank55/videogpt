@@ -3,16 +3,16 @@
 import { useState, useEffect, useRef } from "react";
 import { FabricCanvas } from "@/components/canvas";
 import { PlayerControls } from "@/components/player/PlayerControls";
-import type { VideoProject } from "@/lib/renderer";
-import { renderProjectFrame } from "@/lib/renderer";
+import type { VideoProject } from "@/lib/ui/renderer";
+import { renderProjectFrame } from "@/lib/ui/renderer";
 import { useRouter } from "next/navigation";
 import {
   PlayerProvider,
   usePlayerContext,
 } from "@/components/player/PlayerProvider";
-import { useStore } from "@/lib/store";
-import { TIMINGS } from "@/lib/catalog/timings";
-import { resolveActTimings } from "@/lib/brief/briefHelpers";
+import { useStore } from "@/lib/ui/store";
+import { TIMINGS } from "@/lib/others/catalog/timings";
+import { resolveActTimings } from "@/lib/agent/brief/briefHelpers";
 
 function formatSeconds(value: number) {
   return `${value.toFixed(1)}s`;

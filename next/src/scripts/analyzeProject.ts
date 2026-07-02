@@ -10,7 +10,7 @@
  *   npm run analyze -- --project demo  → analyzes demoProject
  */
 
-import { buildProjectFromBrief } from "../lib/brief/buildProjectFromBrief";
+import { buildProjectFromBrief } from "../lib/agent/brief/buildProjectFromBrief";
 
 const bigDemoProject = buildProjectFromBrief({
   layout: "two-column" as const,
@@ -45,7 +45,7 @@ import type {
   TimelineEvent,
   ShapeEvent,
   TextEvent,
-} from "../lib/renderer/types";
+} from "../lib/ui/renderer/types";
 import {
   isKeyframed,
   resolveAnimatedBounds,
@@ -53,7 +53,7 @@ import {
   getStaticEventBounds,
   getEventBounds,
   type Bounds,
-} from "../lib/renderer/geometry";
+} from "../lib/ui/renderer/geometry";
 
 // ── ANSI colours ──────────────────────────────────────────────────────────────
 const R = "\x1b[31m";   // red

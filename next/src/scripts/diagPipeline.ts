@@ -2,7 +2,7 @@
 // Quick single-prompt test through the real pipeline.
 // Run: npm run diag
 
-import { runGeneratePipeline } from "@/lib/ai/pipeline";
+import { runGeneratePipeline } from "@/lib/agent/ai/pipeline";
 
 async function main() {
   console.log("Testing pipeline with: 'client-server architecture' (15s)…\n");

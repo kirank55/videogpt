@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, Suspense } from "react";
 import Script from "next/script";
-import { renderProjectFrame, type VideoProject } from "@/lib/renderer";
+import { renderProjectFrame, type VideoProject } from "@/lib/ui/renderer";
 
 function RendererContent() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

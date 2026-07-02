@@ -5,9 +5,9 @@
  * Run: npx tsx --tsconfig tsconfig.scripts.json src/scripts/checkQualityGate.ts
  */
 
-import { buildProjectFromBrief } from "@/lib/brief/buildProjectFromBrief";
-import { runQualityGate } from "@/lib/renderer/validateProject";
-import type { VideoBrief, SupportedDuration } from "@/lib/schemas/brief";
+import { buildProjectFromBrief } from "@/lib/agent/brief/buildProjectFromBrief";
+import { runQualityGate } from "@/lib/ui/renderer/validateProject";
+import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
 
 const DUR: SupportedDuration = 15;
 

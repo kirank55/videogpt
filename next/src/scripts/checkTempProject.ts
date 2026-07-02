@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { runQualityGate } from "../lib/renderer/validateProject";
+import { runQualityGate } from "../lib/ui/renderer/validateProject";
 
 const filePath = path.resolve(__dirname, "../../public/temp-project-data.js");
 let fileContent = fs.readFileSync(filePath, "utf-8");

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { usePlayerContext } from "@/components/player/PlayerProvider";
 
-import type { VideoProject } from "@/lib/renderer";
+import type { VideoProject } from "@/lib/ui/renderer";
 
 type Chapter = {
   name: string;

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { MessageBubble } from "@/components/generate/MessageBubble";
-import { useStore } from "@/lib/store";
+import { useStore } from "@/lib/ui/store";
 import type { ChatMessage } from "@/types/generate";
 
 export const defaultMessages: ChatMessage[] = [

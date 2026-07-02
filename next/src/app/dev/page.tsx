@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState, Suspense } from "react";
 import Script from "next/script";
 import { useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { useStore } from "@/lib/ui/store";
 import { TopBar } from "@/components/layout/TopBar";
-import { renderProjectFrame, type VideoProject } from "@/lib/renderer";
+import { renderProjectFrame, type VideoProject } from "@/lib/ui/renderer";
 import type { ChatMessage, Session } from "@/types/generate";
 
 // ── Thumbnail Canvas ──────────────────────────────────────────────────────────

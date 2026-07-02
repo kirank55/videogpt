@@ -1,6 +1,6 @@
 import { GenerateWorkspace } from "@/components/generate/GenerateWorkspace";
 import type { ChatMessage } from "@/types/generate";
-import { type VideoProject } from "@/lib/renderer";
+import { type VideoProject } from "@/lib/ui/renderer";
 
 const hybridProject: VideoProject = {
   id: "hybrid-demo-project",

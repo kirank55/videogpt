@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ModifyRequestSchema } from "@/lib/schemas/api";
-import { runModifyPipeline } from "@/lib/ai/pipeline";
-import { validateBrief } from "@/lib/brief/validateBrief";
-import { resolveDuration } from "@/lib/schemas/brief";
+import { ModifyRequestSchema } from "@/lib/agent/schemas/api";
+import { runModifyPipeline } from "@/lib/agent/ai/pipeline";
+import { validateBrief } from "@/lib/agent/brief/validateBrief";
+import { resolveDuration } from "@/lib/agent/schemas/brief";
 
 export async function POST(req: NextRequest) {
   let body: unknown;

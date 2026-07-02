@@ -25,10 +25,10 @@ The application codebase is organized as follows:
   - `generate/`: Prompt inputs, history feeds, drawer drawers, and chat bubbles.
   - `home/`: Projects dashboard and session lists.
   - `player/`: Video timeline controllers, playback rates, fullscreen hooks, and skeleton states.
-- `/src/lib/ai`: Communication client with OpenRouter and JSON-constrained prompt generation.
-- `/src/lib/brief`: JSON-schema validators for translating LLM briefs to projects.
-- `/src/lib/renderer`: The core HTML5 Canvas 2D renderer including visual validation, layout configurations, particle computations, and animation loops.
-- `/src/lib/store.ts`: The central Zustand client state manager responsible for background API dispatching, loading indicators, and local persistence.
+- `/src/lib` is categorized by responsibility:
+  - `agent/`: The AI intake pipeline — OpenRouter communication (`agent/ai/`), brief validation and timeline expansion (`agent/brief/`), seed projects (`agent/alpha/`), and the Zod brief/API schemas (`agent/schemas/`).
+  - `ui/`: Client rendering and state — the Canvas 2D renderer (`ui/renderer/`), player hooks (`ui/player/`), media exporters (`ui/core/`), the Zustand store (`ui/store.ts`), persistence, and the API client.
+  - `others/`: Shared, cross-cutting modules — the timeline Zod schemas (`others/schemas/`) and the palette/style/timing catalogs (`others/catalog/`).
 
 ## Getting Started
 

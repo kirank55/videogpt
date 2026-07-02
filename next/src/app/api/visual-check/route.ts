@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callOpenRouter } from "@/lib/ai/openrouter";
+import { callOpenRouter } from "@/lib/agent/ai/openrouter";
 
 export async function POST(req: NextRequest) {
   let body: any;

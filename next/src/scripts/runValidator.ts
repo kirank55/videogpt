@@ -3,8 +3,8 @@
  * Usage: npx tsx src/scripts/runValidator.ts
  */
 
-import { buildProjectFromBrief } from "../lib/brief/buildProjectFromBrief";
-import { validateProject } from "../lib/renderer/validateProject";
+import { buildProjectFromBrief } from "../lib/agent/brief/buildProjectFromBrief";
+import { validateProject } from "../lib/ui/renderer/validateProject";
 
 const brief = {
   layout: "single-column" as const,

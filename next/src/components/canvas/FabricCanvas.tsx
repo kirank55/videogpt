@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
-import type { VideoProject, TimelineEvent } from "@/lib/renderer";
-import { visibleEvents } from "@/lib/renderer";
-import { getAnimatedStyle } from "@/lib/renderer/animation";
-import { drawText } from "@/lib/renderer/text";
-import { drawShape } from "@/lib/renderer/shape";
-import { drawBackground } from "@/lib/renderer/background";
-import { getEventCenter } from "@/lib/renderer/geometry";
+import type { VideoProject, TimelineEvent } from "@/lib/ui/renderer";
+import { visibleEvents } from "@/lib/ui/renderer";
+import { getAnimatedStyle } from "@/lib/ui/renderer/animation";
+import { drawText } from "@/lib/ui/renderer/text";
+import { drawShape } from "@/lib/ui/renderer/shape";
+import { drawBackground } from "@/lib/ui/renderer/background";
+import { getEventCenter } from "@/lib/ui/renderer/geometry";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

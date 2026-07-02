@@ -1,5 +1,5 @@
-import type { VideoProject } from "@/lib/renderer";
-import type { QualityResult } from "@/lib/renderer";
+import type { VideoProject } from "@/lib/ui/renderer";
+import type { QualityResult } from "@/lib/ui/renderer";
 
 export interface VisualCheckIssue {
   severity: "warning" | "error";

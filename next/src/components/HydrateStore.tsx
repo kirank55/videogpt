@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useStore } from "@/lib/store";
-import { hydrateFromStorage } from "@/lib/persistence";
+import { useStore } from "@/lib/ui/store";
+import { hydrateFromStorage } from "@/lib/ui/persistence";
 
 export function HydrateStore() {
   const hydrate = useStore((s) => s.hydrate);

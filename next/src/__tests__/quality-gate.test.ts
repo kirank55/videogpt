@@ -7,8 +7,8 @@ import {
   checkContentDensity,
   calculateScore,
   runQualityGate,
-} from "@/lib/renderer";
-import type { VideoProject, QualityIssue } from "@/lib/renderer";
+} from "@/lib/ui/renderer";
+import type { VideoProject, QualityIssue } from "@/lib/ui/renderer";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -385,7 +385,7 @@ describe("runQualityGate", () => {
   });
 
   it("passes a well-formed project built by buildProjectFromBrief", async () => {
-    const { buildProjectFromBrief } = await import("@/lib/brief/buildProjectFromBrief");
+    const { buildProjectFromBrief } = await import("@/lib/agent/brief/buildProjectFromBrief");
     const brief = {
       layout: "single-column" as const,
       title: "Test Brief",

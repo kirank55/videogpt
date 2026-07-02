@@ -2,8 +2,8 @@
 
 import React, { useEffect, useRef, useState, Suspense } from "react";
 import Script from "next/script";
-import { useStore } from "@/lib/store";
-import { renderProjectFrame, type VideoProject } from "@/lib/renderer";
+import { useStore } from "@/lib/ui/store";
+import { renderProjectFrame, type VideoProject } from "@/lib/ui/renderer";
 import { TopBar } from "@/components/layout/TopBar";
 
 import { PlayerCard } from "@/components/player/PlayerCard";

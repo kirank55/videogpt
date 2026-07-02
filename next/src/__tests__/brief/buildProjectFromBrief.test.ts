@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildProjectFromBrief } from "@/lib/brief/buildProjectFromBrief";
-import { validateProject } from "@/lib/renderer";
-import { PALETTES } from "@/lib/catalog/palettes";
-import { STYLES } from "@/lib/catalog/styles";
-import type { VideoBrief, SupportedDuration } from "@/lib/schemas/brief";
-import type { ShapeEvent, TextEvent } from "@/lib/renderer";
+import { buildProjectFromBrief } from "@/lib/agent/brief/buildProjectFromBrief";
+import { validateProject } from "@/lib/ui/renderer";
+import { PALETTES } from "@/lib/others/catalog/palettes";
+import { STYLES } from "@/lib/others/catalog/styles";
+import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
+import type { ShapeEvent, TextEvent } from "@/lib/ui/renderer";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

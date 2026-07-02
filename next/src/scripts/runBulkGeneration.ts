@@ -1,8 +1,8 @@
-import { runGeneratePipeline } from "../lib/ai/pipeline";
+import { runGeneratePipeline } from "../lib/agent/ai/pipeline";
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
-import { type VideoProject } from "../lib/renderer";
+import { type VideoProject } from "../lib/ui/renderer";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

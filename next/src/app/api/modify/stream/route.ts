@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
-import { ModifyRequestSchema } from "@/lib/schemas/api";
-import { runModifyPipeline } from "@/lib/ai/pipeline";
-import { validateBrief } from "@/lib/brief/validateBrief";
-import { resolveDuration } from "@/lib/schemas/brief";
+import { ModifyRequestSchema } from "@/lib/agent/schemas/api";
+import { runModifyPipeline } from "@/lib/agent/ai/pipeline";
+import { validateBrief } from "@/lib/agent/brief/validateBrief";
+import { resolveDuration } from "@/lib/agent/schemas/brief";
 
 function sseEvent(type: string, data: unknown): string {
   return `data: ${JSON.stringify({ type, ...(typeof data === "object" && data !== null ? data : { payload: data }) })}\n\n`;

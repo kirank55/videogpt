@@ -8,13 +8,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const callOpenRouterMock       = vi.fn<(s: string, u: string) => Promise<unknown>>();
 const callOpenRouterStreamMock = vi.fn<(s: string, u: string) => Promise<unknown>>();
 
-vi.mock("@/lib/ai/openrouter", () => ({
+vi.mock("@/lib/agent/ai/openrouter", () => ({
   callOpenRouter:       (s: string, u: string) => callOpenRouterMock(s, u),
   callOpenRouterStream: (s: string, u: string) => callOpenRouterStreamMock(s, u),
 }));
 
-import { runGeneratePipeline, runModifyPipeline } from "@/lib/ai/pipeline";
-import type { VideoBrief, SupportedDuration } from "@/lib/schemas/brief";
+import { runGeneratePipeline, runModifyPipeline } from "@/lib/agent/ai/pipeline";
+import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 

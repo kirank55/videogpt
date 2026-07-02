@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { PALETTES, DEFAULT_PALETTE } from "@/lib/catalog/palettes";
-import { STYLES, DEFAULT_STYLE } from "@/lib/catalog/styles";
-import { TIMINGS } from "@/lib/catalog/timings";
-import { SUPPORTED_DURATIONS } from "@/lib/schemas/brief";
-import type { PaletteSpec } from "@/lib/catalog/palettes";
-import type { StyleSpec } from "@/lib/catalog/styles";
+import { PALETTES, DEFAULT_PALETTE } from "@/lib/others/catalog/palettes";
+import { STYLES, DEFAULT_STYLE } from "@/lib/others/catalog/styles";
+import { TIMINGS } from "@/lib/others/catalog/timings";
+import { SUPPORTED_DURATIONS } from "@/lib/agent/schemas/brief";
+import type { PaletteSpec } from "@/lib/others/catalog/palettes";
+import type { StyleSpec } from "@/lib/others/catalog/styles";
 
 // ── Required fields for each catalog entry ─────────────────────────────────
 

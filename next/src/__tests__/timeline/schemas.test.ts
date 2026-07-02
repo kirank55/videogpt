@@ -10,12 +10,12 @@ import {
   ShadowSchema,
   PathAnimationSchema,
   GradientFillSchema,
-} from "@/lib/schemas/timeline";
+} from "@/lib/others/schemas/timeline";
 import {
   SupportedDurationSchema,
   StylePresetSchema,
   TransitionPresetSchema,
-} from "@/lib/schemas/brief";
+} from "@/lib/agent/schemas/brief";
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 

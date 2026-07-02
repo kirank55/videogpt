@@ -6,10 +6,11 @@
 //   1. Calls runGeneratePipeline (live OpenRouter call)
 //   2. Validates the expanded VideoProject with validateProject()
 //   3. Reports pass/fail per prompt in a matrix
+//   4. Logs real token usage (from OpenRouter `usage`) + elapsed time
 //
 // Usage:
-//   npm run eval            — run all prompts sequentially
-//   npm run eval -- --fast  — skip sleep between requests (may hit rate limits)
+//   npm run eval                  — runs all test prompts
+//   npm run eval -- --fast        — skip sleep between requests
 //
 // Pass criteria:
 //   - No "error"-severity issues from validateProject()
@@ -21,8 +22,8 @@
 // Environment variables are loaded by tsx --env-file flags in package.json scripts.
 // OPENROUTER_API_KEY must be set in .env.local (and/or .env in project root).
 
-import { runGeneratePipeline } from "@/lib/ai/pipeline";
-import type { SupportedDuration } from "@/lib/schemas/brief";
+import { runGeneratePipeline } from "@/lib/agent/ai/pipeline";
+import type { SupportedDuration } from "@/lib/agent/schemas/brief";
 
 // ── Test cases ────────────────────────────────────────────────────────────────
 
@@ -106,7 +107,7 @@ const TEST_CASES: TestCase[] = [
   {
     prompt: "benefits of using TypeScript over JavaScript",
     duration: 15,
-    expectedLayout: "any",   // could go either way — either is fine
+    expectedLayout: "any", // could go either way — either is fine
     description: "ambiguous: may be single or two-column",
   },
 
@@ -148,6 +149,10 @@ interface ResultRow {
   errors: number;
   warnings: number;
   llmError?: string;
+  elapsedMs: number;
+  promptTokens?: number;
+  completionTokens?: number;
+  totalTokens?: number;
   note: string;
 }
 
@@ -164,8 +169,10 @@ async function runEval() {
     process.stdout.write(`[${String(i + 1).padStart(2)}/${TEST_CASES.length}] ${tc.description} … `);
 
     let result: ResultRow;
+    const t0 = Date.now();
     try {
       const { brief, diagnostics } = await runGeneratePipeline(tc.prompt, tc.duration);
+      const elapsedMs = Date.now() - t0;
       const layoutOk =
         tc.expectedLayout === "any" || brief.layout === tc.expectedLayout;
       const pass =
@@ -179,6 +186,10 @@ async function runEval() {
         errors: diagnostics.errorCount,
         warnings: diagnostics.warningCount,
         llmError: diagnostics.llmError,
+        elapsedMs,
+        promptTokens: diagnostics.usage?.prompt_tokens,
+        completionTokens: diagnostics.usage?.completion_tokens,
+        totalTokens: diagnostics.usage?.total_tokens,
         note: [
           !layoutOk
             ? `layout=${brief.layout} (expected ${tc.expectedLayout})`
@@ -194,6 +205,7 @@ async function runEval() {
           .join(", ") || "ok",
       };
     } catch (err) {
+      const elapsedMs = Date.now() - t0;
       result = {
         idx: i + 1,
         prompt: tc.prompt,
@@ -202,6 +214,7 @@ async function runEval() {
         errors: -1,
         warnings: 0,
         llmError: err instanceof Error ? err.message : String(err),
+        elapsedMs,
         note: "threw unexpectedly",
       };
     }
@@ -224,16 +237,24 @@ async function runEval() {
   console.log(" RESULTS");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(
-    `${"#".padEnd(3)} ${"PASS".padEnd(5)} ${"LAYOUT".padEnd(14)} ${"ERR".padEnd(4)} ${"WARN".padEnd(5)} NOTE`,
+    `${"#".padEnd(3)} ${"PASS".padEnd(5)} ${"LAYOUT".padEnd(14)} ${"ERR".padEnd(4)} ${"WARN".padEnd(5)} ${"TOK".padEnd(8)} ${"MS".padEnd(7)} NOTE`,
   );
-  console.log("─".repeat(70));
+  console.log("─".repeat(78));
   for (const r of results) {
     console.log(
-      `${String(r.idx).padEnd(3)} ${(r.pass ? "✅" : "❌").padEnd(5)} ${r.layout.padEnd(14)} ${String(r.errors).padEnd(4)} ${String(r.warnings).padEnd(5)} ${r.note}`,
+      `${String(r.idx).padEnd(3)} ${(r.pass ? "✅" : "❌").padEnd(5)} ${r.layout.padEnd(14)} ${String(r.errors).padEnd(4)} ${String(r.warnings).padEnd(5)} ${(r.totalTokens != null ? String(r.totalTokens) : "-").padEnd(8)} ${String(r.elapsedMs).padEnd(7)} ${r.note}`,
     );
   }
-  console.log("─".repeat(70));
+  console.log("─".repeat(78));
   console.log(`\nPassed ${passed}/${total} (${rate}%)`);
+
+  const totTok = results.reduce((s, r) => s + (r.totalTokens ?? 0), 0);
+  const totPromptTok = results.reduce((s, r) => s + (r.promptTokens ?? 0), 0);
+  const totCompletionTok = results.reduce((s, r) => s + (r.completionTokens ?? 0), 0);
+  const avgMs = Math.round(results.reduce((s, r) => s + r.elapsedMs, 0) / results.length);
+  console.log(
+    `Totals — prompt: ${totPromptTok}  completion: ${totCompletionTok}  total: ${totTok} tokens  |  avg elapsed: ${avgMs}ms`,
+  );
 
   const threshold = 80;
   if (rate >= threshold) {

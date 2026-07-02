@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { useStore } from "@/lib/ui/store";
 import { TopBar } from "@/components/layout/TopBar";
-import { renderProjectFrame } from "@/lib/renderer";
-import { visibleEvents } from "@/lib/renderer/visibleEvents";
+import { renderProjectFrame } from "@/lib/ui/renderer";
+import { visibleEvents } from "@/lib/ui/renderer/visibleEvents";
 
 // ── Frame Thumbnail Component ────────────────────────────────────────────────
 function FrameThumbnail({

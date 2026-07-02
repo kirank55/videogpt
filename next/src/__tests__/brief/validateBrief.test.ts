@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { validateBrief } from "@/lib/brief/validateBrief";
-import type { VideoBrief } from "@/lib/schemas/brief";
+import { validateBrief } from "@/lib/agent/brief/validateBrief";
+import type { VideoBrief } from "@/lib/agent/schemas/brief";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

@@ -4,8 +4,8 @@ import { useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PlayerCard } from "@/components/player";
-import type { VideoProject } from "@/lib/renderer";
-import { useStore } from "@/lib/store";
+import type { VideoProject } from "@/lib/ui/renderer";
+import { useStore } from "@/lib/ui/store";
 
 type MessageBubbleProps = {
   role: "user" | "assistant";

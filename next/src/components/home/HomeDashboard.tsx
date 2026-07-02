@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
+import { useStore } from "@/lib/ui/store";
 import { ProjectCard } from "@/components/home/ProjectCard";
 import { TopBar } from "@/components/layout/TopBar";
 

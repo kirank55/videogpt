@@ -9,9 +9,9 @@ import {
   useRef,
   useState,
 } from "react";
-import type { VideoProject, TimelineEvent } from "@/lib/renderer";
-import { usePlayer } from "@/lib/player";
-import { exportVideo, type ExportFormat } from "@/lib/core/VideoExporter";
+import type { VideoProject, TimelineEvent } from "@/lib/ui/renderer";
+import { usePlayer } from "@/lib/ui/player";
+import { exportVideo, type ExportFormat } from "@/lib/ui/core/VideoExporter";
 
 type PlayerContextValue = {
   project: VideoProject;

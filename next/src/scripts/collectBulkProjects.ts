@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { type VideoProject } from "../lib/renderer";
+import { type VideoProject } from "../lib/ui/renderer";
 
 const DEFAULT_BULK_DIR = process.env.BRAIN_DIR 
   ? path.join(process.env.BRAIN_DIR, "bulk_captures")

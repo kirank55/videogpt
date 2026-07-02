@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { VideoProject } from "@/lib/renderer";
-import { renderProjectFrame } from "@/lib/renderer";
+import type { VideoProject } from "@/lib/ui/renderer";
+import { renderProjectFrame } from "@/lib/ui/renderer";
 
 type ProjectCardProps = {
   id: string;

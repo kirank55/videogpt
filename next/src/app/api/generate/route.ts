@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GenerateRequestSchema } from "@/lib/schemas/api";
-import { runGeneratePipeline } from "@/lib/ai/pipeline";
-import { resolveDuration } from "@/lib/schemas/brief";
+import { GenerateRequestSchema } from "@/lib/agent/schemas/api";
+import { runGeneratePipeline } from "@/lib/agent/ai/pipeline";
+import { resolveDuration } from "@/lib/agent/schemas/brief";
 
 export async function POST(req: NextRequest) {
   let body: unknown;
