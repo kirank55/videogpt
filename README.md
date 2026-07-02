@@ -60,6 +60,12 @@ OPENROUTER_API_KEY=your_openrouter_api_key
 
 # Default model identifier for prompt translation
 DEFAULT_MODEL=deepseek/deepseek-v4-flash
+
+# Model identifier for visual-check QA analysis (optional)
+VISUAL_CHECK_MODEL=qwen/qwen3.5-flash-02-23
+
+# Output directory for bulk generation CLI scripts (optional)
+# BRAIN_DIR=C:\path\to\your\output\directory
 ```
 
 ### Running the Application

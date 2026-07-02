@@ -2,9 +2,12 @@ import fs from "fs";
 import path from "path";
 import { type VideoProject } from "../lib/ui/renderer";
 
-const DEFAULT_BULK_DIR = process.env.BRAIN_DIR 
-  ? path.join(process.env.BRAIN_DIR, "bulk_captures")
-  : "C:\\Users\\kiran\\.gemini\\antigravity-ide\\brain\\b2bfb0e0-4179-4c14-9b4b-1cdd9d559cf5\\bulk_captures";
+const BRAIN_DIR = process.env.BRAIN_DIR;
+if (!BRAIN_DIR) {
+  console.error("BRAIN_DIR env var is required. Set it in .env.local or pass via --env-file.");
+  process.exit(1);
+}
+const DEFAULT_BULK_DIR = path.join(BRAIN_DIR, "bulk_captures");
 const tempJSPath = path.resolve(__dirname, "../../public/temp-project-data.js");
 
 async function main() {

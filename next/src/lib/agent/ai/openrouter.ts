@@ -1,5 +1,10 @@
 // ── OpenRouter Client ─────────────────────────────────────────────────────────
 //
+// NOTE: This module deliberately does NOT import `@/lib/env` because it is also
+// used by CLI scripts (eval, diag) that load env vars via `--env-file` flag.
+// Those scripts bypass Next.js, so `@/` path aliases aren't always available.
+// Instead, we read `process.env` directly and validate inline.
+//
 // Calls the OpenRouter chat-completion API with `response_format: json_object`
 // so the model is constrained to return a valid JSON object.
 //
@@ -67,17 +72,16 @@ export async function callOpenRouter(
 
   const apiKey =
     requestApiKey ||
-    process.env.OPENROUTER_API_KEY ||
-    process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY;
 
-  console.log("[ai/openrouter] ApiKey check:", {
-    hasRequestKey: !!requestApiKey,
-    requestKeyLen: requestApiKey?.length,
-    hasEnvKey: !!process.env.OPENROUTER_API_KEY,
-    envKeyLen: process.env.OPENROUTER_API_KEY?.length,
-    finalKeyLen: apiKey?.length,
-    finalKeyPrefix: apiKey ? `${apiKey.slice(0, 10)}...` : "none",
-  });
+  if (process.env.NODE_ENV === "development") {
+    console.log("[ai/openrouter] ApiKey check:", {
+      hasRequestKey: !!requestApiKey,
+      requestKeyLen: requestApiKey?.length,
+      hasEnvKey: !!process.env.OPENROUTER_API_KEY,
+      finalKeyLen: apiKey?.length,
+    });
+  }
 
   if (!apiKey) {
     throw new Error(
@@ -219,8 +223,7 @@ export async function callOpenRouterStream(
 
   const apiKey =
     requestApiKey ||
-    process.env.OPENROUTER_API_KEY ||
-    process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+    process.env.OPENROUTER_API_KEY;
 
   if (!apiKey) {
     throw new Error(

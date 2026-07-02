@@ -31,7 +31,11 @@ async function main() {
   const prompt = PROMPTS[idx];
   const duration = 5;
   const times = ["0.5", "1.2", "3.0", "4.8"];
-  const brainDir = process.env.BRAIN_DIR ?? "C:\\Users\\kiran\\.gemini\\antigravity-ide\\brain\\b2bfb0e0-4179-4c14-9b4b-1cdd9d559cf5";
+  const brainDir = process.env.BRAIN_DIR;
+  if (!brainDir) {
+    console.error("BRAIN_DIR env var is required. Set it in .env.local or pass via --env-file.");
+    process.exit(1);
+  }
   const outDir = path.join(brainDir, `bulk_captures`, `prompt_${idx}`);
 
   console.log(`\n=== runBulkGeneration CLI (Prompt ${idx}) ===`);

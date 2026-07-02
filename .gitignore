@@ -36,7 +36,7 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files — also covered by next/.gitignore, but kept here as a safety net
 .env*
 !.env.example
 
