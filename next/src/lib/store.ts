@@ -17,7 +17,6 @@ interface StoreState {
   stylePreset: string;
   error: string | null;
   isLoading: boolean;
-  theme: "light" | "dark" | "system";
   customApiKey: string;
   /** Live token count while an LLM stream is in progress. */
   streamingTokenCount: number;
@@ -30,7 +29,6 @@ interface StoreState {
   setStylePreset: (preset: string) => void;
   clearError: () => void;
   setActiveSessionId: (id: string | null) => void;
-  setTheme: (theme: "light" | "dark" | "system") => void;
   setCustomApiKey: (key: string) => void;
 
   // Actions
@@ -55,7 +53,6 @@ export const useStore = create<StoreState>((set, get) => ({
   stylePreset: "modern",
   error: null,
   isLoading: false,
-  theme: "system",
   customApiKey: "",
   streamingTokenCount: 0,
   streamingCharCount: 0,
@@ -65,7 +62,6 @@ export const useStore = create<StoreState>((set, get) => ({
   setStylePreset: (stylePreset) => set({ stylePreset }),
   clearError: () => set({ error: null }),
   setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
-  setTheme: (theme) => set({ theme }),
   setCustomApiKey: (customApiKey) => set({ customApiKey }),
 
   submitInitialPrompt: async (prompt) => {
@@ -293,7 +289,6 @@ export const useStore = create<StoreState>((set, get) => ({
         activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
         duration: persisted.duration ?? state.duration,
         stylePreset: persisted.stylePreset ?? state.stylePreset,
-        theme: persisted.theme ?? state.theme,
         customApiKey,
       };
     });
@@ -310,7 +305,6 @@ useStore.subscribe((state) => {
     activeSessionId: state.activeSessionId,
     duration: state.duration,
     stylePreset: state.stylePreset,
-    theme: state.theme,
     customApiKey: state.customApiKey,
   });
 });
