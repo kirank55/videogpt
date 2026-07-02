@@ -71,7 +71,7 @@ export const useStore = create<StoreState>((set, get) => ({
     set({ isLoading: true, error: null, streamingTokenCount: 0, streamingCharCount: 0 });
 
     const sessionId = generateId("session");
-    const userMsg: ChatMessage = { id: generateId("msg"), role: "user", content: prompt };
+    const userMsg: ChatMessage = { id: generateId("msg"), role: "user", content: prompt, createdAt: Date.now() };
     const newSession: Session = {
       id: sessionId,
       name: prompt.slice(0, 30) || "Untitled Project",
@@ -117,7 +117,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   submitModifyPrompt: async (sessionId, prompt) => {
     set({ isLoading: true, error: null, streamingTokenCount: 0, streamingCharCount: 0 });
-    const userMsg: ChatMessage = { id: generateId("msg"), role: "user", content: prompt };
+    const userMsg: ChatMessage = { id: generateId("msg"), role: "user", content: prompt, createdAt: Date.now() };
 
     set((state) => ({
       sessions: state.sessions.map((s) =>

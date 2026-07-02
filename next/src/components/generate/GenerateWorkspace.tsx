@@ -1,19 +1,11 @@
 "use client";
 
-import { ChatThread } from "@/components/generate/ChatThread";
+import { ChatThread, defaultMessages as defaultWelcomeMessages } from "@/components/generate/ChatThread";
 import { PromptForm } from "@/components/generate/PromptForm";
 import { TopBar } from "@/components/layout/TopBar";
 import { useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import type { ChatMessage } from "@/types/generate";
-
-const defaultWelcomeMessages: ChatMessage[] = [
-  {
-    id: "welcome",
-    role: "assistant",
-    content: "Welcome back. Describe the video beat you want to build and I will sketch the first scene plan.",
-  },
-];
 
 type GenerateWorkspaceProps = {
   initialMessages?: ChatMessage[];

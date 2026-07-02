@@ -34,6 +34,8 @@ export type ChatMessage = {
   isError?: boolean;
   visualCheck?: VisualCheckResult;
   visualCheckLoading?: boolean;
+  /** Epoch ms when the message was created; older persisted sessions may omit this. */
+  createdAt?: number;
 };
 
 export type Session = {

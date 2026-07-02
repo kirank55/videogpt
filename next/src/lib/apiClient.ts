@@ -192,6 +192,7 @@ export function buildAssistantMessage(
     brief: data.brief,
     diagnostics: data.diagnostics?.qualityResult as ChatMessage["diagnostics"],
     rawBrief: data.diagnostics?.rawBrief,
+    createdAt: Date.now(),
   };
 }
 
@@ -204,6 +205,7 @@ export function buildErrorMessage(message: string): ChatMessage {
     role: "assistant",
     content: message,
     isError: true,
+    createdAt: Date.now(),
   };
 }
 
