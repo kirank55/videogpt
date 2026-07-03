@@ -29,6 +29,7 @@ node_modules
 skills-lock.json
 videographic
 .gemini
+agents.md
 
 # debug
 npm-debug.log*

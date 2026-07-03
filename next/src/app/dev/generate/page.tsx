@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { PromptForm } from "@/components/generate/PromptForm";
 import { PlayerCard } from "@/components/player";
@@ -22,6 +23,7 @@ interface AllStylesResponse {
 }
 
 export default function DevPresetGalleryPage() {
+  const router = useRouter();
   const [prompt, setPrompt] = useState("");
   const [duration, setDuration] = useState<SupportedDuration>(15);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,7 +59,18 @@ export default function DevPresetGalleryPage() {
   return (
     <div className="flex flex-1 flex-col overflow-hidden h-full">
       <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-6 pb-4">
-        <TopBar title="Dev — Style Preset Gallery" />
+        <TopBar
+          title="Dev — Generate All Designs"
+          actions={
+            <button
+              type="button"
+              onClick={() => router.push("/dev")}
+              className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all duration-150 active:scale-95 cursor-pointer"
+            >
+              ← Back to Dev
+            </button>
+          }
+        />
 
         <div className="card p-5 space-y-3">
           <p className="text-sm text-muted-foreground leading-relaxed">

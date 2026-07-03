@@ -413,13 +413,22 @@ function DevDashboardContent() {
         <TopBar
           title="Dev Dashboard"
           actions={
-            <button
-              type="button"
-              onClick={() => router.push("/")}
-              className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all duration-150 active:scale-95 cursor-pointer"
-            >
-              ← Back to Projects
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => router.push("/dev/generate")}
+                className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-95 cursor-pointer shadow-sm"
+              >
+                Generate All Designs →
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push("/")}
+                className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all duration-150 active:scale-95 cursor-pointer"
+              >
+                ← Back to Projects
+              </button>
+            </>
           }
         />
 

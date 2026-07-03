@@ -21,6 +21,16 @@ interface StyleVariant {
   project: VideoProject;
 }
 
+// Pair each style with a palette that amplifies its aesthetic so the five
+// variants look visibly distinct, not just subtly different.
+const STYLE_PALETTE: Record<StylePreset, string> = {
+  "modern": "midnight",
+  "brutalist": "slate",
+  "sketch": "paper",
+  "neon-glow": "neon",
+  "minimal": "ice",
+};
+
 export async function POST(req: NextRequest) {
   let body: unknown;
   try {
@@ -57,7 +67,11 @@ export async function POST(req: NextRequest) {
 
   // 2. Re-expand the brief under each style preset (no extra LLM calls)
   const variants: StyleVariant[] = STYLE_PRESET_KEYS.map((styleKey) => {
-    const styledBrief = hydrateBrief({ ...result.brief, style: styleKey });
+    const styledBrief = hydrateBrief({
+      ...result.brief,
+      style: styleKey,
+      palette: STYLE_PALETTE[styleKey],
+    });
     const project = buildProjectFromBrief(styledBrief, duration);
     project.name = result.projectName;
     return { style: styleKey, brief: styledBrief, project };
