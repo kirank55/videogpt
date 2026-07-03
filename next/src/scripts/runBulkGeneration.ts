@@ -61,7 +61,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`   Brief: "${brief.title}" | Layout: ${brief.layout} | Score: ${diagnostics.qualityResult.score}/100`);
+  console.log(`   Brief: "${brief.title}" | Layout: ${brief.layout}`);
 
   // Write temporary project js data to public folder
   console.log("2. Writing temporary project js data to public folder...");

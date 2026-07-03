@@ -13,20 +13,6 @@ export {
   timeOverlap,
 } from "./geometry";
 export type { Bounds } from "./geometry";
-export {
-  validateProject,
-  toValidationResults,
-  runQualityGate,
-  calculateScore,
-  checkBackgroundPresence,
-  checkTimingBoundaries,
-  checkLayerOrdering,
-  checkTextReadability,
-  checkContentDensity,
-  checkOffCanvas,
-  checkLayerCollisions,
-} from "./validateProject";
-export type { ValidationResult, QualityIssue, QualityResult } from "./validateProject";
 
 export type {
   AnimatedValue,

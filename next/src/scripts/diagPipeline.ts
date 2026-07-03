@@ -16,8 +16,6 @@ async function main() {
   console.log(`Title:    ${brief.title}`);
   console.log(`Palette:  ${brief.palette} / ${brief.style}`);
   console.log(`Events:   ${result.project.events.length}`);
-  console.log(`Errors:   ${diagnostics.errorCount}`);
-  console.log(`Warnings: ${diagnostics.warningCount}`);
   if (diagnostics.llmError) console.log(`\n❌ LLM error: ${diagnostics.llmError}`);
   else console.log(`\n✅ No LLM error`);
 }

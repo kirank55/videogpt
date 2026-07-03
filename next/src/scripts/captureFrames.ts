@@ -52,7 +52,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`   Brief: "${brief.title}" | Layout: ${brief.layout} | Score: ${diagnostics.qualityResult.score}/100`);
+  console.log(`   Brief: "${brief.title}" | Layout: ${brief.layout}`);
   console.log(`   VisualElements: ${brief.visualElements ? brief.visualElements.length : 0} items`);
 
   // 2. Save project temporarily to public folder as a synchronous script file

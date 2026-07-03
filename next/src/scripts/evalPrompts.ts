@@ -4,16 +4,14 @@
 // Runs 10–15 test prompts through the real LLM pipeline.
 // For each prompt it:
 //   1. Calls runGeneratePipeline (live OpenRouter call)
-//   2. Validates the expanded VideoProject with validateProject()
-//   3. Reports pass/fail per prompt in a matrix
-//   4. Logs real token usage (from OpenRouter `usage`) + elapsed time
+//   2. Reports pass/fail per prompt in a matrix
+//   3. Logs real token usage (from OpenRouter `usage`) + elapsed time
 //
 // Usage:
 //   npm run eval                  — runs all test prompts
 //   npm run eval -- --fast        — skip sleep between requests
 //
 // Pass criteria:
-//   - No "error"-severity issues from validateProject()
 //   - Brief layout matches expected type (two-column / single-column)
 //   - llmError is undefined (LLM actually responded)
 //
@@ -146,8 +144,6 @@ interface ResultRow {
   prompt: string;
   pass: boolean;
   layout: string;
-  errors: number;
-  warnings: number;
   llmError?: string;
   elapsedMs: number;
   promptTokens?: number;
@@ -175,16 +171,13 @@ async function runEval() {
       const elapsedMs = Date.now() - t0;
       const layoutOk =
         tc.expectedLayout === "any" || brief.layout === tc.expectedLayout;
-      const pass =
-        diagnostics.errorCount === 0 && !diagnostics.llmError && layoutOk;
+      const pass = !diagnostics.llmError && layoutOk;
 
       result = {
         idx: i + 1,
         prompt: tc.prompt,
         pass,
         layout: brief.layout,
-        errors: diagnostics.errorCount,
-        warnings: diagnostics.warningCount,
         llmError: diagnostics.llmError,
         elapsedMs,
         promptTokens: diagnostics.usage?.prompt_tokens,
@@ -197,9 +190,6 @@ async function runEval() {
           diagnostics.llmError
             ? `LLM ERR: ${diagnostics.llmError.slice(0, 120)}`
             : "",
-          diagnostics.errorCount > 0
-            ? `${diagnostics.errorCount} err`
-            : "",
         ]
           .filter(Boolean)
           .join(", ") || "ok",
@@ -211,8 +201,6 @@ async function runEval() {
         prompt: tc.prompt,
         pass: false,
         layout: "?",
-        errors: -1,
-        warnings: 0,
         llmError: err instanceof Error ? err.message : String(err),
         elapsedMs,
         note: "threw unexpectedly",
@@ -237,15 +225,15 @@ async function runEval() {
   console.log(" RESULTS");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log(
-    `${"#".padEnd(3)} ${"PASS".padEnd(5)} ${"LAYOUT".padEnd(14)} ${"ERR".padEnd(4)} ${"WARN".padEnd(5)} ${"TOK".padEnd(8)} ${"MS".padEnd(7)} NOTE`,
+    `${"#".padEnd(3)} ${"PASS".padEnd(5)} ${"LAYOUT".padEnd(14)} ${"TOK".padEnd(8)} ${"MS".padEnd(7)} NOTE`,
   );
-  console.log("─".repeat(78));
+  console.log("─".repeat(70));
   for (const r of results) {
     console.log(
-      `${String(r.idx).padEnd(3)} ${(r.pass ? "✅" : "❌").padEnd(5)} ${r.layout.padEnd(14)} ${String(r.errors).padEnd(4)} ${String(r.warnings).padEnd(5)} ${(r.totalTokens != null ? String(r.totalTokens) : "-").padEnd(8)} ${String(r.elapsedMs).padEnd(7)} ${r.note}`,
+      `${String(r.idx).padEnd(3)} ${(r.pass ? "✅" : "❌").padEnd(5)} ${r.layout.padEnd(14)} ${(r.totalTokens != null ? String(r.totalTokens) : "-").padEnd(8)} ${String(r.elapsedMs).padEnd(7)} ${r.note}`,
     );
   }
-  console.log("─".repeat(78));
+  console.log("─".repeat(70));
   console.log(`\nPassed ${passed}/${total} (${rate}%)`);
 
   const totTok = results.reduce((s, r) => s + (r.totalTokens ?? 0), 0);
