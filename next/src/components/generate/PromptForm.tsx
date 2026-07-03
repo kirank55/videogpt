@@ -57,11 +57,10 @@ export function PromptForm({
         value={prompt}
         rows={2}
         placeholder="Describe a scene, a mood, or a motion sequence..."
-        className={`min-h-20 w-full resize-none rounded-2xl border bg-surface px-4 py-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:ring-1 ${
-          showError
-            ? "border-rose-500/60 focus:border-rose-500/60 focus:ring-rose-500/20"
-            : "border-border focus:border-foreground/30 focus:ring-foreground/15"
-        }`}
+        className={`min-h-20 w-full resize-none rounded-2xl border bg-surface px-4 py-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:ring-1 ${showError
+          ? "border-rose-500/60 focus:border-rose-500/60 focus:ring-rose-500/20"
+          : "border-border focus:border-amber-500/60 focus:ring-amber-500/20"
+          }`}
         onChange={(event) => {
           setPrompt(event.target.value);
           if (touched) setTouched(false);
@@ -80,15 +79,14 @@ export function PromptForm({
           {/* Track */}
           <div className="h-0.5 w-full overflow-hidden rounded-full bg-border">
             <div
-              className={`h-full rounded-full transition-all duration-150 ${
-                tooShort
-                  ? charCount === 0
-                    ? "bg-transparent"
-                    : charCount < minLength * 0.6
+              className={`h-full rounded-full transition-all duration-150 ${tooShort
+                ? charCount === 0
+                  ? "bg-transparent"
+                  : charCount < minLength * 0.6
                     ? "bg-muted-foreground/40"
                     : "bg-amber-500/70"
-                  : "bg-emerald-500"
-              }`}
+                : "bg-emerald-500"
+                }`}
               style={{ width: `${Math.min(100, (charCount / minLength) * 100)}%` }}
             />
           </div>
@@ -102,13 +100,12 @@ export function PromptForm({
               <span />
             )}
             <span
-              className={`ml-auto text-xs tabular-nums transition-colors ${
-                tooShort
-                  ? charCount === 0
-                    ? "text-muted-foreground/40"
-                    : "text-foreground"
-                  : "text-emerald-500 font-medium"
-              }`}
+              className={`ml-auto text-xs tabular-nums transition-colors ${tooShort
+                ? charCount === 0
+                  ? "text-muted-foreground/40"
+                  : "text-foreground"
+                : "text-emerald-500 font-medium"
+                }`}
             >
               {charCount}/{minLength}
             </span>
@@ -125,11 +122,10 @@ export function PromptForm({
                 key={d}
                 type="button"
                 onClick={() => onChangeDuration(d)}
-                className={`rounded-full px-3.5 py-1 text-xs font-bold transition-all cursor-pointer ${
-                  duration === d
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-                }`}
+                className={`rounded-full px-3.5 py-1 text-xs font-bold transition-all cursor-pointer ${duration === d
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+                  }`}
               >
                 {d}s
               </button>

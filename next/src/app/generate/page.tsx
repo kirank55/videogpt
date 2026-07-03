@@ -87,7 +87,7 @@ export default function GeneratePage() {
           onChangeDuration={setDuration}
           isLoading={isLoading}
           onSubmit={handleSubmit}
-          minLength={activeSession ? undefined : 50}
+          minLength={activeSession ? undefined : 20}
         />
       </div>
     </div>

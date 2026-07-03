@@ -71,7 +71,7 @@ html {
 }
 
 /* ── Focus ring ────────────────────────────────────────────────────────────── */
-:focus-visible {
+:focus-visible:not(input, textarea) {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
   border-radius: 6px;
