@@ -22,13 +22,10 @@ export async function POST(req: NextRequest) {
   const { prompt, duration: rawDuration } = parsed.data;
   const duration = resolveDuration(rawDuration, 15);
 
-  const authHeader = req.headers.get("authorization");
-  const customApiKey = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
-
   console.log(`[api/generate] prompt="${prompt}" duration=${duration}s`);
   const t0 = Date.now();
 
-  const { project, brief, diagnostics } = await runGeneratePipeline(prompt, duration, { apiKey: customApiKey });
+  const { project, brief, diagnostics } = await runGeneratePipeline(prompt, duration);
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   const { errorCount, warningCount, llmError } = diagnostics;

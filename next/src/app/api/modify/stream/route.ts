@@ -41,9 +41,6 @@ export async function POST(req: NextRequest) {
       : 15;
   const duration = resolveDuration(rawDur, 15);
 
-  const authHeader = req.headers.get("authorization");
-  const customApiKey = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
-
   console.log(`[api/modify/stream] instruction="${prompt}" duration=${duration}s`);
   const t0 = Date.now();
 
@@ -72,7 +69,6 @@ export async function POST(req: NextRequest) {
         prompt,
         duration,
         {
-          apiKey: customApiKey,
           onChunk: (_delta, accumulated) => {
             tokenCount = Math.round(accumulated.length / 4);
             send("chunk", { tokenCount, charCount: accumulated.length });

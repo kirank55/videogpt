@@ -36,9 +36,6 @@ export async function POST(req: NextRequest) {
       : 15;
   const duration = resolveDuration(rawDur, 15);
 
-  const authHeader = req.headers.get("authorization");
-  const customApiKey = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
-
   console.log(
     `[api/modify] instruction="${prompt}" ` +
     `currentBrief.layout=${currentBrief.layout} duration=${duration}s`,
@@ -49,7 +46,6 @@ export async function POST(req: NextRequest) {
     currentBrief,
     prompt,
     duration,
-    { apiKey: customApiKey },
   );
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);

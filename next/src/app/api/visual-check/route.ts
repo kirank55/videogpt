@@ -18,9 +18,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const authHeader = req.headers.get("authorization");
-  const customApiKey = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
-
   console.log(`[api/visual-check] Running check for prompt="${prompt}" with ${frames.length} frames`);
   const t0 = Date.now();
 
@@ -76,7 +73,6 @@ Do NOT include any markdown code blocks or explanations outside of the JSON obje
     console.log(`[api/visual-check] Calling OpenRouter model: ${model}`);
     const rawResult = await callOpenRouter(systemPrompt, userContent, {
       model,
-      apiKey: customApiKey,
       temperature: 0.2, // Low temperature for consistent layout analysis
     });
 

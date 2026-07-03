@@ -32,8 +32,6 @@ export interface OpenRouterOptions {
   maxTokens?: number;
   /** temperature (default 0.7). */
   temperature?: number;
-  /** Custom user API key (BYOK) */
-  apiKey?: string;
   /** Fires with OpenRouter's token usage stats when the response includes them. */
   onUsage?: (usage: Usage) => void;
 }
@@ -60,28 +58,7 @@ export async function callOpenRouter(
   userPrompt: string | Array<unknown>,
   opts: OpenRouterOptions = {},
 ): Promise<unknown> {
-  let requestApiKey = opts.apiKey;
-  if (
-    requestApiKey === "undefined" ||
-    requestApiKey === "null" ||
-    requestApiKey === "" ||
-    (requestApiKey && requestApiKey.trim() === "")
-  ) {
-    requestApiKey = undefined;
-  }
-
-  const apiKey =
-    requestApiKey ||
-    process.env.OPENROUTER_API_KEY;
-
-  if (process.env.NODE_ENV === "development") {
-    console.log("[ai/openrouter] ApiKey check:", {
-      hasRequestKey: !!requestApiKey,
-      requestKeyLen: requestApiKey?.length,
-      hasEnvKey: !!process.env.OPENROUTER_API_KEY,
-      finalKeyLen: apiKey?.length,
-    });
-  }
+  const apiKey = process.env.OPENROUTER_API_KEY;
 
   if (!apiKey) {
     throw new Error(
@@ -211,19 +188,7 @@ export async function callOpenRouterStream(
   userPrompt: string,
   opts: StreamingOpenRouterOptions = {},
 ): Promise<unknown> {
-  let requestApiKey = opts.apiKey;
-  if (
-    requestApiKey === "undefined" ||
-    requestApiKey === "null" ||
-    requestApiKey === "" ||
-    (requestApiKey && requestApiKey.trim() === "")
-  ) {
-    requestApiKey = undefined;
-  }
-
-  const apiKey =
-    requestApiKey ||
-    process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY;
 
   if (!apiKey) {
     throw new Error(

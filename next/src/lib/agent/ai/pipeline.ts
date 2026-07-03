@@ -58,8 +58,6 @@ export interface PipelineResult {
 export type ChunkCallback = (delta: string, accumulated: string) => void;
 
 export interface PipelineOptions {
-  /** Custom user API key (BYOK). */
-  apiKey?: string;
   /**
    * When provided, the LLM is called in streaming mode and onChunk fires per
    * token delta. Absent ⇒ non-streaming call. The streaming decision is an
@@ -134,8 +132,8 @@ async function runIntake(
     let usage: Usage | undefined;
     const onUsage = (u: Usage) => { usage = u; };
     const rawBrief = opts.onChunk
-      ? await callOpenRouterStream(systemPrompt, userPrompt, { apiKey: opts.apiKey, onChunk: opts.onChunk, onUsage })
-      : await callOpenRouter(systemPrompt, userPrompt, { apiKey: opts.apiKey, onUsage });
+      ? await callOpenRouterStream(systemPrompt, userPrompt, { onChunk: opts.onChunk, onUsage })
+      : await callOpenRouter(systemPrompt, userPrompt, { onUsage });
     return expandAndValidate(rawBrief, duration, { rawBrief, usage });
   } catch (err) {
     const llmError = err instanceof Error ? err.message : String(err);

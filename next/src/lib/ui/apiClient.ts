@@ -2,7 +2,7 @@
 //
 // Owns the full path from HTTP request → ChatMessage → store update.
 //
-//   callApi(endpoint, body, apiKey)
+//   callApi(endpoint, body)
 //     → fetch → parse response JSON → throw on HTTP errors
 //
 //   buildAssistantMessage(data, fallbackSummary)
@@ -19,6 +19,7 @@
 // are thin dispatchers that supply endpoint, body, and summary copy.
 
 import type { ChatMessage } from "@/types/generate";
+import { generateId } from "./ids";
 
 // ── Shared response shape ─────────────────────────────────────────────────────
 
@@ -47,13 +48,11 @@ export interface ApiResponse {
 export async function callApi(
   endpoint: string,
   body: Record<string, unknown>,
-  apiKey: string,
 ): Promise<ApiResponse> {
   const res = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -92,7 +91,6 @@ export interface StreamCallbacks {
 export async function callApiStream(
   endpoint: string,
   body: Record<string, unknown>,
-  apiKey: string,
   callbacks: StreamCallbacks,
 ): Promise<void> {
   const streamEndpoint = `${endpoint}/stream`;
@@ -103,14 +101,13 @@ export async function callApiStream(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
       },
       body: JSON.stringify(body),
     });
   } catch {
     // Network error — fall back to regular request
     try {
-      const data = await callApi(endpoint, body, apiKey);
+      const data = await callApi(endpoint, body);
       callbacks.onDone(data);
     } catch (err) {
       callbacks.onError(err instanceof Error ? err.message : String(err));
@@ -121,7 +118,7 @@ export async function callApiStream(
   if (!res.ok || !res.body) {
     // Non-streaming fallback
     try {
-      const data = await callApi(endpoint, body, apiKey);
+      const data = await callApi(endpoint, body);
       callbacks.onDone(data);
     } catch (err) {
       callbacks.onError(err instanceof Error ? err.message : String(err));
@@ -185,7 +182,7 @@ export function buildAssistantMessage(
   fallbackSummary: string,
 ): ChatMessage {
   return {
-    id: generateMsgId(),
+    id: generateId("msg"),
     role: "assistant",
     content: data.summary ?? fallbackSummary,
     project: data.project as ChatMessage["project"],
@@ -201,7 +198,7 @@ export function buildAssistantMessage(
 /** Construct an error ChatMessage from a thrown Error message. */
 export function buildErrorMessage(message: string): ChatMessage {
   return {
-    id: generateErrMsgId(),
+    id: generateId("msg-err"),
     role: "assistant",
     content: message,
     isError: true,
@@ -262,16 +259,3 @@ export function applyError(
   }));
 }
 
-// ── ID helpers (mirrors the private helper in store.ts) ───────────────────────
-
-function randomSuffix() {
-  return Math.random().toString(36).substring(2, 8);
-}
-
-function generateMsgId() {
-  return `msg-${Date.now()}-${randomSuffix()}`;
-}
-
-function generateErrMsgId() {
-  return `msg-err-${Date.now()}-${randomSuffix()}`;
-}

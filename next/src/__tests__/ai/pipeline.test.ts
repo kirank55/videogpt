@@ -130,14 +130,4 @@ describe("pipeline intake interface", () => {
     expect(callOpenRouterMock).not.toHaveBeenCalled();
     expect(result.diagnostics.llmError).toBeUndefined();
   });
-
-  // ── the apiKey option is forwarded to the LLM caller ──────────────────────
-
-  it("forwards the apiKey option to the LLM caller", async () => {
-    callOpenRouterMock.mockResolvedValueOnce(RAW_BRIEF);
-
-    await runGeneratePipeline("a prompt", DURATION, { apiKey: "sk-test" });
-
-    expect(callOpenRouterMock).toHaveBeenCalledOnce();
-  });
 });
