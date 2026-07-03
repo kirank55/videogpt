@@ -25,10 +25,10 @@ export async function POST(req: NextRequest) {
   console.log(`[api/generate] prompt="${prompt}" duration=${duration}s`);
   const t0 = Date.now();
 
-  const { project, brief, diagnostics } = await runGeneratePipeline(prompt, duration);
+  const { project, brief, projectName, summary: llmSummary, diagnostics } = await runGeneratePipeline(prompt, duration);
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  const { errorCount, warningCount, llmError } = diagnostics;
+  const { llmError } = diagnostics;
 
   if (llmError) {
     console.warn(`[api/generate] LLM error (${elapsed}s): ${llmError}`);
@@ -36,17 +36,14 @@ export async function POST(req: NextRequest) {
     console.log(
       `[api/generate] done (${elapsed}s) layout=${brief.layout} ` +
       `palette=${brief.palette}/${brief.style} ` +
-      `events=${project.events.length} errors=${errorCount} warnings=${warningCount}`,
+      `events=${project.events.length}`,
     );
   }
 
   const summary =
     llmError
       ? `⚠️ AI generation failed: ${llmError.slice(0, 120)}`
-      : `Here's a ${duration}s animation for: "${prompt}". ` +
-      (errorCount === 0
-        ? "Canvas looks clean — modify it or ask for changes."
-        : `${errorCount} issue(s) detected — see diagnostics.`);
+      : llmSummary || `Here's a ${duration}s animation for: "${prompt}". Modify it or ask for changes.`;
 
   if (llmError) {
     return NextResponse.json({
@@ -58,13 +55,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     project,
     brief,
+    projectName,
     summary,
-    diagnostics: {
-      ...diagnostics,
-      errorCount,
-      warningCount,
-      qualityResult: diagnostics.qualityResult,
-    },
   });
 }
 // Force Next.js API route compilation refresh after prompt updates

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the OpenRouter seam so the pipeline is tested through its own interface
 // without touching the network. The pipeline's contract is: callOpenRouter(Stream)
-// → validateBrief → hydrateBrief → buildProjectFromBrief → runQualityGate, with
+// → parseLLMResponse → hydrateBrief → buildProjectFromBrief, with
 // LLM failures captured as diagnostics.llmError (fallback brief for generate,
 // unchanged current brief for modify).
 const callOpenRouterMock       = vi.fn<(s: string, u: string) => Promise<unknown>>();
@@ -13,7 +13,7 @@ vi.mock("@/lib/agent/ai/openrouter", () => ({
   callOpenRouterStream: (s: string, u: string) => callOpenRouterStreamMock(s, u),
 }));
 
-import { runGeneratePipeline, runModifyPipeline } from "@/lib/agent/ai/pipeline";
+import { runGeneratePipeline, runModifyPipeline, type PipelineEvent } from "@/lib/agent/ai/pipeline";
 import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -55,28 +55,27 @@ describe("pipeline intake interface", () => {
     expect(result.diagnostics.rawBrief).toBe(RAW_BRIEF);
     expect(result.brief.title).toBe("Test Title");
     expect(result.project.events.length).toBeGreaterThan(0);
-    expect(result.diagnostics.qualityResult).toBeDefined();
-    expect(result.diagnostics.errorCount + result.diagnostics.warningCount).toBeGreaterThanOrEqual(0);
   });
 
-  // ── generate: streaming forwards onChunk and uses the streaming caller ───
+  // ── generate: onEvent triggers streaming mode + phase events ─────────────
 
-  it("streams tokens via onChunk when provided", async () => {
-    callOpenRouterStreamMock.mockImplementation(async () => {
-      // Simulate two token deltas before resolving the full brief
-      return RAW_BRIEF;
-    });
+  it("emits phase events via onEvent and uses the streaming caller", async () => {
+    callOpenRouterStreamMock.mockResolvedValueOnce(RAW_BRIEF);
 
-    const chunks: string[] = [];
+    const events: PipelineEvent[] = [];
     const result = await runGeneratePipeline("a prompt", DURATION, {
-      onChunk: (delta) => chunks.push(delta),
+      onEvent: (e) => events.push(e),
     });
 
     expect(callOpenRouterStreamMock).toHaveBeenCalledOnce();
     expect(callOpenRouterMock).not.toHaveBeenCalled();
     expect(result.diagnostics.llmError).toBeUndefined();
-    // onChunk was wired through to the streaming caller's options
     expect(result.diagnostics.rawBrief).toBe(RAW_BRIEF);
+    // Phase events were emitted in order
+    const phases = events.map((e) => e.type);
+    expect(phases).toContain("prompt-built");
+    expect(phases).toContain("calling-openrouter");
+    expect(phases).toContain("expanding");
   });
 
   // ── generate: LLM failure → fallback project + llmError ───────────────────
@@ -117,17 +116,45 @@ describe("pipeline intake interface", () => {
     expect(result.project.events.length).toBeGreaterThan(0);
   });
 
-  // ── modify: streaming forwards onChunk ────────────────────────────────────
+  // ── modify: onEvent triggers streaming mode ───────────────────────────────
 
-  it("streams a modify call when onChunk is provided", async () => {
+  it("streams a modify call when onEvent is provided", async () => {
     callOpenRouterStreamMock.mockResolvedValueOnce(RAW_BRIEF);
 
     const result = await runModifyPipeline(CURRENT_BRIEF, "change it", DURATION, {
-      onChunk: () => {},
+      onEvent: () => {},
     });
 
     expect(callOpenRouterStreamMock).toHaveBeenCalledOnce();
     expect(callOpenRouterMock).not.toHaveBeenCalled();
     expect(result.diagnostics.llmError).toBeUndefined();
+  });
+
+  // ── envelope: projectName + summary extracted from the LLM response ──────
+
+  it("extracts projectName and summary from the LLM response envelope", async () => {
+    const ENVELOPE = {
+      projectName: "My Cool Video",
+      summary: "A 15s explainer about testing.",
+      brief: RAW_BRIEF,
+    };
+    callOpenRouterMock.mockResolvedValueOnce(ENVELOPE);
+
+    const result = await runGeneratePipeline("a prompt", DURATION);
+
+    expect(result.projectName).toBe("My Cool Video");
+    expect(result.summary).toBe("A 15s explainer about testing.");
+    expect(result.project.name).toBe("My Cool Video");
+  });
+
+  // ── envelope: bare brief (no wrapper) falls back gracefully ──────────────
+
+  it("falls back to brief.title for projectName when the LLM returns a bare brief", async () => {
+    callOpenRouterMock.mockResolvedValueOnce(RAW_BRIEF);
+
+    const result = await runGeneratePipeline("a prompt", DURATION);
+
+    expect(result.projectName).toBe("Test Title");
+    expect(result.summary).toBe("");
   });
 });

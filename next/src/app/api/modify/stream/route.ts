@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ModifyRequestSchema } from "@/lib/agent/schemas/api";
-import { runModifyPipeline } from "@/lib/agent/ai/pipeline";
+import { runModifyPipeline, type PipelineEvent } from "@/lib/agent/ai/pipeline";
 import { validateBrief } from "@/lib/agent/brief/validateBrief";
 import { resolveDuration } from "@/lib/agent/schemas/brief";
 
@@ -60,40 +60,47 @@ export async function POST(req: NextRequest) {
 
       let tokenCount = 0;
 
-      // The intake (LLM call → validate → hydrate → build → quality) lives in the
-      // pipeline module; this route only owns the SSE framing + token progress.
+      // The pipeline owns the full intake; this route maps phase events to SSE.
       // On failure the pipeline re-expands the current brief unchanged, so the
       // error event still carries a renderable project.
-      const { project, brief, diagnostics } = await runModifyPipeline(
+      const onEvent = (event: PipelineEvent) => {
+        switch (event.type) {
+          case "prompt-built":
+          case "calling-openrouter":
+          case "expanding":
+            send("phase", { phase: event.type });
+            break;
+          case "streaming":
+            tokenCount = event.tokenCount;
+            send("chunk", { tokenCount: event.tokenCount, charCount: event.charCount });
+            break;
+        }
+      };
+
+      const { project, brief, projectName, summary: llmSummary, diagnostics } = await runModifyPipeline(
         currentBrief,
         prompt,
         duration,
-        {
-          onChunk: (_delta, accumulated) => {
-            tokenCount = Math.round(accumulated.length / 4);
-            send("chunk", { tokenCount, charCount: accumulated.length });
-          },
-        },
+        { onEvent },
       );
 
-      const { errorCount, warningCount, llmError, rawBrief: rawResult } = diagnostics;
+      const { llmError, rawBrief: rawResult } = diagnostics;
 
       if (llmError) {
         console.error("[api/modify/stream] error:", llmError);
         send("error", { message: llmError, project, brief });
       } else {
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-        console.log(`[api/modify/stream] done (${elapsed}s) events=${project.events.length} errors=${errorCount}`);
+        console.log(`[api/modify/stream] done (${elapsed}s) events=${project.events.length} tokens~=${tokenCount}`);
 
-        const summary =
-          `Updated: "${prompt}". Canvas has been refreshed.` +
-          (errorCount > 0 ? ` (${errorCount} issue(s) — see diagnostics)` : "");
+        const summary = llmSummary || `Updated: "${prompt}". Canvas has been refreshed.`;
 
         send("done", {
           project,
           brief,
+          projectName,
           summary,
-          diagnostics: { qualityResult: diagnostics.qualityResult, errorCount, warningCount, rawBrief: rawResult },
+          rawBrief: rawResult,
         });
       }
 

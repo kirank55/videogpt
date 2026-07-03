@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { buildProjectFromBrief } from "@/lib/agent/brief/buildProjectFromBrief";
-import { validateProject } from "@/lib/ui/renderer";
 import { PALETTES } from "@/lib/others/catalog/palettes";
 import { STYLES } from "@/lib/others/catalog/styles";
 import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
@@ -172,38 +171,32 @@ describe("buildProjectFromBrief", () => {
     expect(ids).not.toContain("processing-glow");
   });
 
-  // ── 5. Every expanded project passes validateProject ─────────────────────
+  // ── 5. Every expanded project is structurally sound ──────────────────────
 
   it.each([5, 10, 15, 20] as SupportedDuration[])(
-    "two-column flow:false %ds project has no errors",
+    "two-column flow:false %ds project has background + events",
     (dur) => {
       const project = buildProjectFromBrief(twoColBrief({ flow: false }), dur);
-      const errors = validateProject(project).filter(
-        (r) => r.severity === "error",
-      );
-      expect(errors).toHaveLength(0);
+      expect(project.events.length).toBeGreaterThan(0);
+      expect(project.events.some((e) => e.type === "background")).toBe(true);
     },
   );
 
   it.each([5, 10, 15, 20] as SupportedDuration[])(
-    "two-column flow:true %ds project has no errors",
+    "two-column flow:true %ds project has background + events",
     (dur) => {
       const project = buildProjectFromBrief(twoColBrief({ flow: true, requestLabel: "REQ", responseLabel: "RES", processingSteps: ["Step 1"] }), dur);
-      const errors = validateProject(project).filter(
-        (r) => r.severity === "error",
-      );
-      expect(errors).toHaveLength(0);
+      expect(project.events.length).toBeGreaterThan(0);
+      expect(project.events.some((e) => e.type === "background")).toBe(true);
     },
   );
 
   it.each([5, 10, 15, 20] as SupportedDuration[])(
-    "single-column %ds project has no errors",
+    "single-column %ds project has background + events",
     (dur) => {
       const project = buildProjectFromBrief(singleColBrief(), dur);
-      const errors = validateProject(project).filter(
-        (r) => r.severity === "error",
-      );
-      expect(errors).toHaveLength(0);
+      expect(project.events.length).toBeGreaterThan(0);
+      expect(project.events.some((e) => e.type === "background")).toBe(true);
     },
   );
 

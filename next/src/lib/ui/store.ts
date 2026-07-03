@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ChatMessage, Session, VisualCheckResult } from "@/types/generate";
+import type { ChatMessage, Session } from "@/types/generate";
 import { persistToStorage } from "./persistence";
 import type { PersistedState } from "./persistence";
 import { callApi, callApiStream, buildAssistantMessage, applySuccess, applyError } from "./apiClient";
@@ -26,18 +26,18 @@ interface StoreState {
   activeSessionId: string | null;
   prompt: string;
   duration: number;
-  stylePreset: string;
   error: string | null;
   isLoading: boolean;
   /** Live token count while an LLM stream is in progress. */
   streamingTokenCount: number;
   /** Live character count while an LLM stream is in progress. */
   streamingCharCount: number;
+  /** Current pipeline phase while loading (e.g. "calling-openrouter"). */
+  loadingPhase: string | null;
 
   // Setters
   setPrompt: (prompt: string) => void;
   setDuration: (duration: number) => void;
-  setStylePreset: (preset: string) => void;
   clearError: () => void;
   setActiveSessionId: (id: string | null) => void;
 
@@ -46,11 +46,6 @@ interface StoreState {
   submitModifyPrompt: (sessionId: string, prompt: string) => Promise<void>;
   retryPrompt: (sessionId: string) => Promise<void>;
   deleteSession: (id: string) => void;
-  runVisualCheck: (
-    sessionId: string,
-    messageId: string,
-    frames: Array<{ actIndex: number; timestamp: number; dataUrl: string }>
-  ) => Promise<void>;
   /** Called once on mount by HydrateStore to restore persisted state. */
   hydrate: (persisted: Partial<PersistedState>) => void;
 }
@@ -61,54 +56,43 @@ export const useStore = create<StoreState>((set, get) => {
   // ── Internal streaming helpers (shared by submitInitialPrompt & submitModifyPrompt) ──
 
   const startStreamingUI = () =>
-    set({ isLoading: true, error: null, streamingTokenCount: 0, streamingCharCount: 0 });
+    set({ isLoading: true, error: null, streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null });
 
   const makeStreamCallbacks = (sessionId: string, successMessage: string): StreamCallbacks => ({
+    onPhase: (phase) => {
+      set({ loadingPhase: phase });
+    },
     onChunk: (tokenCount, charCount) => {
       set({ streamingTokenCount: tokenCount, streamingCharCount: charCount });
     },
     onDone: (data) => {
-      set({ streamingTokenCount: 0, streamingCharCount: 0 });
+      set({ streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null });
       applySuccess(set, sessionId, buildAssistantMessage(data, successMessage), data);
     },
     onError: (message) => {
-      set({ streamingTokenCount: 0, streamingCharCount: 0 });
+      set({ streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null });
       applyError(set, sessionId, message);
     },
   });
-
-  /** Update a single message within a session by messageId. */
-  const updateMessage = (
-    sessionId: string,
-    messageId: string,
-    updater: (msg: ChatMessage) => ChatMessage,
-  ) => {
-    set((state) => ({
-      sessions: updateSessionMessages(state.sessions, sessionId, (msgs) =>
-        msgs.map((m) => (m.id === messageId ? updater(m) : m)),
-      ),
-    }));
-  };
 
   return {
     sessions: [],
     activeSessionId: null,
     prompt: "",
     duration: 5,
-    stylePreset: "modern",
     error: null,
     isLoading: false,
     streamingTokenCount: 0,
     streamingCharCount: 0,
+    loadingPhase: null,
 
     setPrompt: (prompt) => set({ prompt }),
     setDuration: (duration) => set({ duration }),
-    setStylePreset: (stylePreset) => set({ stylePreset }),
     clearError: () => set({ error: null }),
     setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
 
     submitInitialPrompt: async (prompt) => {
-      const { duration, stylePreset } = get();
+      const { duration } = get();
       startStreamingUI();
 
       const { session: newSession, sessionId } = createSession(prompt);
@@ -119,7 +103,7 @@ export const useStore = create<StoreState>((set, get) => {
 
       await callApiStream(
         "/api/generate",
-        { prompt, duration, stylePreset },
+        { prompt, duration },
         makeStreamCallbacks(sessionId, "Project generated successfully."),
       );
     },
@@ -141,7 +125,7 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     retryPrompt: async (sessionId) => {
-      const { duration, stylePreset } = get();
+      const { duration } = get();
       const session = get().sessions.find((s) => s.id === sessionId);
       if (!session) return;
 
@@ -161,12 +145,13 @@ export const useStore = create<StoreState>((set, get) => {
         sessions: updateSessionMessages(state.sessions, sessionId, (msgs) => msgs.slice(0, -1)),
         isLoading: true,
         error: null,
+        loadingPhase: null,
       }));
 
       try {
         const data = session.brief
           ? await callApi("/api/modify", { sessionId, prompt: userPrompt, brief: session.brief })
-          : await callApi("/api/generate", { prompt: userPrompt, duration, stylePreset });
+          : await callApi("/api/generate", { prompt: userPrompt, duration });
 
         const fallback = session.brief ? "Project modified successfully." : "Project generated successfully.";
         applySuccess(set, sessionId, buildAssistantMessage(data, fallback), data);
@@ -183,47 +168,6 @@ export const useStore = create<StoreState>((set, get) => {
       }));
     },
 
-    runVisualCheck: async (sessionId, messageId, frames) => {
-      updateMessage(sessionId, messageId, (m) => ({ ...m, visualCheckLoading: true }));
-
-      try {
-        const session = get().sessions.find((s) => s.id === sessionId);
-        const prompt = session?.project?.name || "Untitled";
-
-        const res = await fetch("/api/visual-check", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ prompt, frames }),
-        });
-
-        if (!res.ok) {
-          throw new Error(`Visual check failed with HTTP ${res.status}`);
-        }
-
-        const visualCheck = await res.json();
-        updateMessage(sessionId, messageId, (m) => ({
-          ...m,
-          visualCheck,
-          visualCheckLoading: false,
-        }));
-      } catch (err) {
-        console.error("[store] Visual check failed:", err);
-        updateMessage(sessionId, messageId, (m) => ({
-          ...m,
-          visualCheckLoading: false,
-          visualCheck: {
-            score: 0,
-            passed: false,
-            summary: `Visual check error: ${err instanceof Error ? err.message : String(err)}`,
-            frames: [],
-            recommendations: ["Ensure API key is valid and network connectivity is active."],
-          },
-        }));
-      }
-    },
-
     hydrate: (persisted) => {
       set((state) => {
         // Persisted sessions take priority; state.sessions fill in any gaps
@@ -235,7 +179,6 @@ export const useStore = create<StoreState>((set, get) => {
           sessions: [...sessionMap.values()],
           activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
           duration: persisted.duration ?? state.duration,
-          stylePreset: persisted.stylePreset ?? state.stylePreset,
         };
       });
     },
@@ -251,6 +194,5 @@ useStore.subscribe((state) => {
     sessions: state.sessions,
     activeSessionId: state.activeSessionId,
     duration: state.duration,
-    stylePreset: state.stylePreset,
   });
 });

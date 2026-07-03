@@ -42,14 +42,14 @@ export async function POST(req: NextRequest) {
   );
   const t0 = Date.now();
 
-  const { project, brief, diagnostics } = await runModifyPipeline(
+  const { project, brief, projectName, summary: llmSummary, diagnostics } = await runModifyPipeline(
     currentBrief,
     prompt,
     duration,
   );
 
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  const { errorCount, llmError } = diagnostics;
+  const { llmError } = diagnostics;
 
   if (llmError) {
     console.warn(`[api/modify] LLM error (${elapsed}s): ${llmError}`);
@@ -57,15 +57,14 @@ export async function POST(req: NextRequest) {
     console.log(
       `[api/modify] done (${elapsed}s) layout=${brief.layout} ` +
       `palette=${brief.palette}/${brief.style} ` +
-      `events=${project.events.length} errors=${errorCount}`,
+      `events=${project.events.length}`,
     );
   }
 
   const summary =
     llmError
       ? `⚠️ AI modification failed: ${llmError.slice(0, 120)}`
-      : `Updated: "${prompt}". Canvas has been refreshed.` +
-      (errorCount > 0 ? ` (${errorCount} issue(s) — see diagnostics)` : "");
+      : llmSummary || `Updated: "${prompt}". Canvas has been refreshed.`;
 
   if (llmError) {
     return NextResponse.json({
@@ -77,11 +76,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     project,
     brief,
+    projectName,
     summary,
-    diagnostics: {
-      ...diagnostics,
-      errorCount,
-      warningCount: diagnostics.warningCount,
-    },
   });
 }

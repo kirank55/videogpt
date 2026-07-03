@@ -84,7 +84,12 @@ Use visualElements to build a high-quality, creative, and animated diagram on th
   * "bounce-in" or "scale-up": Use this for icons, badges, text labels, and structural nodes (circles).
 `.trim();
 
-// ── JSON Schema for VideoBrief (must match src/lib/schemas/brief.ts) ──────────
+// ── JSON Schema for the LLM response envelope ────────────────────────────────
+//
+// The LLM outputs a JSON object with three top-level keys:
+//   projectName — short, human-readable project name (max 60 chars)
+//   summary     — 1–2 sentence summary shown in the chat UI (max 200 chars)
+//   brief       — the VideoBrief object (schema below must match schemas/brief.ts)
 
 const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
   type: "object",
@@ -209,7 +214,18 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
   },
 };
 
-export { VIDEO_BRIEF_JSON_SCHEMA };
+const LLM_RESPONSE_ENVELOPE_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  required: ["projectName", "summary", "brief"],
+  additionalProperties: false,
+  properties: {
+    projectName: { type: "string", maxLength: 60, description: "Short, human-readable project name shown in the session list." },
+    summary: { type: "string", maxLength: 200, description: "1–2 sentence summary of the video, shown in the chat UI." },
+    brief: VIDEO_BRIEF_JSON_SCHEMA,
+  },
+};
+
+export { LLM_RESPONSE_ENVELOPE_SCHEMA };
 
 // ── buildSystemPrompt ──────────────────────────────────────────────────────────
 
@@ -220,8 +236,8 @@ export { VIDEO_BRIEF_JSON_SCHEMA };
 export function buildSystemPrompt(duration: SupportedDuration): string {
   const kw = TWO_COLUMN_KEYWORDS.join(", ");
   const requestSeed = Math.floor(Math.random() * 1000000);
-  const topLine = "Output a single JSON VideoBrief object. No markdown, prose, or code fences.";
-  const outputFormatRules = "- Output ONLY the JSON object.";
+  const topLine = "Output a single JSON object with three top-level keys: projectName, summary, and brief. No markdown, prose, or code fences.";
+  const outputFormatRules = "- Output ONLY the JSON object with keys: projectName (string, max 60 chars — a short title for this project), summary (string, max 200 chars — a 1–2 sentence description shown to the user in the chat), brief (the VideoBrief object described below).";
 
   return `
 You are a video-brief writer for an animated infographic generator.
@@ -230,6 +246,12 @@ You never compute coordinates, timing, or animations — a deterministic pipelin
 
 VIDEO DURATION: ${duration}s
 REQUEST_SEED: ${requestSeed}
+
+━━━ RESPONSE ENVELOPE ━━━
+Your JSON output MUST have exactly three top-level keys:
+  projectName — string, max 60 chars. A short, catchy title for this project (e.g. "Client–Server Request Flow").
+  summary     — string, max 200 chars. A 1–2 sentence description of the video, shown to the user in the chat UI.
+  brief       — the VideoBrief object (schema below).
 
 ━━━ LAYOUT SELECTION ━━━
 layout="two-column" if prompt contains: ${kw}
@@ -317,7 +339,7 @@ export function buildModifyPrompt(
   currentBrief: VideoBrief,
   instruction: string,
 ): string {
-  const returnRule = "Return an updated VideoBrief JSON object that incorporates the user's instruction. Preserve all fields the instruction does not affect. Do NOT change the layout unless explicitly asked. Output ONLY the JSON object.";
+  const returnRule = "Return a JSON object with three top-level keys: projectName (preserve the existing name or update it if the instruction asks), summary (1–2 sentence description of the updated video), and brief (the updated VideoBrief). Preserve all brief fields the instruction does not affect. Do NOT change the layout unless explicitly asked. Output ONLY the JSON object.";
   return `
 CURRENT VIDEO BRIEF (JSON):
 \`\`\`json

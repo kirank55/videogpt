@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SupportedDurationSchema, StylePresetSchema } from "@/lib/agent/schemas/brief";
+import { SupportedDurationSchema } from "@/lib/agent/schemas/brief";
 
 export const GenerateRequestSchema = z.object({
   prompt: z.string().min(1),
@@ -8,11 +8,6 @@ export const GenerateRequestSchema = z.object({
    * Falls back to 5 when omitted.
    */
   duration: SupportedDurationSchema.optional().default(5),
-  /**
-   * Named style key from the catalog.  Falls back to "modern" when omitted or
-   * when an unknown key is supplied.
-   */
-  stylePreset: StylePresetSchema.catch("modern").optional().default("modern"),
 });
 
 export const ModifyRequestSchema = z.object({

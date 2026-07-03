@@ -122,19 +122,28 @@ function AssistantMarkdown({ content }: { content: string }) {
 
 // ── Streaming placeholder ─────────────────────────────────────────────────────
 
+const PHASE_LABELS: Record<string, string> = {
+  "prompt-built":      "Sending prompt to server…",
+  "calling-openrouter": "Calling OpenRouter…",
+  "streaming":         "Streaming tokens from LLM…",
+  "expanding":         "Executing pipeline — expanding brief…",
+};
+
 function StreamingPlaceholder() {
   const tokenCount = useStore((s) => s.streamingTokenCount);
   const charCount = useStore((s) => s.streamingCharCount);
+  const loadingPhase = useStore((s) => s.loadingPhase);
   const isStreaming = charCount > 0;
 
   const barWidthPct = isStreaming ? Math.min(95, 20 + charCount / 80) : 0;
+  const phaseLabel = loadingPhase ? (PHASE_LABELS[loadingPhase] ?? loadingPhase) : "Connecting to model…";
 
   return (
     <div className="flex flex-col gap-2.5 w-full">
       <div className="flex items-center gap-3">
         <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-primary/35 border-t-primary" />
         <span className="font-semibold text-foreground">
-          {isStreaming ? "Generating…" : "Connecting to model…"}
+          {phaseLabel}
         </span>
         {isStreaming && (
           <span className="ml-auto text-[11px] font-mono text-primary tabular-nums">

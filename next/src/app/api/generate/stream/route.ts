@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { GenerateRequestSchema } from "@/lib/agent/schemas/api";
-import { runGeneratePipeline } from "@/lib/agent/ai/pipeline";
+import { runGeneratePipeline, type PipelineEvent } from "@/lib/agent/ai/pipeline";
 import { resolveDuration } from "@/lib/agent/schemas/brief";
 
 // ── SSE helpers ───────────────────────────────────────────────────────────────
@@ -54,20 +54,29 @@ export async function POST(req: NextRequest) {
 
       let tokenCount = 0;
 
-      // The intake (LLM call → validate → hydrate → build → quality) lives in the
-      // pipeline module; this route only owns the SSE framing + token progress.
-      const { project, brief, diagnostics } = await runGeneratePipeline(
+      // The pipeline owns the full intake (prompt → LLM → expand). This route
+      // only owns SSE framing: it maps pipeline phase events to SSE events.
+      const onEvent = (event: PipelineEvent) => {
+        switch (event.type) {
+          case "prompt-built":
+          case "calling-openrouter":
+          case "expanding":
+            send("phase", { phase: event.type });
+            break;
+          case "streaming":
+            tokenCount = event.tokenCount;
+            send("chunk", { tokenCount: event.tokenCount, charCount: event.charCount });
+            break;
+        }
+      };
+
+      const { project, brief, projectName, summary: llmSummary, diagnostics } = await runGeneratePipeline(
         prompt,
         duration,
-        {
-          onChunk: (_delta, accumulated) => {
-            tokenCount = Math.round(accumulated.length / 4); // rough token estimate
-            send("chunk", { tokenCount, charCount: accumulated.length });
-          },
-        },
+        { onEvent },
       );
 
-      const { errorCount, warningCount, llmError, rawBrief } = diagnostics;
+      const { llmError, rawBrief } = diagnostics;
 
       if (llmError) {
         console.error("[api/generate/stream] error:", llmError);
@@ -76,19 +85,18 @@ export async function POST(req: NextRequest) {
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         console.log(
           `[api/generate/stream] done (${elapsed}s) layout=${brief.layout} ` +
-          `events=${project.events.length} errors=${errorCount} tokens~=${tokenCount}`,
+          `events=${project.events.length} tokens~=${tokenCount}`,
         );
 
         const summary =
-          errorCount === 0
-            ? `Here's a ${duration}s animation for: "${prompt}". Canvas looks clean — modify it or ask for changes.`
-            : `Here's a ${duration}s animation for: "${prompt}". ${errorCount} issue(s) detected — see diagnostics.`;
+          llmSummary || `Here's a ${duration}s animation for: "${prompt}". Modify it or ask for changes.`;
 
         send("done", {
           project,
           brief,
+          projectName,
           summary,
-          diagnostics: { qualityResult: diagnostics.qualityResult, errorCount, warningCount, rawBrief },
+          rawBrief,
         });
       }
 

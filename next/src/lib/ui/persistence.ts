@@ -19,7 +19,6 @@ export type PersistedState = {
   sessions: Session[];
   activeSessionId: string | null;
   duration: number;
-  stylePreset: string;
 };
 
 // ── Write ─────────────────────────────────────────────────────────────────────

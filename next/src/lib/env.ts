@@ -17,9 +17,6 @@ const envSchema = z.object({
   /** Default LLM model identifier used for prompt translation. */
   DEFAULT_MODEL: z.string().optional(),
 
-  /** LLM model identifier for visual-check QA analysis. */
-  VISUAL_CHECK_MODEL: z.string().optional(),
-
   /** Directory for bulk generation scripts output. Only needed for CLI scripts. */
   BRAIN_DIR: z.string().optional(),
 

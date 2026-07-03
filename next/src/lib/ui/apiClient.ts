@@ -26,12 +26,9 @@ import { generateId } from "./ids";
 export interface ApiResponse {
   project?: unknown;
   brief?: unknown;
+  projectName?: string;
   summary?: string;
-  diagnostics?: {
-    qualityResult?: unknown;
-    rawBrief?: unknown;
-    llmError?: string;
-  };
+  rawBrief?: unknown;
   error?: string;
 }
 
@@ -77,6 +74,8 @@ export async function callApi(
 export interface StreamCallbacks {
   /** Called for each "chunk" SSE event with a running token count. */
   onChunk: (tokenCount: number, charCount: number) => void;
+  /** Called for each "phase" SSE event with the current pipeline phase. */
+  onPhase: (phase: string) => void;
   /** Called when the stream ends with the complete API response. */
   onDone: (response: ApiResponse) => void;
   /** Called on any error (network, parse, API error). */
@@ -148,12 +147,15 @@ export async function callApiStream(
         try {
           const event = JSON.parse(trimmed.slice(6)) as {
             type?: string;
+            phase?: string;
             tokenCount?: number;
             charCount?: number;
             message?: string;
           } & ApiResponse;
 
-          if (event.type === "chunk") {
+          if (event.type === "phase") {
+            callbacks.onPhase(event.phase ?? "");
+          } else if (event.type === "chunk") {
             callbacks.onChunk(event.tokenCount ?? 0, event.charCount ?? 0);
           } else if (event.type === "done") {
             callbacks.onDone(event);
@@ -188,8 +190,7 @@ export function buildAssistantMessage(
     content: data.summary ?? fallbackSummary,
     project: data.project as ChatMessage["project"],
     brief: data.brief,
-    diagnostics: data.diagnostics?.qualityResult as ChatMessage["diagnostics"],
-    rawBrief: data.diagnostics?.rawBrief,
+    rawBrief: data.rawBrief,
     createdAt: Date.now(),
   };
 }
@@ -223,7 +224,7 @@ export function applySuccess(
   set: (partial: object | ((state: object) => object)) => void,
   sessionId: string,
   assistantMsg: ChatMessage,
-  data: Pick<ApiResponse, "project" | "brief">,
+  data: Pick<ApiResponse, "project" | "brief" | "projectName">,
 ): void {
   set((state: { sessions: import("@/types/generate").Session[]; [k: string]: unknown }) => ({
     sessions: state.sessions.map((s) =>
@@ -233,6 +234,7 @@ export function applySuccess(
             messages: [...s.messages, assistantMsg],
             project: data.project,
             brief: data.brief,
+            ...(data.projectName ? { name: data.projectName } : {}),
           }
         : s,
     ),
