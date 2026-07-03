@@ -83,6 +83,19 @@ export interface StreamCallbacks {
   onError: (message: string) => void;
 }
 
+async function executeFallback(
+  endpoint: string,
+  body: Record<string, unknown>,
+  callbacks: StreamCallbacks,
+): Promise<void> {
+  try {
+    const data = await callApi(endpoint, body);
+    callbacks.onDone(data);
+  } catch (err) {
+    callbacks.onError(err instanceof Error ? err.message : String(err));
+  }
+}
+
 /**
  * POST `endpoint/stream` with `body` as an SSE streaming request.
  * Parses `data:` lines from the response and dispatches to callbacks.
@@ -106,24 +119,12 @@ export async function callApiStream(
     });
   } catch {
     // Network error — fall back to regular request
-    try {
-      const data = await callApi(endpoint, body);
-      callbacks.onDone(data);
-    } catch (err) {
-      callbacks.onError(err instanceof Error ? err.message : String(err));
-    }
-    return;
+    return executeFallback(endpoint, body, callbacks);
   }
 
   if (!res.ok || !res.body) {
     // Non-streaming fallback
-    try {
-      const data = await callApi(endpoint, body);
-      callbacks.onDone(data);
-    } catch (err) {
-      callbacks.onError(err instanceof Error ? err.message : String(err));
-    }
-    return;
+    return executeFallback(endpoint, body, callbacks);
   }
 
   const reader = res.body.getReader();

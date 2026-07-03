@@ -87,7 +87,7 @@ export async function callOpenRouter(
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
-        "HTTP-Referer": "https://videogpt.local",
+        "HTTP-Referer": "https://videogpt.live",
         "X-Title": "VideoGPT",
       },
       body: JSON.stringify(body),
