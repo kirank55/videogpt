@@ -1,11 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { PlayerCard } from "@/components/player";
+import { StreamingProgress } from "@/components/StreamingProgress";
 import type { VideoProject } from "@/lib/ui/renderer";
-import { useStore } from "@/lib/ui/store";
 
 type MessageBubbleProps = {
   role: "user" | "assistant";
@@ -43,26 +41,25 @@ export function MessageBubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div className={`flex flex-col gap-1.5 ${widthClass}`}>
-        <div className={`flex items-end gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
-          <div
-            className={`rounded-2xl px-5 py-3.5 text-sm leading-relaxed border transition-all duration-200
-              ${
-                isUser
+        {!isStreaming && (
+          <div className={`flex items-end gap-2 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
+            <div
+              className={`rounded-2xl px-5 py-3.5 text-sm leading-relaxed border transition-all duration-200
+                ${isUser
                   ? "bg-primary text-primary-foreground font-medium border-transparent rounded-tr-none shadow-sm"
                   : isError
                     ? "bg-rose-500/5 dark:bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400 rounded-tl-none shadow-sm"
                     : "bg-surface-raised text-foreground border-border/80 rounded-tl-none shadow-sm"
-              }`}
-          >
-            {isError ? (
-              <ErrorBody onRetry={onRetry}>{children}</ErrorBody>
-            ) : isStreaming ? (
-              <StreamingPlaceholder />
-            ) : isUser && (
-              <span className="whitespace-pre-wrap break-words">{children}</span>
-            )}
+                }`}
+            >
+              {isError ? (
+                <ErrorBody onRetry={onRetry}>{children}</ErrorBody>
+              ) : isUser && (
+                <span className="whitespace-pre-wrap wrap-break-word">{children}</span>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {!isStreaming && !isError && (
           <div className={`flex items-center gap-2 px-1 text-[10px] text-muted-foreground/70 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
@@ -108,65 +105,6 @@ function MessageTimestamp({ ts }: { ts: number }) {
   });
 
   return <span className="tabular-nums">{label}</span>;
-}
-
-// ── Assistant markdown body ────────────────────────────────────────────────────
-
-function AssistantMarkdown({ content }: { content: string }) {
-  return (
-    <div className="prose-invert max-w-none break-words [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_pre]:my-2 [&_code]:rounded [&_code]:bg-background/60 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_a]:underline">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
-    </div>
-  );
-}
-
-// ── Streaming placeholder ─────────────────────────────────────────────────────
-
-const PHASE_LABELS: Record<string, string> = {
-  "prompt-built":      "Sending prompt to server…",
-  "calling-openrouter": "Calling OpenRouter…",
-  "streaming":         "Streaming tokens from LLM…",
-  "expanding":         "Executing pipeline — expanding brief…",
-};
-
-function StreamingPlaceholder() {
-  const tokenCount = useStore((s) => s.streamingTokenCount);
-  const charCount = useStore((s) => s.streamingCharCount);
-  const loadingPhase = useStore((s) => s.loadingPhase);
-  const isStreaming = charCount > 0;
-
-  const barWidthPct = isStreaming ? Math.min(95, 20 + charCount / 80) : 0;
-  const phaseLabel = loadingPhase ? (PHASE_LABELS[loadingPhase] ?? loadingPhase) : "Connecting to model…";
-
-  return (
-    <div className="flex flex-col gap-2.5 w-full">
-      <div className="flex items-center gap-3">
-        <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-primary/35 border-t-primary" />
-        <span className="font-semibold text-foreground">
-          {phaseLabel}
-        </span>
-        {isStreaming && (
-          <span className="ml-auto text-[11px] font-mono text-primary tabular-nums">
-            ~{tokenCount.toLocaleString()} tokens
-          </span>
-        )}
-      </div>
-      <div className="w-full h-1 rounded-full bg-border/30 overflow-hidden">
-        <div
-          className="h-full rounded-full bg-primary transition-all duration-300"
-          style={{
-            width: isStreaming ? `${barWidthPct}%` : "12%",
-            animation: isStreaming ? "none" : "pulse 1.5s ease-in-out infinite",
-          }}
-        />
-      </div>
-      {isStreaming && (
-        <p className="text-[10px] font-mono text-muted-foreground/50 truncate">
-          {charCount.toLocaleString()} chars received
-        </p>
-      )}
-    </div>
-  );
 }
 
 // ── Error body ──────────────────────────────────────────────────────────────────

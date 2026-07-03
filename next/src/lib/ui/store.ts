@@ -34,6 +34,8 @@ interface StoreState {
   streamingCharCount: number;
   /** Current pipeline phase while loading (e.g. "calling-openrouter"). */
   loadingPhase: string | null;
+  /** Auto-retry attempt count (0 = none yet, 1..MAX_RETRIES = in progress). */
+  retryCount: number;
 
   // Setters
   setPrompt: (prompt: string) => void;
@@ -52,28 +54,68 @@ interface StoreState {
 
 // ── Store factory ─────────────────────────────────────────────────────────────
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 2000;
+
 export const useStore = create<StoreState>((set, get) => {
   // ── Internal streaming helpers (shared by submitInitialPrompt & submitModifyPrompt) ──
 
   const startStreamingUI = () =>
-    set({ isLoading: true, error: null, streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null });
+    set({
+      isLoading: true,
+      error: null,
+      streamingTokenCount: 0,
+      streamingCharCount: 0,
+      loadingPhase: null,
+      retryCount: 0,
+    });
 
-  const makeStreamCallbacks = (sessionId: string, successMessage: string): StreamCallbacks => ({
-    onPhase: (phase) => {
-      set({ loadingPhase: phase });
-    },
-    onChunk: (tokenCount, charCount) => {
-      set({ streamingTokenCount: tokenCount, streamingCharCount: charCount });
-    },
-    onDone: (data) => {
-      set({ streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null });
-      applySuccess(set, sessionId, buildAssistantMessage(data, successMessage), data);
-    },
-    onError: (message) => {
-      set({ streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null });
-      applyError(set, sessionId, message);
-    },
-  });
+  /**
+   * Build stream callbacks bound to a specific endpoint + body. The callbacks
+   * own the auto-retry policy: on error, if retryCount < MAX_RETRIES, they wait
+   * RETRY_DELAY_MS and re-fire callApiStream with the same args. After
+   * MAX_RETRIES failures, the error is surfaced as a chat message with a
+   * manual retry button.
+   */
+  const makeStreamCallbacks = (
+    endpoint: string,
+    body: Record<string, unknown>,
+    sessionId: string,
+    successMessage: string,
+  ): StreamCallbacks => {
+    const callbacks: StreamCallbacks = {
+      onPhase: (phase) => {
+        set({ loadingPhase: phase });
+      },
+      onChunk: (tokenCount, charCount) => {
+        set({ streamingTokenCount: tokenCount, streamingCharCount: charCount });
+      },
+      onDone: (data) => {
+        set({ streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null, retryCount: 0 });
+        applySuccess(set, sessionId, buildAssistantMessage(data, successMessage), data);
+      },
+      onError: (message) => {
+        const current = get().retryCount;
+        if (current < MAX_RETRIES) {
+          const next = current + 1;
+          set({
+            retryCount: next,
+            streamingTokenCount: 0,
+            streamingCharCount: 0,
+            loadingPhase: "retrying",
+          });
+          console.warn(`[store] Auto-retry ${next}/${MAX_RETRIES} in ${RETRY_DELAY_MS}ms: ${message}`);
+          setTimeout(() => {
+            callApiStream(endpoint, body, callbacks);
+          }, RETRY_DELAY_MS);
+        } else {
+          set({ streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null, retryCount: 0 });
+          applyError(set, sessionId, message);
+        }
+      },
+    };
+    return callbacks;
+  };
 
   return {
     sessions: [],
@@ -85,6 +127,7 @@ export const useStore = create<StoreState>((set, get) => {
     streamingTokenCount: 0,
     streamingCharCount: 0,
     loadingPhase: null,
+    retryCount: 0,
 
     setPrompt: (prompt) => set({ prompt }),
     setDuration: (duration) => set({ duration }),
@@ -101,10 +144,11 @@ export const useStore = create<StoreState>((set, get) => {
         activeSessionId: sessionId,
       }));
 
+      const body = { prompt, duration };
       await callApiStream(
         "/api/generate",
-        { prompt, duration },
-        makeStreamCallbacks(sessionId, "Project generated successfully."),
+        body,
+        makeStreamCallbacks("/api/generate", body, sessionId, "Project generated successfully."),
       );
     },
 
@@ -117,10 +161,11 @@ export const useStore = create<StoreState>((set, get) => {
       }));
 
       const session = get().sessions.find((s) => s.id === sessionId);
+      const body = { sessionId, prompt, brief: session?.brief };
       await callApiStream(
         "/api/modify",
-        { sessionId, prompt, brief: session?.brief },
-        makeStreamCallbacks(sessionId, "Project modified successfully."),
+        body,
+        makeStreamCallbacks("/api/modify", body, sessionId, "Project modified successfully."),
       );
     },
 
@@ -140,12 +185,13 @@ export const useStore = create<StoreState>((set, get) => {
 
       const userPrompt = userMsg.content;
 
-      // Remove the error message, then retry
+      // Remove the error message, then retry (manual retry resets retryCount)
       set((state) => ({
         sessions: updateSessionMessages(state.sessions, sessionId, (msgs) => msgs.slice(0, -1)),
         isLoading: true,
         error: null,
         loadingPhase: null,
+        retryCount: 0,
       }));
 
       try {

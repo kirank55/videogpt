@@ -1,63 +1,153 @@
-import { GenerateWorkspace } from "@/components/generate/GenerateWorkspace";
-import type { ChatMessage } from "@/types/generate";
-import { type VideoProject } from "@/lib/ui/renderer";
+"use client";
 
-const hybridProject: VideoProject = {
-  id: "hybrid-demo-project",
-  name: "Hybrid Demo",
-  width: 1920,
-  height: 1080,
-  duration: 5,
-  events: [
-    {
-      id: "bg",
-      type: "background",
-      start: 0,
-      end: 5,
-      layer: 1,
-      background: {
-        kind: "solid",
-        color: "#0f172a",
-      },
-    },
-    {
-      id: "title",
-      type: "text",
-      start: 0,
-      end: 5,
-      layer: 2,
-      text: "Hybrid Demo",
-      x: 960,
-      y: 540,
-      maxWidth: 800,
-      color: "#ffffff",
-      fontSize: 64,
-      align: "center",
-      verticalAlign: "middle",
-    },
-  ],
-};
+import { useState } from "react";
+import { TopBar } from "@/components/layout/TopBar";
+import { PromptForm } from "@/components/generate/PromptForm";
+import { PlayerCard } from "@/components/player";
+import type { VideoProject } from "@/lib/ui/renderer";
+import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
+import type { StylePreset } from "@/lib/agent/schemas/brief";
 
-const hybridMessages: ChatMessage[] = [
-  {
-    id: "welcome",
-    role: "assistant",
-    content: "Here is your generated hybrid project. Let me know if you'd like to adjust the visual style or make any content modifications.",
-  },
-  {
-    id: "demo-hybrid",
-    role: "assistant",
-    content: "Hybrid — Iso Title · Brutalist Stacks · Blueprint Animation · BigDemo Flow.",
-    project: hybridProject,
-  },
-];
+interface StyleVariant {
+  style: StylePreset;
+  brief: VideoBrief;
+  project: VideoProject;
+}
 
-export default function ChatPage() {
+interface AllStylesResponse {
+  projectName: string;
+  summary: string;
+  variants: StyleVariant[];
+  error?: string;
+}
+
+export default function DevPresetGalleryPage() {
+  const [prompt, setPrompt] = useState("");
+  const [duration, setDuration] = useState<SupportedDuration>(15);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [response, setResponse] = useState<AllStylesResponse | null>(null);
+
+  const handleSubmit = async (submittedPrompt: string) => {
+    setIsLoading(true);
+    setError(null);
+    setResponse(null);
+
+    try {
+      const res = await fetch("/api/dev/generate-all-styles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: submittedPrompt, duration }),
+      });
+
+      const data = (await res.json()) as AllStylesResponse;
+
+      if (!res.ok) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      setResponse(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
-    <GenerateWorkspace
-      initialMessages={hybridMessages}
-      title="Chat"
-      ignoreActiveSession={true}
-    />
+    <div className="flex flex-1 flex-col overflow-hidden h-full">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 space-y-6 pb-4">
+        <TopBar title="Dev — Style Preset Gallery" />
+
+        <div className="card p-5 space-y-3">
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Submit one prompt to generate the same video under all 5 style presets
+            (modern, brutalist, sketch, neon-glow, minimal). Uses a single LLM call;
+            variants are produced by re-expanding the brief with each style key.
+          </p>
+          {error && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-700 dark:text-rose-400">
+              {error}
+            </div>
+          )}
+          {response && !error && (
+            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
+              <p className="text-sm font-semibold text-foreground">
+                {response.projectName}
+              </p>
+              {response.summary && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {response.summary}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {isLoading && (
+          <div className="w-full">
+            <PlayerLoadingSlot />
+          </div>
+        )}
+
+        {!isLoading && response && response.variants.length > 0 && (
+          <div className="space-y-4">
+            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {response.variants.map((variant) => (
+                <div key={variant.style} className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 px-1">
+                    <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary border border-primary/20">
+                      {variant.style}
+                    </span>
+                  </div>
+                  <PlayerCard
+                    project={variant.project}
+                    autoPlay={true}
+                    showControls={true}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="shrink-0 pt-2">
+        <PromptForm
+          prompt={prompt}
+          setPrompt={setPrompt}
+          duration={duration}
+          onChangeDuration={(d) => setDuration(d as SupportedDuration)}
+          isLoading={isLoading}
+          onSubmit={handleSubmit}
+          minLength={20}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ── Local loading slot ────────────────────────────────────────────────────────
+// Lightweight skeleton shown while waiting for the dev endpoint. Kept local to
+// this dev page so the main app's PlayerLoadingCard stays unchanged.
+
+function PlayerLoadingSlot() {
+  return (
+    <div className="card overflow-hidden bg-surface-raised flex flex-col">
+      <div className="border-b border-border/80 px-5 py-4">
+        <p className="text-sm font-bold text-foreground animate-pulse">
+          Generating all style variants...
+        </p>
+        <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mt-0.5 animate-pulse">
+          One LLM call, five re-expansions
+        </p>
+      </div>
+      <div className="aspect-video flex flex-col items-center justify-center bg-black/15 dark:bg-black/35 rounded-2xl m-4 min-h-[300px] gap-4 p-6 text-center border border-dashed border-border/40">
+        <div className="size-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        <p className="text-sm font-bold text-foreground">
+          Calling OpenRouter...
+        </p>
+      </div>
+    </div>
   );
 }

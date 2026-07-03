@@ -2,12 +2,12 @@
 
 import { FabricCanvas } from "@/components/canvas";
 import { PlayerControls } from "@/components/player/PlayerControls";
+import { StreamingProgress, useStreamingProgress } from "@/components/StreamingProgress";
 import type { VideoProject } from "@/lib/ui/renderer";
 import {
   PlayerProvider,
   usePlayerContext,
 } from "@/components/player/PlayerProvider";
-import { useStore } from "@/lib/ui/store";
 
 type PlayerCardFrameProps = {
   showControls: boolean;
@@ -115,18 +115,8 @@ type PlayerCardProps = {
   messageId?: string;
 };
 
-const PHASE_LABELS: Record<string, string> = {
-  "prompt-built":       "Sending prompt to server...",
-  "calling-openrouter":  "Generating video script (LLM)...",
-  "streaming":           "Streaming tokens from LLM...",
-  "expanding":           "Executing pipeline — expanding brief...",
-};
-
 function PlayerLoadingCard() {
-  const loadingPhase = useStore((s) => s.loadingPhase);
-  const statusLabel = loadingPhase
-    ? (PHASE_LABELS[loadingPhase] ?? loadingPhase)
-    : "Connecting to model...";
+  const { isRetrying } = useStreamingProgress();
 
   return (
     <div className="card overflow-hidden transition-all bg-surface-raised flex flex-col">
@@ -135,33 +125,23 @@ function PlayerLoadingCard() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-bold text-foreground animate-pulse">
-              Generating Video...
+              {isRetrying ? "Retrying generation..." : "Generating Video..."}
             </p>
             <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mt-0.5 animate-pulse">
               Please wait
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-muted-foreground animate-pulse">
-              -- / --
-            </span>
-          </div>
+          <span className="text-xs font-mono text-muted-foreground animate-pulse">
+            -- / --
+          </span>
         </div>
       </div>
 
-      {/* Main Preview Container */}
+      {/* Main Preview Container — same streaming progress as the chat bubble */}
       <div className="aspect-video flex flex-col items-center justify-center bg-black/15 dark:bg-black/35 rounded-2xl overflow-hidden m-4 min-h-[300px] gap-4 p-6 text-center border border-dashed border-border/40">
-        <div className="relative flex items-center justify-center">
-          {/* Spinner rings */}
-          <div className="size-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-        </div>
-        <div className="space-y-1">
-          <p className="text-sm font-bold text-foreground">
-            {statusLabel}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            VideoGPT is sketching your scene layout
-          </p>
+        <div className="size-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+        <div className="w-full max-w-md">
+          <StreamingProgress showSpinner={false} />
         </div>
       </div>
 
