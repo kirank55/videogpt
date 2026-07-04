@@ -77,16 +77,35 @@ export interface PipelineOptions {
 /** Minimal fallback brief used when the LLM call completely fails. */
 function fallbackBrief(title: string): VideoBrief {
   return validateBrief({
-    layout: "single-column",
     title,
-    subtitle: "AI generation unavailable — using fallback layout",
+    subtitle: "AI generation unavailable - using fallback scene",
     closingLine: "Try again or check your API key.",
-    blocks: [
-      { heading: "Generation failed",  description: "The AI service could not be reached." },
-      { heading: "What to do",         description: "Check OPENROUTER_API_KEY in .env.local and try again." },
-    ],
     palette: "midnight",
     style: "modern",
+    scenes: [
+      {
+        heading: "Fallback Scene",
+        diagramLayout: "pipeline",
+        blocks: [
+          { heading: "Generation failed", description: "The AI service could not be reached." },
+          { heading: "What to do", description: "Check OPENROUTER_API_KEY in .env.local and try again." },
+        ],
+        graph: {
+          nodes: [
+            { id: "request", label: "Prompt", icon: "browser" },
+            { id: "service", label: "AI service", icon: "cloud" },
+            { id: "fallback", label: "Fallback", icon: "shield" },
+          ],
+          edges: [
+            { from: "request", to: "service", label: "call", animated: true },
+            { from: "service", to: "fallback", label: "recover", animated: true },
+          ],
+        },
+        entryAnimation: "slide-up",
+        blockStyle: "cards",
+        transition: "fade",
+      },
+    ],
   });
 }
 

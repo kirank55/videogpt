@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { prompt, duration: rawDuration } = parsed.data;
-  const duration = resolveDuration(rawDuration, 15);
+  const duration = resolveDuration(rawDuration);
 
   console.log(`[api/generate] prompt="${prompt}" duration=${duration}s`);
   const t0 = Date.now();
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     console.warn(`[api/generate] LLM error (${elapsed}s): ${llmError}`);
   } else {
     console.log(
-      `[api/generate] done (${elapsed}s) layout=${brief.layout} ` +
+      `[api/generate] done (${elapsed}s) scenes=${brief.scenes.length} ` +
       `palette=${brief.palette}/${brief.style} ` +
       `events=${project.events.length}`,
     );

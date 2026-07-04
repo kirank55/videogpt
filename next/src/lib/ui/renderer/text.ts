@@ -61,6 +61,8 @@ function drawTextLines(
   let baseY = event.y + offsetY;
   if (event.verticalAlign === "middle") {
     baseY -= totalHeight / 2;
+  } else if (event.verticalAlign === "bottom") {
+    baseY -= totalHeight;
   }
 
   if (event.backdrop) {

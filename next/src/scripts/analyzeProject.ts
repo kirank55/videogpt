@@ -13,31 +13,63 @@
 import { buildProjectFromBrief } from "../lib/agent/brief/buildProjectFromBrief";
 
 const bigDemoProject = buildProjectFromBrief({
-  layout: "two-column" as const,
   title: "Client-Server System Layout",
   subtitle: "Web Request Flow Sequence",
   palette: "midnight",
   style: "modern",
-  leftHeader: "CLIENT",
-  rightHeader: "SERVER",
-  leftRows: ["User Browser", "DOM State", "Fetch Client"],
-  rightRows: ["Load Balancer", "API Router", "SQL Store"],
-  flow: true,
-  requestLabel: "POST /auth",
-  responseLabel: "201 Created",
-  processingSteps: ["Hash Password", "INSERT INTO users"],
   closingLine: "Dynamic Web Sequence Analysis Done.",
+  scenes: [
+    {
+      heading: "Request Crossing The Boundary",
+      diagramLayout: "client-server",
+      blocks: [
+        { heading: "Client", description: "Browser state prepares an authenticated request.", icon: "browser" },
+        { heading: "Server", description: "API services validate, hash, and persist the payload.", icon: "server" },
+        { heading: "Database", description: "The SQL store confirms the write.", icon: "database" },
+      ],
+      graph: {
+        nodes: [
+          { id: "browser", label: "Browser", icon: "browser" },
+          { id: "api", label: "API Router", icon: "api" },
+          { id: "db", label: "SQL Store", icon: "database" },
+        ],
+        edges: [
+          { from: "browser", to: "api", label: "POST /auth", animated: true, packetLabel: "POST" },
+          { from: "api", to: "db", label: "INSERT", animated: true },
+          { from: "db", to: "browser", label: "201 Created", animated: true, packetLabel: "201" },
+        ],
+      },
+      entryAnimation: "slide-up",
+      blockStyle: "cards",
+      transition: "fade",
+    },
+  ],
 }, 15);
 
 const demoProject = buildProjectFromBrief({
-  layout: "single-column" as const,
   title: "Simple Architecture Overview",
-  blocks: [
-    { heading: "Web Layer", description: "Vibrant and interactive client views" },
-    { heading: "Service Layer", description: "Microservices orchestration and caching" },
-  ],
   palette: "midnight",
   style: "modern",
+  scenes: [
+    {
+      heading: "Two Layer Overview",
+      diagramLayout: "stack",
+      blocks: [
+        { heading: "Web Layer", description: "Vibrant and interactive client views", icon: "browser" },
+        { heading: "Service Layer", description: "Microservices orchestration and caching", icon: "server" },
+      ],
+      graph: {
+        nodes: [
+          { id: "web", label: "Web Layer", icon: "browser" },
+          { id: "service", label: "Service Layer", icon: "server" },
+        ],
+        edges: [{ from: "web", to: "service", label: "calls", animated: true }],
+      },
+      entryAnimation: "slide-up",
+      blockStyle: "cards",
+      transition: "fade",
+    },
+  ],
 }, 10);
 import type {
   AnimatedValue,

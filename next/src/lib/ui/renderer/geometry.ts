@@ -85,7 +85,7 @@ function scaleBox(bounds: Bounds, scale: number, cx: number, cy: number): Bounds
     left: cx + (bounds.left - cx) * scale,
     top: cy + (bounds.top - cy) * scale,
     right: cx + (bounds.right - cx) * scale,
-    bottom: cx + (bounds.bottom - cy) * scale,
+    bottom: cy + (bounds.bottom - cy) * scale,
   };
 }
 
@@ -126,6 +126,28 @@ export function getStaticEventBounds(event: TimelineEvent): Bounds | null {
             right: Math.max(event.x1, event.x2),
             bottom: Math.max(event.y1, event.y2),
           };
+        case "icon":
+          return {
+            left: event.cx - event.size / 2,
+            top: event.cy - event.size / 2,
+            right: event.cx + event.size / 2,
+            bottom: event.cy + event.size / 2,
+          };
+        case "badge": {
+          const fontSize = event.fontSize ?? 20;
+          const padX = event.paddingX ?? 18;
+          const padY = event.paddingY ?? 8;
+          const width = event.text.length * fontSize * 0.58 + padX * 2;
+          const height = fontSize + padY * 2;
+          return {
+            left: event.cx - width / 2,
+            top: event.cy - height / 2,
+            right: event.cx + width / 2,
+            bottom: event.cy + height / 2,
+          };
+        }
+        case "progress":
+          return { left: event.x, top: event.y, right: event.x + event.width, bottom: event.y + event.height };
       }
       break;
     }
@@ -194,6 +216,33 @@ export function getEventBounds(event: TimelineEvent): Bounds | null {
             right: Math.max(event.x1, event.x2) + txBounds.max,
             bottom: Math.max(event.y1, event.y2) + tyBounds.max,
           };
+        case "icon": {
+          const left = event.cx - event.size / 2 + txBounds.min;
+          const top = event.cy - event.size / 2 + tyBounds.min;
+          const right = event.cx + event.size / 2 + txBounds.max;
+          const bottom = event.cy + event.size / 2 + tyBounds.max;
+          return scaleBox({ left, top, right, bottom }, maxScale, event.cx, event.cy);
+        }
+        case "badge": {
+          const fontSize = event.fontSize ?? 20;
+          const padX = event.paddingX ?? 18;
+          const padY = event.paddingY ?? 8;
+          const width = event.text.length * fontSize * 0.58 + padX * 2;
+          const height = fontSize + padY * 2;
+          const left = event.cx - width / 2 + txBounds.min;
+          const top = event.cy - height / 2 + tyBounds.min;
+          const right = event.cx + width / 2 + txBounds.max;
+          const bottom = event.cy + height / 2 + tyBounds.max;
+          return scaleBox({ left, top, right, bottom }, maxScale, event.cx, event.cy);
+        }
+        case "progress": {
+          const left = event.x + txBounds.min;
+          const top = event.y + tyBounds.min;
+          const right = event.x + event.width + txBounds.max;
+          const bottom = event.y + event.height + tyBounds.max;
+          const c = getShapeCenter(event);
+          return scaleBox({ left, top, right, bottom }, maxScale, c.x, c.y);
+        }
       }
       break;
     }

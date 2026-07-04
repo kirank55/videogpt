@@ -21,20 +21,56 @@ import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
 const DURATION: SupportedDuration = 15;
 
 const RAW_BRIEF = {
-  layout: "single-column",
   title: "Test Title",
-  blocks: [{ heading: "A", description: "B" }],
   palette: "midnight",
   style: "modern",
+  scenes: [
+    {
+      heading: "Scene A",
+      diagramLayout: "pipeline",
+      blocks: [
+        { heading: "A", description: "B" },
+        { heading: "C", description: "D" },
+      ],
+      graph: {
+        nodes: [
+          { id: "a", label: "A" },
+          { id: "c", label: "C" },
+        ],
+        edges: [{ from: "a", to: "c", animated: true }],
+      },
+      entryAnimation: "slide-up",
+      blockStyle: "cards",
+      transition: "fade",
+    },
+  ],
 };
 
 const CURRENT_BRIEF: VideoBrief = {
-  layout: "single-column",
   title: "Existing",
-  blocks: [{ heading: "X", description: "Y" }],
   palette: "midnight",
   style: "modern",
-} as unknown as VideoBrief;
+  scenes: [
+    {
+      heading: "Existing Scene",
+      diagramLayout: "stack",
+      blocks: [
+        { heading: "X", description: "Y" },
+        { heading: "Z", description: "W" },
+      ],
+      graph: {
+        nodes: [
+          { id: "x", label: "X" },
+          { id: "z", label: "Z" },
+        ],
+        edges: [{ from: "x", to: "z" }],
+      },
+      entryAnimation: "slide-up",
+      blockStyle: "cards",
+      transition: "fade",
+    },
+  ],
+};
 
 beforeEach(() => {
   callOpenRouterMock.mockReset();

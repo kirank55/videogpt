@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
       rawBrief !== null &&
       "duration" in rawBrief
       ? (rawBrief as Record<string, unknown>).duration
-      : 15;
-  const duration = resolveDuration(rawDur, 15);
+      : 5;
+  const duration = resolveDuration(rawDur);
 
   console.log(`[api/modify/stream] instruction="${prompt}" duration=${duration}s`);
   const t0 = Date.now();

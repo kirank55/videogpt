@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { prompt, duration: rawDuration } = parsed.data;
-  const duration = resolveDuration(rawDuration, 15);
+  const duration = resolveDuration(rawDuration);
 
   console.log(`[api/generate/stream] prompt="${prompt}" duration=${duration}s`);
   const t0 = Date.now();
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       } else {
         const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
         console.log(
-          `[api/generate/stream] done (${elapsed}s) layout=${brief.layout} ` +
+          `[api/generate/stream] done (${elapsed}s) scenes=${brief.scenes.length} ` +
           `events=${project.events.length} tokens~=${tokenCount}`,
         );
 

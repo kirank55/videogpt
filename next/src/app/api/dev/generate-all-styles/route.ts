@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { prompt, duration: rawDuration } = parsed.data;
-  const duration = resolveDuration(rawDuration, 15);
+  const duration = resolveDuration(rawDuration);
 
   console.log(`[api/dev/generate-all-styles] prompt="${prompt}" duration=${duration}s`);
   const t0 = Date.now();

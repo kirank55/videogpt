@@ -1,260 +1,148 @@
 #!/usr/bin/env tsx
-// ── Eval Harness ─────────────────────────────────────────────────────────────
-//
-// Runs 10–15 test prompts through the real LLM pipeline.
-// For each prompt it:
-//   1. Calls runGeneratePipeline (live OpenRouter call)
-//   2. Reports pass/fail per prompt in a matrix
-//   3. Logs real token usage (from OpenRouter `usage`) + elapsed time
-//
-// Usage:
-//   npm run eval                  — runs all test prompts
-//   npm run eval -- --fast        — skip sleep between requests
-//
-// Pass criteria:
-//   - Brief layout matches expected type (two-column / single-column)
-//   - llmError is undefined (LLM actually responded)
-//
-// Exit code 0 if ≥80% pass; exit code 1 otherwise.
-
-// Environment variables are loaded by tsx --env-file flags in package.json scripts.
-// OPENROUTER_API_KEY must be set in .env.local (and/or .env in project root).
 
 import { runGeneratePipeline } from "@/lib/agent/ai/pipeline";
-import type { SupportedDuration } from "@/lib/agent/schemas/brief";
+import type { DiagramLayout, SupportedDuration } from "@/lib/agent/schemas/brief";
 
-// ── Test cases ────────────────────────────────────────────────────────────────
-
-interface TestCase {
+type TestCase = {
   prompt: string;
   duration: SupportedDuration;
-  expectedLayout: "two-column" | "single-column" | "any";
+  expectedDiagramLayout: DiagramLayout | "any";
   description: string;
-}
+};
 
 const TEST_CASES: TestCase[] = [
-  // ── Two-column (client/server / compare) ──────────────────────────────────
   {
     prompt: "a 15-second video about client-server architecture",
     duration: 15,
-    expectedLayout: "two-column",
-    description: "client-server keyword → two-column",
+    expectedDiagramLayout: "client-server",
+    description: "client/server topic",
   },
   {
     prompt: "explain how HTTP request and response works",
     duration: 10,
-    expectedLayout: "two-column",
-    description: "request/response keywords → two-column",
+    expectedDiagramLayout: "client-server",
+    description: "request/response flow",
   },
-  {
-    prompt: "compare frontend and backend responsibilities",
-    duration: 15,
-    expectedLayout: "two-column",
-    description: "frontend/backend keywords → two-column",
-  },
-  {
-    prompt: "how does a REST API call work between client and server",
-    duration: 20,
-    expectedLayout: "two-column",
-    description: "api + client/server → two-column with flow",
-  },
-  {
-    prompt: "SQL vs NoSQL database architecture",
-    duration: 15,
-    expectedLayout: "two-column",
-    description: "vs keyword → two-column",
-  },
-  {
-    prompt: "before and after microservice migration",
-    duration: 10,
-    expectedLayout: "two-column",
-    description: "before/after → two-column",
-  },
-
-  // ── Single-column (explainer / how-to) ────────────────────────────────────
   {
     prompt: "explain the water cycle",
     duration: 15,
-    expectedLayout: "single-column",
-    description: "nature explainer → single-column",
+    expectedDiagramLayout: "pipeline",
+    description: "natural process",
   },
   {
     prompt: "how photosynthesis works",
     duration: 10,
-    expectedLayout: "single-column",
-    description: "biology explainer → single-column",
+    expectedDiagramLayout: "pipeline",
+    description: "biology process",
   },
-  {
-    prompt: "the history of the internet in 20 seconds",
-    duration: 20,
-    expectedLayout: "single-column",
-    description: "history topic → single-column",
-  },
-  {
-    prompt: "how to improve code quality with TDD",
-    duration: 15,
-    expectedLayout: "single-column",
-    description: "how-to steps → single-column",
-  },
-  {
-    prompt: "what is machine learning",
-    duration: 10,
-    expectedLayout: "single-column",
-    description: "ML explainer (no architecture keywords) → single-column",
-  },
-  {
-    prompt: "benefits of using TypeScript over JavaScript",
-    duration: 15,
-    expectedLayout: "any", // could go either way — either is fine
-    description: "ambiguous: may be single or two-column",
-  },
-
-  // ── Edge cases / stress tests ──────────────────────────────────────────────
   {
     prompt: "kubernetes pod scheduling and resource management",
     duration: 20,
-    expectedLayout: "any",
-    description: "infra topic — AI decides layout",
-  },
-  {
-    prompt: "a 5-second intro about video generation with AI",
-    duration: 5,
-    expectedLayout: "any",
-    description: "short 5s video — timing table stress test",
+    expectedDiagramLayout: "any",
+    description: "infra multi-scene topic",
   },
   {
     prompt: "event-driven architecture with producer and consumer services",
     duration: 15,
-    expectedLayout: "two-column",
-    description: "producer/consumer keywords → two-column",
+    expectedDiagramLayout: "client-server",
+    description: "producer/consumer services",
   },
 ];
 
-// ── Runner ────────────────────────────────────────────────────────────────────
-
 const isFast = process.argv.includes("--fast");
-const DELAY_MS = isFast ? 0 : 1200; // gentle rate-limit buffer
+const delayMs = isFast ? 0 : 1200;
 
-async function sleep(ms: number) {
+function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-interface ResultRow {
+type ResultRow = {
   idx: number;
-  prompt: string;
   pass: boolean;
-  layout: string;
+  sceneSummary: string;
   llmError?: string;
   elapsedMs: number;
-  promptTokens?: number;
-  completionTokens?: number;
   totalTokens?: number;
   note: string;
+};
+
+function suggestedSceneCount(duration: SupportedDuration): number {
+  return Math.max(1, Math.round(duration / 5));
 }
 
 async function runEval() {
-  console.log("\n═══════════════════════════════════════════════════════════════");
-  console.log(" VideoGPT — Eval Harness");
-  console.log(`  ${TEST_CASES.length} prompts  |  model: ${process.env.DEFAULT_MODEL ?? "default"}`);
-  console.log("═══════════════════════════════════════════════════════════════\n");
+  console.log("\nVideoGPT Eval Harness");
+  console.log(`${TEST_CASES.length} prompts | model: ${process.env.DEFAULT_MODEL ?? "default"}\n`);
 
   const results: ResultRow[] = [];
 
-  for (let i = 0; i < TEST_CASES.length; i++) {
+  for (let i = 0; i < TEST_CASES.length; i += 1) {
     const tc = TEST_CASES[i];
-    process.stdout.write(`[${String(i + 1).padStart(2)}/${TEST_CASES.length}] ${tc.description} … `);
+    process.stdout.write(`[${String(i + 1).padStart(2)}/${TEST_CASES.length}] ${tc.description} ... `);
 
-    let result: ResultRow;
-    const t0 = Date.now();
+    const startedAt = Date.now();
     try {
       const { brief, diagnostics } = await runGeneratePipeline(tc.prompt, tc.duration);
-      const elapsedMs = Date.now() - t0;
+      const elapsedMs = Date.now() - startedAt;
+      const layouts = brief.scenes.map((scene) => scene.diagramLayout);
+      const sceneSummary = `${brief.scenes.length} scenes: ${layouts.join(", ")}`;
+      const expectedCount = suggestedSceneCount(tc.duration);
       const layoutOk =
-        tc.expectedLayout === "any" || brief.layout === tc.expectedLayout;
-      const pass = !diagnostics.llmError && layoutOk;
+        tc.expectedDiagramLayout === "any" ||
+        layouts.includes(tc.expectedDiagramLayout);
+      const countOk = Math.abs(brief.scenes.length - expectedCount) <= 1;
+      const pass = !diagnostics.llmError && layoutOk && countOk;
 
-      result = {
+      const note = [
+        !layoutOk ? `missing ${tc.expectedDiagramLayout}` : "",
+        !countOk ? `scene count ${brief.scenes.length}, expected about ${expectedCount}` : "",
+        diagnostics.llmError ? `LLM error: ${diagnostics.llmError.slice(0, 120)}` : "",
+      ].filter(Boolean).join(", ") || "ok";
+
+      results.push({
         idx: i + 1,
-        prompt: tc.prompt,
         pass,
-        layout: brief.layout,
+        sceneSummary,
         llmError: diagnostics.llmError,
         elapsedMs,
-        promptTokens: diagnostics.usage?.prompt_tokens,
-        completionTokens: diagnostics.usage?.completion_tokens,
         totalTokens: diagnostics.usage?.total_tokens,
-        note: [
-          !layoutOk
-            ? `layout=${brief.layout} (expected ${tc.expectedLayout})`
-            : "",
-          diagnostics.llmError
-            ? `LLM ERR: ${diagnostics.llmError.slice(0, 120)}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(", ") || "ok",
-      };
-    } catch (err) {
-      const elapsedMs = Date.now() - t0;
-      result = {
+        note,
+      });
+    } catch (error) {
+      results.push({
         idx: i + 1,
-        prompt: tc.prompt,
         pass: false,
-        layout: "?",
-        llmError: err instanceof Error ? err.message : String(err),
-        elapsedMs,
+        sceneSummary: "?",
+        llmError: error instanceof Error ? error.message : String(error),
+        elapsedMs: Date.now() - startedAt,
         note: "threw unexpectedly",
-      };
+      });
     }
 
-    results.push(result);
-    console.log(result.pass ? "✅ PASS" : `❌ FAIL  (${result.note})`);
-
-    if (i < TEST_CASES.length - 1 && DELAY_MS > 0) {
-      await sleep(DELAY_MS);
-    }
+    const current = results[results.length - 1];
+    console.log(current.pass ? "PASS" : `FAIL (${current.note})`);
+    if (i < TEST_CASES.length - 1 && delayMs > 0) await sleep(delayMs);
   }
 
-  // ── Summary matrix ─────────────────────────────────────────────────────────
+  const passed = results.filter((result) => result.pass).length;
+  const rate = Math.round((passed / results.length) * 100);
 
-  const passed = results.filter((r) => r.pass).length;
-  const total = results.length;
-  const rate = Math.round((passed / total) * 100);
-
-  console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(" RESULTS");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(
-    `${"#".padEnd(3)} ${"PASS".padEnd(5)} ${"LAYOUT".padEnd(14)} ${"TOK".padEnd(8)} ${"MS".padEnd(7)} NOTE`,
-  );
-  console.log("─".repeat(70));
-  for (const r of results) {
+  console.log("\nRESULTS");
+  console.log(`${"#".padEnd(3)} ${"PASS".padEnd(5)} ${"TOK".padEnd(8)} ${"MS".padEnd(7)} ${"SCENES".padEnd(42)} NOTE`);
+  console.log("-".repeat(90));
+  for (const result of results) {
     console.log(
-      `${String(r.idx).padEnd(3)} ${(r.pass ? "✅" : "❌").padEnd(5)} ${r.layout.padEnd(14)} ${(r.totalTokens != null ? String(r.totalTokens) : "-").padEnd(8)} ${String(r.elapsedMs).padEnd(7)} ${r.note}`,
+      `${String(result.idx).padEnd(3)} ${(result.pass ? "yes" : "no").padEnd(5)} ` +
+      `${String(result.totalTokens ?? "-").padEnd(8)} ${String(result.elapsedMs).padEnd(7)} ` +
+      `${result.sceneSummary.slice(0, 40).padEnd(42)} ${result.note}`,
     );
   }
-  console.log("─".repeat(70));
-  console.log(`\nPassed ${passed}/${total} (${rate}%)`);
 
-  const totTok = results.reduce((s, r) => s + (r.totalTokens ?? 0), 0);
-  const totPromptTok = results.reduce((s, r) => s + (r.promptTokens ?? 0), 0);
-  const totCompletionTok = results.reduce((s, r) => s + (r.completionTokens ?? 0), 0);
-  const avgMs = Math.round(results.reduce((s, r) => s + r.elapsedMs, 0) / results.length);
-  console.log(
-    `Totals — prompt: ${totPromptTok}  completion: ${totCompletionTok}  total: ${totTok} tokens  |  avg elapsed: ${avgMs}ms`,
-  );
-
-  const threshold = 80;
-  if (rate >= threshold) {
-    console.log(`✅ Eval passed — ≥${threshold}% success rate\n`);
-    process.exit(0);
-  } else {
-    console.log(`❌ Eval failed — below ${threshold}% threshold\n`);
-    process.exit(1);
-  }
+  console.log(`\nPassed ${passed}/${results.length} (${rate}%)`);
+  process.exit(rate >= 80 ? 0 : 1);
 }
 
-runEval().catch((err) => {
-  console.error("Eval harness crashed:", err);
+runEval().catch((error) => {
+  console.error("Eval harness crashed:", error);
   process.exit(1);
 });
