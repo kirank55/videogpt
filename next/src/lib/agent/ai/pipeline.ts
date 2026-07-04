@@ -25,7 +25,11 @@ import { callOpenRouter, callOpenRouterStream, type Usage } from "@/lib/agent/ai
 import { buildSystemPrompt, buildModifyPrompt } from "@/lib/agent/ai/prompts";
 import { parseLLMResponse, type LLMResponse } from "@/lib/agent/schemas/llmResponse";
 import { validateBrief } from "@/lib/agent/brief/validateBrief";
-import { buildProjectFromBrief, hydrateBrief } from "@/lib/agent/brief/buildProjectFromBrief";
+import {
+  buildProjectFromBriefWithDiagnostics,
+  hydrateBrief,
+  type BriefExpansionDiagnostics,
+} from "@/lib/agent/brief/buildProjectFromBrief";
 import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
 import type { VideoProject }     from "@/lib/ui/renderer";
 
@@ -40,6 +44,8 @@ export interface PipelineDiagnostics {
   rawBrief?: unknown;
   /** OpenRouter token usage for the call (when the provider returns it). */
   usage?: Usage;
+  /** Developer-only deterministic layout decisions from brief expansion. */
+  layout?: BriefExpansionDiagnostics["layout"];
 }
 
 export interface PipelineResult {
@@ -121,9 +127,14 @@ function expandResponse(
 ): { response: LLMResponse; project: VideoProject; diagnostics: PipelineDiagnostics } {
   const response = parseLLMResponse(raw);
   const brief    = hydrateBrief(response.brief);
-  const project  = buildProjectFromBrief(brief, duration);
+  const expanded = buildProjectFromBriefWithDiagnostics(brief, duration);
+  const project  = expanded.project;
   project.name   = response.projectName;
-  return { response: { ...response, brief }, project, diagnostics: { phase: "6b-llm", ...extras } };
+  return {
+    response: { ...response, brief },
+    project,
+    diagnostics: { phase: "6b-llm", layout: expanded.diagnostics.layout, ...extras },
+  };
 }
 
 /**
@@ -138,7 +149,13 @@ async function runIntake(
   userPrompt: string,
   duration: SupportedDuration,
   opts: PipelineOptions,
-  onFallback: () => { brief: VideoBrief; project: VideoProject; projectName?: string; summary?: string },
+  onFallback: () => {
+    brief: VideoBrief;
+    project: VideoProject;
+    projectName?: string;
+    summary?: string;
+    layout?: BriefExpansionDiagnostics["layout"];
+  },
 ): Promise<PipelineResult> {
   const emit = opts.onEvent ?? (() => {});
 
@@ -176,13 +193,13 @@ async function runIntake(
     };
   } catch (err) {
     const llmError = err instanceof Error ? err.message : String(err);
-    const { brief, project, projectName, summary } = onFallback();
+    const { brief, project, projectName, summary, layout } = onFallback();
     return {
       project,
       brief,
       projectName: projectName ?? brief.title,
       summary:     summary ?? "",
-      diagnostics: { phase: "6b-llm", llmError },
+      diagnostics: { phase: "6b-llm", llmError, layout },
     };
   }
 }
@@ -204,7 +221,8 @@ export async function runGeneratePipeline(
   const systemPrompt = buildSystemPrompt(duration);
   return runIntake(systemPrompt, userPrompt, duration, opts, () => {
     const brief = fallbackBrief(userPrompt.slice(0, 60) || "Untitled");
-    return { brief, project: buildProjectFromBrief(brief, duration) };
+    const expanded = buildProjectFromBriefWithDiagnostics(brief, duration);
+    return { brief, project: expanded.project, layout: expanded.diagnostics.layout };
   });
 }
 
@@ -226,8 +244,12 @@ export async function runModifyPipeline(
 ): Promise<PipelineResult> {
   const systemPrompt = buildSystemPrompt(duration);
   const userPrompt   = buildModifyPrompt(currentBrief, instruction);
-  return runIntake(systemPrompt, userPrompt, duration, opts, () => ({
-    brief: currentBrief,
-    project: buildProjectFromBrief(currentBrief, duration),
-  }));
+  return runIntake(systemPrompt, userPrompt, duration, opts, () => {
+    const expanded = buildProjectFromBriefWithDiagnostics(currentBrief, duration);
+    return {
+      brief: currentBrief,
+      project: expanded.project,
+      layout: expanded.diagnostics.layout,
+    };
+  });
 }

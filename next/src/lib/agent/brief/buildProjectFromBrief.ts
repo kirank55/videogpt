@@ -15,7 +15,13 @@ import type {
 } from "@/lib/agent/schemas/brief";
 import { PALETTES, DEFAULT_PALETTE, type PaletteSpec } from "@/lib/others/catalog/palettes";
 import { STYLES, DEFAULT_STYLE, type StyleSpec } from "@/lib/others/catalog/styles";
-import { layoutGraph, type LaidOutEdge, type LaidOutNode, type Rect } from "./graphLayout";
+import {
+  layoutScene,
+  type SceneLayoutDiagnostics,
+  type SceneLayoutEdge,
+  type SceneLayoutNode,
+  type SceneLayoutPlan,
+} from "./sceneLayout";
 import {
   W,
   H,
@@ -27,7 +33,7 @@ import {
   closingOpacity,
   resolveColors,
   scaleParticles,
-  pickIconForLabel,
+  resolveIconForLabel,
   transitionValue,
   estimateTextLines,
   resolveTitleFontSize,
@@ -38,6 +44,15 @@ export type SceneSlice = {
   start: number;
   end: number;
   duration: number;
+};
+
+export type BriefExpansionDiagnostics = {
+  layout: SceneLayoutDiagnostics[];
+};
+
+export type BriefExpansionResult = {
+  project: VideoProject;
+  diagnostics: BriefExpansionDiagnostics;
 };
 
 const ENTRY_ANIMATIONS: EntryAnimation[] = [
@@ -92,6 +107,40 @@ export function splitDurationAcrossScenes(
       duration: parseFloat((end - start).toFixed(3)),
     };
   });
+}
+
+function bookendTiming(
+  duration: number,
+  sceneCount: number,
+  hasClosing: boolean,
+): {
+  introDuration: number;
+  closingDuration: number;
+  contentStart: number;
+  contentEnd: number;
+} {
+  const baseBookend = duration <= 5 ? 0.85 : duration <= 10 ? 1.05 : duration <= 15 ? 1.35 : 1.5;
+  const gap = duration <= 5 ? 0.08 : 0.18;
+  const closingDuration = hasClosing ? baseBookend : 0;
+  const gapTotal = gap + (hasClosing ? gap : 0);
+  const minContent = Math.min(duration * 0.7, Math.max(sceneCount * 1.15, 0.8));
+  const reserved = baseBookend + closingDuration + gapTotal;
+  const scale = duration - reserved < minContent
+    ? Math.max(0.35, (duration - minContent) / Math.max(reserved, 0.001))
+    : 1;
+  const introDuration = parseFloat((baseBookend * scale).toFixed(3));
+  const scaledClosing = parseFloat((closingDuration * scale).toFixed(3));
+  const scaledGap = parseFloat((gap * scale).toFixed(3));
+  const contentStart = parseFloat((introDuration + scaledGap).toFixed(3));
+  const contentEnd = parseFloat((duration - scaledClosing - (hasClosing ? scaledGap : 0)).toFixed(3));
+  const safeContentEnd = Math.min(duration, Math.max(contentStart + 0.5, contentEnd));
+
+  return {
+    introDuration,
+    closingDuration: scaledClosing,
+    contentStart,
+    contentEnd: safeContentEnd,
+  };
 }
 
 export function hydrateBrief(brief: VideoBrief): VideoBrief {
@@ -264,9 +313,15 @@ function headingEvent(
   const titleFS = resolveTitleFontSize(brief.titleSize);
   const titleLH = Math.round(titleFS * 1.12);
   const align = brief.titleAlign ?? "left";
-  const x = align === "center" ? W / 2 : 140;
-  const y = align === "center" ? 86 : 78;
   const maxWidth = align === "center" ? 1380 : 1260;
+  const subtitleMaxWidth = align === "center" ? 1100 : 900;
+  const subtitleFS = 30;
+  const subtitleLH = 36;
+  const titleLines = estimateTextLines(brief.title, titleFS, maxWidth);
+  const subtitleLines = brief.subtitle ? estimateTextLines(brief.subtitle, subtitleFS, subtitleMaxWidth) : 0;
+  const titleBlockHeight = titleLines * titleLH + (brief.subtitle ? 16 + subtitleLines * subtitleLH : 0);
+  const x = align === "center" ? W / 2 : 140;
+  const y = align === "center" ? Math.round(H / 2 - titleBlockHeight / 2) : 78;
   const titleEnd = Math.max(0.8, titleDuration);
   const glow = gb(style);
 
@@ -298,7 +353,6 @@ function headingEvent(
   });
 
   if (brief.subtitle) {
-    const titleLines = estimateTextLines(brief.title, titleFS, maxWidth);
     events.push({
       id: "subtitle",
       type: "text",
@@ -308,10 +362,11 @@ function headingEvent(
       text: brief.subtitle,
       x,
       y: y + titleLines * titleLH + 16,
-      maxWidth: align === "center" ? 1100 : 900,
+      maxWidth: subtitleMaxWidth,
       color: palette.muted,
-      fontSize: 30,
+      fontSize: subtitleFS,
       fontWeight: 500,
+      lineHeight: subtitleLH,
       align: align === "center" ? "center" : undefined,
       opacity: revealOpacity(Math.min(0.2, titleEnd - 0.1), titleEnd, style.easing, 0.45, 0.45),
       translateY: {
@@ -332,37 +387,10 @@ function pushIfValid(events: TimelineEvent[], event: TimelineEvent) {
   if (event.end > event.start) events.push(event);
 }
 
-function blockTextLayout(box: Rect, style: BlockStyle): {
-  iconX: number;
-  iconY: number;
-  textX: number;
-  headingY: number;
-  descY: number;
-  maxWidth: number;
-} {
-  if (style === "numbered") {
-    return {
-      iconX: box.x + 92,
-      iconY: box.y + 42,
-      textX: box.x + 132,
-      headingY: box.y + 12,
-      descY: box.y + 48,
-      maxWidth: box.width - 145,
-    };
-  }
-  return {
-    iconX: box.x + 34,
-    iconY: box.y + 36,
-    textX: box.x + 76,
-    headingY: box.y + 16,
-    descY: box.y + 51,
-    maxWidth: box.width - 96,
-  };
-}
-
 function addBlockEvents(
   events: TimelineEvent[],
   scene: Scene,
+  plan: SceneLayoutPlan,
   palette: PaletteSpec,
   style: StyleSpec,
   slice: SceneSlice,
@@ -373,11 +401,10 @@ function addBlockEvents(
   const glow = gb(style);
   const stagger = Math.min(0.28, slice.duration / Math.max(scene.blocks.length * 8, 12));
   const blockStyle = scene.blockStyle;
-  const layout = layoutGraph(scene.graph, scene.blocks, scene.diagramLayout, { width: W, height: H });
 
   if (blockStyle === "timeline") {
-    layout.blockBoxes.slice(0, -1).forEach((box, index) => {
-      const next = layout.blockBoxes[index + 1];
+    plan.blocks.slice(0, -1).forEach((box, index) => {
+      const next = plan.blocks[index + 1];
       if (!next) return;
       const start = ce(contentStart + index * stagger + 0.2, slice.end);
       pushIfValid(events, {
@@ -399,14 +426,12 @@ function addBlockEvents(
     });
   }
 
-  scene.blocks.forEach((block, index) => {
-    const box = layout.blockBoxes[index];
-    if (!box) return;
+  plan.blocks.forEach((box, index) => {
+    const block = box.block;
     const start = ce(contentStart + index * stagger, slice.end);
     const textStart = ce(start + 0.08, slice.end);
     const isEmphasized = scene.emphasizeIndex === index;
     const accent = isEmphasized ? palette.accent2 : palette.accent1;
-    const { iconX, iconY, textX, headingY, descY, maxWidth } = blockTextLayout(box, blockStyle);
 
     if (blockStyle === "cards") {
       pushIfValid(events, {
@@ -464,7 +489,7 @@ function addBlockEvents(
       });
     }
 
-    const iconName = block.icon ?? pickIconForLabel(block.heading, seededHash(block.heading) ^ indexSeed);
+    const iconName = resolveIconForLabel(block.heading, block.icon, seededHash(block.heading) ^ indexSeed);
     pushIfValid(events, {
       id: `scene-${indexSeed}-block-icon-${index}`,
       type: "shape",
@@ -473,8 +498,8 @@ function addBlockEvents(
       end: slice.end,
       layer: 5,
       iconName,
-      cx: iconX,
-      cy: iconY,
+      cx: box.iconX,
+      cy: box.iconY,
       size: isEmphasized ? 42 : 34,
       color: accent,
       shadow: glow > 0 ? { color: accent, blur: Math.round(glow * 0.35) } : undefined,
@@ -487,41 +512,43 @@ function addBlockEvents(
       start: textStart,
       end: slice.end,
       layer: 5,
-      text: block.heading,
-      x: textX,
-      y: headingY,
-      maxWidth,
+      text: box.headingFit.text,
+      x: box.textX,
+      y: box.headingY,
+      maxWidth: box.maxWidth,
       color: palette.text,
-      fontSize: scene.blocks.length > 3 ? 24 : 28,
+      fontSize: box.headingFit.fontSize,
       fontWeight: isEmphasized ? 900 : 750,
-      lineHeight: scene.blocks.length > 3 ? 29 : 34,
+      lineHeight: box.headingFit.lineHeight,
       shadow: glow > 0 && isEmphasized ? { color: palette.glow, blur: Math.round(glow * 0.3) } : undefined,
       ...baseMotion(scene, textStart, slice.end, ease),
     });
 
-    pushIfValid(events, {
-      id: `scene-${indexSeed}-block-desc-${index}`,
-      type: "text",
-      start: ce(textStart + 0.1, slice.end),
-      end: slice.end,
-      layer: 5,
-      text: block.description,
-      x: textX,
-      y: descY,
-      maxWidth,
-      color: palette.muted,
-      fontSize: scene.blocks.length > 3 ? 18 : 21,
-      fontWeight: 450,
-      lineHeight: scene.blocks.length > 3 ? 24 : 28,
-      ...baseMotion(scene, ce(textStart + 0.1, slice.end), slice.end, ease),
-    });
+    if (box.descriptionFit.text) {
+      pushIfValid(events, {
+        id: `scene-${indexSeed}-block-desc-${index}`,
+        type: "text",
+        start: ce(textStart + 0.1, slice.end),
+        end: slice.end,
+        layer: 5,
+        text: box.descriptionFit.text,
+        x: box.textX,
+        y: box.descY,
+        maxWidth: box.maxWidth,
+        color: palette.muted,
+        fontSize: box.descriptionFit.fontSize,
+        fontWeight: 450,
+        lineHeight: box.descriptionFit.lineHeight,
+        ...baseMotion(scene, ce(textStart + 0.1, slice.end), slice.end, ease),
+      });
+    }
   });
 }
 
 function addNodeEvents(
   events: TimelineEvent[],
   scene: Scene,
-  node: LaidOutNode,
+  node: SceneLayoutNode,
   palette: PaletteSpec,
   style: StyleSpec,
   slice: SceneSlice,
@@ -533,7 +560,7 @@ function addNodeEvents(
   const glow = gb(style);
   const isEmphasized = scene.emphasizeIndex === nodeIndex;
   const accent = colorFromToken(node.color, palette, isEmphasized ? palette.accent2 : palette.accent1);
-  const iconName: IconName = node.icon ?? pickIconForLabel(node.label, seededHash(node.label) ^ sceneIndex);
+  const iconName: IconName = resolveIconForLabel(node.label, node.icon, seededHash(node.label) ^ sceneIndex);
 
   pushIfValid(events, {
     id: `scene-${sceneIndex}-node-${node.id}`,
@@ -550,7 +577,7 @@ function addNodeEvents(
     fill: palette.surface,
     stroke: accent,
     strokeWidth: isEmphasized ? style.strokeWeight * 1.5 : style.strokeWeight,
-    shadow: glow > 0 ? { color: accent, blur: Math.round(glow * 0.5) } : undefined,
+    shadow: glow > 0 && isEmphasized ? { color: accent, blur: Math.round(glow * 0.5) } : undefined,
     ...baseMotion(scene, start, slice.end, ease),
   });
 
@@ -575,14 +602,14 @@ function addNodeEvents(
     start: ce(start + 0.12, slice.end),
     end: slice.end,
     layer: 5,
-    text: node.label,
-    x: node.x + 72,
-    y: node.cy,
-    maxWidth: node.width - 90,
+    text: node.labelFit.text,
+    x: node.labelX,
+    y: node.labelY,
+    maxWidth: node.labelMaxWidth,
     color: palette.text,
-    fontSize: node.label.length > 18 ? 18 : 22,
+    fontSize: node.labelFit.fontSize,
     fontWeight: isEmphasized ? 900 : 750,
-    lineHeight: node.label.length > 18 ? 22 : 26,
+    lineHeight: node.labelFit.lineHeight,
     verticalAlign: "middle",
     ...baseMotion(scene, ce(start + 0.12, slice.end), slice.end, ease),
   });
@@ -591,7 +618,7 @@ function addNodeEvents(
 function addEdgeEvents(
   events: TimelineEvent[],
   scene: Scene,
-  edge: LaidOutEdge,
+  edge: SceneLayoutEdge,
   palette: PaletteSpec,
   style: StyleSpec,
   slice: SceneSlice,
@@ -634,13 +661,13 @@ function addEdgeEvents(
       layer: 5,
       text: edge.label,
       x: edge.labelX,
-      y: edge.labelY - 12,
+      y: edge.labelY,
       maxWidth: 260,
       color: palette.text,
       fontSize: 18,
       fontWeight: 750,
       align: "center",
-      verticalAlign: "bottom",
+      verticalAlign: "middle",
       backdrop: {
         fill: palette.surface,
         stroke: withAlpha(palette.text, 0.14),
@@ -710,6 +737,7 @@ function addSceneEvents(
   style: StyleSpec,
   sceneIndex: number,
   duration: number,
+  diagnostics: SceneLayoutDiagnostics[],
 ) {
   const palette = resolveColors(basePalette, scene.colorOverrides);
   const glow = gb(style);
@@ -719,7 +747,8 @@ function addSceneEvents(
   const headingStart = ce(slice.start + 0.08, duration);
   const headingEase = scene.actEasings?.heading ?? style.easing;
   const contentEase = scene.actEasings?.content ?? style.easing;
-  const layout = layoutGraph(scene.graph, scene.blocks, scene.diagramLayout, { width: W, height: H });
+  const plan = layoutScene(scene, { width: W, height: H });
+  diagnostics.push(plan.diagnostics);
 
   if (sceneIndex > 0 && scene.transition !== "none") {
     pushIfValid(events, {
@@ -777,10 +806,10 @@ function addSceneEvents(
     });
   }
 
-  addBlockEvents(events, scene, palette, style, slice, contentStart, sceneIndex);
+  addBlockEvents(events, scene, plan, palette, style, slice, contentStart, sceneIndex);
 
-  const nodeStagger = Math.min(0.22, slice.duration / Math.max(layout.nodes.length * 10, 14));
-  layout.nodes.forEach((node, index) => {
+  const nodeStagger = Math.min(0.22, slice.duration / Math.max(plan.nodes.length * 10, 14));
+  plan.nodes.forEach((node, index) => {
     addNodeEvents(
       events,
       scene,
@@ -794,8 +823,8 @@ function addSceneEvents(
     );
   });
 
-  const edgeStagger = Math.min(0.18, slice.duration / Math.max(layout.edges.length * 10, 12));
-  layout.edges.forEach((edge, index) => {
+  const edgeStagger = Math.min(0.18, slice.duration / Math.max(plan.edges.length * 10, 12));
+  plan.edges.forEach((edge, index) => {
     addEdgeEvents(
       events,
       scene,
@@ -870,14 +899,15 @@ function addClosingEvents(
   }
 }
 
-export function buildProjectFromBrief(
+export function buildProjectFromBriefWithDiagnostics(
   rawBrief: VideoBrief,
   duration: SupportedDuration,
-): VideoProject {
+): BriefExpansionResult {
   const brief = hydrateBrief(rawBrief);
   const basePalette = PALETTES[brief.palette] ?? PALETTES[DEFAULT_PALETTE];
   const style = STYLES[brief.style] ?? STYLES[DEFAULT_STYLE];
   const events: TimelineEvent[] = [];
+  const layoutDiagnostics: SceneLayoutDiagnostics[] = [];
 
   const background: TimelineEvent = {
     id: "bg",
@@ -914,19 +944,26 @@ export function buildProjectFromBrief(
     });
   }
 
+  const hasClosing = (brief.closingStyle ?? "fade-up") !== "none";
+  const timing = bookendTiming(duration, brief.scenes.length, hasClosing);
+  const contentDuration = Math.max(0.5, timing.contentEnd - timing.contentStart);
   const slices = splitDurationAcrossScenes(
-    duration,
+    contentDuration,
     brief.scenes.map((scene) => scene.sceneWeight),
-  );
-  const titleDuration = Math.min(2.5, slices[0].duration * 0.3);
-  const closingDuration = Math.min(2.5, slices[slices.length - 1].duration * 0.3);
+  ).map((slice) => ({
+    start: parseFloat((slice.start + timing.contentStart).toFixed(3)),
+    end: parseFloat((slice.end + timing.contentStart).toFixed(3)),
+    duration: slice.duration,
+  }));
+  const titleDuration = timing.introDuration;
+  const closingDuration = timing.closingDuration;
 
   events.push(...headingEvent(brief, basePalette, style, titleDuration));
 
   brief.scenes.forEach((scene, index) => {
     const slice = slices[index];
     if (!slice) return;
-    addSceneEvents(events, scene, slice, basePalette, style, index, duration);
+    addSceneEvents(events, scene, slice, basePalette, style, index, duration, layoutDiagnostics);
   });
 
   if (brief.decorations?.decoBaseline !== false) {
@@ -938,9 +975,9 @@ export function buildProjectFromBrief(
       end: duration,
       layer: 1,
       x1: 110,
-      y1: 928,
+      y1: 964,
       x2: W - 110,
-      y2: 928,
+      y2: 964,
       stroke: withAlpha(basePalette.accent1Glow, 0.28),
       lineWidth: Math.max(1.5, style.strokeWeight),
       lineDash: style.lineDash ?? [14, 10],
@@ -950,7 +987,7 @@ export function buildProjectFromBrief(
 
   addClosingEvents(events, brief, basePalette, style, duration, closingDuration);
 
-  return {
+  const project: VideoProject = {
     id: `brief-${Date.now()}`,
     name: brief.title,
     width: W,
@@ -960,4 +997,18 @@ export function buildProjectFromBrief(
       .filter((event) => event.end > event.start)
       .sort((a, b) => (a.start - b.start) || (a.layer - b.layer)),
   };
+
+  return {
+    project,
+    diagnostics: {
+      layout: layoutDiagnostics,
+    },
+  };
+}
+
+export function buildProjectFromBrief(
+  rawBrief: VideoBrief,
+  duration: SupportedDuration,
+): VideoProject {
+  return buildProjectFromBriefWithDiagnostics(rawBrief, duration).project;
 }

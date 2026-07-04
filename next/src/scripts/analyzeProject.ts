@@ -233,9 +233,24 @@ function checkTextFitsInRect(
     issues2.push(warn(`maxWidth (${textEvent.maxWidth}) extends to x:${textRight}, rect ends at x:${parent.x + parent.width} — text may overflow`));
   }
 
+  if (textEvent.id.includes("block-heading") || textEvent.id.includes("block-desc")) {
+    const textBox = staticBBox(textEvent);
+    if (!textBox) return issues2;
+
+    if (textBox.y1 < parent.y || textBox.y2 > parent.y + parent.height) {
+      issues2.push(err(
+        `stacked block text y:${Math.round(textBox.y1)}-${Math.round(textBox.y2)} escapes parent rect y:${parent.y}-${parent.y + parent.height} -> [${parent.id}]`,
+      ));
+    } else {
+      issues2.push(ok(`stacked block text stays inside [${parent.id}]`));
+    }
+    return issues2;
+  }
+
   // Vertical centering quality
   const rectCenterY = parent.y + parent.height / 2;
-  const textCenterY = textEvent.y + textEvent.fontSize / 2;
+  const textBox = staticBBox(textEvent);
+  const textCenterY = textBox ? (textBox.y1 + textBox.y2) / 2 : textEvent.y + textEvent.fontSize / 2;
   const centerOffset = Math.abs(rectCenterY - textCenterY);
   if (centerOffset <= 10) {
     issues2.push(ok(`vertically centered (offset: ${Math.round(centerOffset)}px)`));

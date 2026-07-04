@@ -89,6 +89,7 @@ describe("pipeline intake interface", () => {
     expect(callOpenRouterStreamMock).not.toHaveBeenCalled();
     expect(result.diagnostics.llmError).toBeUndefined();
     expect(result.diagnostics.rawBrief).toBe(RAW_BRIEF);
+    expect(result.diagnostics.layout).toHaveLength(1);
     expect(result.brief.title).toBe("Test Title");
     expect(result.project.events.length).toBeGreaterThan(0);
   });

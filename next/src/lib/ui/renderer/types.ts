@@ -123,7 +123,15 @@ export type IconName =
   | "shield"
   | "cpu"
   | "cache"
-  | "app";
+  | "app"
+  | "building"
+  | "foundation"
+  | "beam"
+  | "floor"
+  | "elevator"
+  | "wall"
+  | "wrench"
+  | "water";
 
 export type ShapeEvent = BaseTimelineEvent &
   (

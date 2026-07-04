@@ -41,14 +41,14 @@ export type GraphLayoutResult = {
   blockBoxes: Rect[];
 };
 
-const NODE_MIN_W = 170;
-const NODE_MAX_W = 280;
+const NODE_MIN_W = 190;
+const NODE_MAX_W = 330;
 const NODE_H = 96;
 const OUTER_X = 140;
 const BOTTOM_Y = 870;
 
 function nodeWidth(label: string): number {
-  return clamp(120 + label.length * 8, NODE_MIN_W, NODE_MAX_W);
+  return clamp(150 + label.length * 8, NODE_MIN_W, NODE_MAX_W);
 }
 
 function makeNode(node: BriefGraphNode, cx: number, cy: number): LaidOutNode {
@@ -75,25 +75,71 @@ function pipelineNodes(nodes: BriefGraphNode[], canvas: CanvasBox): LaidOutNode[
   return nodes.map((node, index) => makeNode(node, xs[index], 420));
 }
 
-function clientServerNodes(nodes: BriefGraphNode[], canvas: CanvasBox): LaidOutNode[] {
-  const split = Math.max(1, Math.ceil(nodes.length / 2));
-  const left = nodes.slice(0, split);
-  const right = nodes.slice(split);
-  const leftYs = distribute(left.length, 335, 675);
-  const rightYs = distribute(Math.max(1, right.length), 335, 675);
+function clientServerGroups(graph: BriefGraph): {
+  left: BriefGraphNode[];
+  center: BriefGraphNode[];
+  right: BriefGraphNode[];
+} {
+  const explicitLeft = graph.nodes.filter((node) => node.layoutRole === "client" || node.layoutRole === "source");
+  const explicitRight = graph.nodes.filter((node) => node.layoutRole === "server" || node.layoutRole === "sink");
+  const explicitCenter = graph.nodes.filter((node) => node.layoutRole === "shared" || node.layoutRole === "step");
+  const explicitIds = new Set([...explicitLeft, ...explicitRight, ...explicitCenter].map((node) => node.id));
+  const remaining = graph.nodes.filter((node) => !explicitIds.has(node.id));
+
+  if (explicitLeft.length > 0 || explicitRight.length > 0) {
+    const split = Math.ceil(remaining.length / 2);
+    return {
+      left: [...explicitLeft, ...remaining.slice(0, split)],
+      center: explicitCenter,
+      right: [...explicitRight, ...remaining.slice(split)],
+    };
+  }
+
+  const inDegree = new Map(graph.nodes.map((node) => [node.id, 0]));
+  const outDegree = new Map(graph.nodes.map((node) => [node.id, 0]));
+  for (const edge of graph.edges) {
+    outDegree.set(edge.from, (outDegree.get(edge.from) ?? 0) + 1);
+    inDegree.set(edge.to, (inDegree.get(edge.to) ?? 0) + 1);
+  }
+
+  const inferredLeft = graph.nodes.filter((node) => (outDegree.get(node.id) ?? 0) > (inDegree.get(node.id) ?? 0));
+  const inferredRight = graph.nodes.filter((node) => (inDegree.get(node.id) ?? 0) > (outDegree.get(node.id) ?? 0));
+  const inferredIds = new Set([...inferredLeft, ...inferredRight].map((node) => node.id));
+  const inferredCenter = graph.nodes.filter((node) => !inferredIds.has(node.id));
+
+  if (inferredLeft.length > 0 && inferredRight.length > 0) {
+    return { left: inferredLeft, center: inferredCenter, right: inferredRight };
+  }
+
+  const split = Math.max(1, Math.ceil(graph.nodes.length / 2));
+  return {
+    left: graph.nodes.slice(0, split),
+    center: [],
+    right: graph.nodes.slice(split),
+  };
+}
+
+function clientServerNodes(graph: BriefGraph, canvas: CanvasBox): LaidOutNode[] {
+  const { left, center, right } = clientServerGroups(graph);
+  const leftYs = distribute(left.length, 330, 660);
+  const rightYs = distribute(Math.max(1, right.length), 330, 660);
+  const centerYs = distribute(center.length, 385, 605);
 
   return [
     ...left.map((node, index) => makeNode(node, OUTER_X + 270, leftYs[index])),
+    ...center.map((node, index) => makeNode(node, canvas.width / 2, centerYs[index])),
     ...right.map((node, index) => makeNode(node, canvas.width - OUTER_X - 270, rightYs[index])),
   ];
 }
 
 function hubSpokeNodes(nodes: BriefGraphNode[], canvas: CanvasBox): LaidOutNode[] {
-  const [hub, ...spokes] = nodes;
+  const explicitHubIndex = nodes.findIndex((node) => node.layoutRole === "hub");
+  const hub = explicitHubIndex >= 0 ? nodes[explicitHubIndex] : nodes[0];
+  const spokes = nodes.filter((node) => node.id !== hub.id);
   const cx = canvas.width / 2;
-  const cy = 485;
+  const cy = 530;
   const radiusX = 520;
-  const radiusY = 235;
+  const radiusY = 185;
 
   return [
     makeNode(hub, cx, cy),
@@ -118,7 +164,7 @@ function layoutNodes(
     case "pipeline":
       return pipelineNodes(graph.nodes, canvas);
     case "client-server":
-      return clientServerNodes(graph.nodes, canvas);
+      return clientServerNodes(graph, canvas);
     case "hub-spoke":
       return hubSpokeNodes(graph.nodes, canvas);
     case "stack":
@@ -162,9 +208,9 @@ function blockBoxesFor(
   const width = (usableW - gap * (blocks.length - 1)) / blocks.length;
   return blocks.map((_, index) => ({
     x: OUTER_X + index * (width + gap),
-    y: strategy === "hub-spoke" ? 800 : 585,
+    y: strategy === "hub-spoke" ? 780 : 585,
     width,
-    height: strategy === "hub-spoke" ? 110 : 132,
+    height: strategy === "hub-spoke" ? 142 : 132,
   }));
 }
 
@@ -203,6 +249,9 @@ function layoutEdges(graph: BriefGraph, nodes: LaidOutNode[]): LaidOutEdge[] {
     const toCenter = { x: to.cx, y: to.cy };
     const start = clipLineToRect(fromCenter, toCenter, from);
     const end = clipLineToRect(toCenter, fromCenter, to);
+    const midX = (start.x + end.x) / 2;
+    const midY = (start.y + end.y) / 2;
+    const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
 
     return [{
       ...edge,
@@ -210,9 +259,9 @@ function layoutEdges(graph: BriefGraph, nodes: LaidOutNode[]): LaidOutEdge[] {
       y1: start.y,
       x2: end.x,
       y2: end.y,
-      labelX: (start.x + end.x) / 2,
-      labelY: (start.y + end.y) / 2,
-      path: [fromCenter, toCenter],
+      labelX: horizontal ? midX : midX + 128,
+      labelY: horizontal ? midY - 52 : midY,
+      path: [start, end],
     }];
   });
 }

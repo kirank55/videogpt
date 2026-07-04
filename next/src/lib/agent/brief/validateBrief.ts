@@ -14,6 +14,7 @@ import {
   DiagramLayoutSchema,
   EntryAnimationSchema,
   ICON_NAMES,
+  LayoutRoleSchema,
   TRANSITION_PRESETS,
   TitleSizeSchema,
   TransitionPresetSchema,
@@ -21,12 +22,14 @@ import {
 import { EasingNameSchema } from "@/lib/others/schemas/timeline";
 import { DEFAULT_PALETTE, PALETTES } from "@/lib/others/catalog/palettes";
 import { DEFAULT_STYLE, STYLES } from "@/lib/others/catalog/styles";
+import { SCENE_CONTENT_BUDGETS } from "@/lib/agent/brief/sceneLayout/constants";
 
 const VALID_PALETTES = new Set(Object.keys(PALETTES));
 const VALID_STYLES = new Set(Object.keys(STYLES));
 
 const IconNameSchema = z.enum(ICON_NAMES).catch("gear");
 const EasingSchema = EasingNameSchema.catch("easeInOut");
+const LenientLayoutRoleSchema = LayoutRoleSchema.optional().catch(undefined);
 
 const LenientBlockSchema = z.object({
   heading: z.string().min(1).catch("Key Point"),
@@ -39,6 +42,7 @@ const LenientNodeSchema = z.object({
   label: z.string().min(1).catch("Node"),
   icon: IconNameSchema.optional().catch(undefined),
   kind: z.string().optional().catch(undefined),
+  layoutRole: LenientLayoutRoleSchema,
   color: z.string().optional().catch(undefined),
 }).catch({ id: "node", label: "Node" });
 
@@ -142,11 +146,16 @@ function slugId(value: string, fallback: string): string {
   return slug || fallback;
 }
 
-function normaliseBlocks(raw: LenientScene["blocks"] | LenientBrief["blocks"]): BriefBlock[] {
+function normaliseBlocks(
+  raw: LenientScene["blocks"] | LenientBrief["blocks"],
+  layout: DiagramLayout,
+): BriefBlock[] {
+  const budget = SCENE_CONTENT_BUDGETS[layout];
   const blocks = (raw ?? []).filter((block): block is BriefBlock =>
     block !== null && typeof block === "object" && Boolean(block.heading) && Boolean(block.description),
   );
-  return [...blocks, ...DEFAULT_BLOCKS].slice(0, Math.max(2, Math.min(5, blocks.length || 2)));
+  const count = Math.max(2, Math.min(budget.maxBlocks, blocks.length || 2));
+  return [...blocks, ...DEFAULT_BLOCKS].slice(0, count);
 }
 
 function graphFromBlocks(blocks: BriefBlock[], layout: DiagramLayout): BriefGraph {
@@ -166,6 +175,60 @@ function graphFromBlocks(blocks: BriefBlock[], layout: DiagramLayout): BriefGrap
         }));
 
   return { nodes, edges };
+}
+
+function trimNodesToBudget(
+  nodes: BriefGraphNode[],
+  edges: BriefGraphEdge[],
+  layout: DiagramLayout,
+): BriefGraphNode[] {
+  const maxNodes = SCENE_CONTENT_BUDGETS[layout].maxNodes;
+  if (nodes.length <= maxNodes) return nodes;
+
+  const animatedRefs = new Set<string>();
+  for (const edge of edges) {
+    if (!edge.animated) continue;
+    animatedRefs.add(edge.from);
+    animatedRefs.add(edge.to);
+  }
+
+  const dropped = new Set<string>();
+  for (let index = nodes.length - 1; index >= 0 && nodes.length - dropped.size > maxNodes; index -= 1) {
+    const node = nodes[index];
+    if (!animatedRefs.has(node.id)) dropped.add(node.id);
+  }
+  for (let index = nodes.length - 1; index >= 0 && nodes.length - dropped.size > maxNodes; index -= 1) {
+    dropped.add(nodes[index].id);
+  }
+
+  return nodes.filter((node) => !dropped.has(node.id));
+}
+
+function trimEdgesToBudget(edges: BriefGraphEdge[], layout: DiagramLayout): BriefGraphEdge[] {
+  const budget = SCENE_CONTENT_BUDGETS[layout];
+  let remaining = edges;
+
+  const animatedEdges = remaining.filter((edge) => edge.animated);
+  if (animatedEdges.length > budget.maxAnimatedEdges) {
+    let keptAnimated = 0;
+    remaining = remaining.filter((edge) => {
+      if (!edge.animated) return true;
+      keptAnimated += 1;
+      return keptAnimated <= budget.maxAnimatedEdges;
+    });
+  }
+
+  if (remaining.length <= budget.maxEdges) return remaining;
+
+  const drop = new Set<number>();
+  for (let index = remaining.length - 1; index >= 0 && remaining.length - drop.size > budget.maxEdges; index -= 1) {
+    if (!remaining[index].animated) drop.add(index);
+  }
+  for (let index = remaining.length - 1; index >= 0 && remaining.length - drop.size > budget.maxEdges; index -= 1) {
+    drop.add(index);
+  }
+
+  return remaining.filter((_, index) => !drop.has(index));
 }
 
 function normaliseGraph(raw: LenientScene["graph"], blocks: BriefBlock[], layout: DiagramLayout): BriefGraph {
@@ -192,6 +255,7 @@ function normaliseGraph(raw: LenientScene["graph"], blocks: BriefBlock[], layout
       label: rawNode.label,
       icon: rawNode.icon,
       kind: rawNode.kind,
+      layoutRole: rawNode.layoutRole,
       color: rawNode.color,
     });
   }
@@ -214,11 +278,17 @@ function normaliseGraph(raw: LenientScene["graph"], blocks: BriefBlock[], layout
     });
   }
 
+  const budgetedNodes = trimNodesToBudget(nodes, edges, layout);
+  const budgetedIds = new Set(budgetedNodes.map((node) => node.id));
+  const budgetedEdges = trimEdgesToBudget(edges.filter(
+    (edge) => budgetedIds.has(edge.from) && budgetedIds.has(edge.to),
+  ), layout);
+
   return {
-    nodes,
-    edges: edges.length > 0 ? edges : graphFromBlocks(blocks, layout).edges.filter(
+    nodes: budgetedNodes,
+    edges: budgetedEdges.length > 0 ? budgetedEdges : graphFromBlocks(blocks, layout).edges.filter(
       (edge) => ids.has(edge.from) && ids.has(edge.to),
-    ),
+    ).filter((edge) => budgetedIds.has(edge.from) && budgetedIds.has(edge.to)),
   };
 }
 
@@ -273,8 +343,8 @@ function sceneFromLegacy(parsed: LenientBrief): LenientScene {
 }
 
 function normaliseScene(raw: LenientScene, index: number, title: string): Scene {
-  const blocks = normaliseBlocks(raw.blocks);
   const layout = raw.diagramLayout ?? "stack";
+  const blocks = normaliseBlocks(raw.blocks, layout);
   const transition = raw.transition ?? TRANSITION_PRESETS[(index + 1) % TRANSITION_PRESETS.length];
 
   return {

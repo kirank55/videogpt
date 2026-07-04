@@ -63,6 +63,14 @@ export const ICON_NAMES = [
   "cpu",
   "cache",
   "app",
+  "building",
+  "foundation",
+  "beam",
+  "floor",
+  "elevator",
+  "wall",
+  "wrench",
+  "water",
 ] as const;
 
 export type IconName = (typeof ICON_NAMES)[number];
@@ -79,6 +87,18 @@ export const DiagramLayoutSchema = z.enum([
   "stack",
 ]);
 export type DiagramLayout = z.infer<typeof DiagramLayoutSchema>;
+
+export const LayoutRoleSchema = z.enum([
+  "client",
+  "server",
+  "shared",
+  "hub",
+  "spoke",
+  "source",
+  "step",
+  "sink",
+]);
+export type LayoutRole = z.infer<typeof LayoutRoleSchema>;
 
 export const EntryAnimationSchema = z.enum([
   "slide-up",
@@ -112,6 +132,7 @@ export const GraphNodeSchema = z.object({
   label: z.string().min(1),
   icon: IconNameSchema.optional(),
   kind: z.string().optional(),
+  layoutRole: LayoutRoleSchema.optional(),
   color: z.string().optional(),
 });
 export type BriefGraphNode = z.infer<typeof GraphNodeSchema>;

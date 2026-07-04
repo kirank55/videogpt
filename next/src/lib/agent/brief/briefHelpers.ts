@@ -38,6 +38,14 @@ export function mulberry32(seed: number): () => number {
 }
 
 const ICON_KEYWORDS: [string[], IconName][] = [
+  [["skyscraper", "tower", "building", "shell", "interior", "fit-out", "fitout", "ceiling", "finish"], "building"],
+  [["foundation", "bedrock", "anchor", "pile", "caisson", "concrete mat", "mat"], "foundation"],
+  [["steel", "frame", "beam", "column", "superstructure"], "beam"],
+  [["floor", "deck", "slab", "decking"], "floor"],
+  [["elevator", "lift", "core", "stair"], "elevator"],
+  [["facade", "curtain", "wall", "glass panel", "panel"], "wall"],
+  [["mep", "mechanical", "electrical", "plumbing", "utility", "utilities", "system"], "wrench"],
+  [["water", "waterproof", "drainage", "groundwater", "membrane"], "water"],
   [["browser", "chrome", "firefox", "client", "ui", "frontend", "web", "app"], "browser"],
   [["server", "nginx", "apache", "backend", "host"], "server"],
   [["database", "db", "sql", "mongo", "postgres", "mysql", "sqlite", "redis"], "database"],
@@ -71,14 +79,56 @@ const ALL_ICONS: IconName[] = [
   "cpu",
   "cache",
   "app",
+  "building",
+  "foundation",
+  "beam",
+  "floor",
+  "elevator",
+  "wall",
+  "wrench",
+  "water",
 ];
 
-export function pickIconForLabel(label: string, seed: number): IconName {
+const DOMAIN_ICONS = new Set<IconName>([
+  "building",
+  "foundation",
+  "beam",
+  "floor",
+  "elevator",
+  "wall",
+  "wrench",
+  "water",
+]);
+
+function pickKeywordIconForLabel(label: string): IconName | undefined {
   const lower = label.toLowerCase();
   for (const [keywords, icon] of ICON_KEYWORDS) {
     if (keywords.some((kw) => lower.includes(kw))) return icon;
   }
+  return undefined;
+}
+
+export function pickIconForLabel(label: string, seed: number): IconName {
+  const keywordIcon = pickKeywordIconForLabel(label);
+  if (keywordIcon) return keywordIcon;
   return seededChoice(ALL_ICONS, seededHash(label) ^ seed);
+}
+
+export function resolveIconForLabel(
+  label: string,
+  provided: IconName | undefined,
+  seed: number,
+): IconName {
+  const keywordIcon = pickKeywordIconForLabel(label);
+  if (
+    provided &&
+    keywordIcon &&
+    DOMAIN_ICONS.has(keywordIcon) &&
+    !DOMAIN_ICONS.has(provided)
+  ) {
+    return keywordIcon;
+  }
+  return provided ?? keywordIcon ?? seededChoice(ALL_ICONS, seededHash(label) ^ seed);
 }
 
 export function transitionValue(

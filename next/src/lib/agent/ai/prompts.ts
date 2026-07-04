@@ -16,6 +16,14 @@ const ICONS = [
   "cpu",
   "cache",
   "app",
+  "building",
+  "foundation",
+  "beam",
+  "floor",
+  "elevator",
+  "wall",
+  "wrench",
+  "water",
 ] as const;
 
 const PALETTE_CATALOG = `
@@ -61,12 +69,22 @@ diagramLayout choices:
   "stack" - layered architecture, hierarchy, vertical build-up
 
 Node:
-  { id, label, icon?, kind?, color? }
+  { id, label, icon?, kind?, layoutRole?, color? }
   id must be unique inside the scene, lowercase-ish and stable.
+  kind is visual/semantic flavor. layoutRole is only for placement.
+  layoutRole values: client, server, shared, hub, spoke, source, step, sink.
+  Use client/server/shared for client-server, hub/spoke for hub-spoke, and source/step/sink for pipeline.
 
 Edge:
   { from, to, label?, animated?, packetLabel?, packetColor? }
   Use animated:true for request/response, data movement, handoffs, and feedback loops.
+
+CONTENT BUDGETS:
+  pipeline: max 5 nodes, max 5 blocks.
+  client-server: max 6 nodes, max 4 blocks.
+  hub-spoke: max 5 nodes, max 4 blocks.
+  stack: max 5 nodes, max 5 blocks.
+  All layouts: max 4 animated edges.
 `.trim();
 
 const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
@@ -146,6 +164,10 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
                     label: { type: "string", maxLength: 50 },
                     icon: { type: "string", enum: [...ICONS] },
                     kind: { type: "string", maxLength: 30 },
+                    layoutRole: {
+                      type: "string",
+                      enum: ["client", "server", "shared", "hub", "spoke", "source", "step", "sink"],
+                    },
                     color: { type: "string", description: "Optional color token or CSS color." },
                   },
                 },
@@ -263,6 +285,8 @@ ${GRAPH_GUIDE}
 
 ICONS:
   ${ICONS.join(" ")}
+  Prefer concrete domain icons when the topic is physical or built-world:
+  building/foundation/beam/floor/elevator/wall/wrench/water.
 
 ${PALETTE_CATALOG}
 
@@ -274,7 +298,12 @@ CONSTRAINTS:
   - Output only the JSON envelope.
   - Do not output coordinates, absolute timing numbers, or renderer event objects.
   - Every edge.from/edge.to must reference a node id in the same scene.
+  - Use layoutRole to clarify placement when a strategy has semantic positions.
+  - Stay within the layout-specific content budgets from the graph guide.
   - Use animated edges when motion helps explain flow.
+  - Use at most 4 animated edges in a scene.
+  - Do not force software metaphors onto physical, historical, medical, or civic topics.
+  - For real-world processes, keep labels and stage order domain-accurate.
   - Keep text concise; the renderer wraps labels but cramped text makes weaker videos.
   - Schema reference: ${JSON.stringify(LLM_RESPONSE_ENVELOPE_SCHEMA)}
 `.trim();

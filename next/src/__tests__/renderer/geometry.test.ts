@@ -122,7 +122,10 @@ describe("geometry seam", () => {
 
   it("getStaticEventBounds honours text align", () => {
     const left = getStaticEventBounds(textEvent({ align: "left" }))!;
-    expect(left).toEqual({ left: 50, top: 60, right: 350, bottom: 132 });
+    expect(left.left).toBe(50);
+    expect(left.top).toBe(60);
+    expect(left.right).toBe(350);
+    expect(left.bottom).toBeCloseTo(87.6);
     const centered = getStaticEventBounds(textEvent({ align: "center" }))!;
     expect(centered.left).toBe(50 - 150);
     expect(centered.right).toBe(50 + 150);

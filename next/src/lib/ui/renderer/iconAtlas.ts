@@ -282,6 +282,143 @@ function iconApp(ctx: CanvasRenderingContext2D) {
 
 // ── Atlas registry ────────────────────────────────────────────────────────────
 
+function iconBuilding(ctx: CanvasRenderingContext2D) {
+  ctx.beginPath();
+  ctx.roundRect(-0.58, -0.88, 1.16, 1.76, 0.08);
+  ctx.stroke();
+  for (let row = 0; row < 4; row += 1) {
+    for (let col = 0; col < 2; col += 1) {
+      ctx.beginPath();
+      ctx.roundRect(-0.35 + col * 0.48, -0.6 + row * 0.36, 0.22, 0.18, 0.03);
+      ctx.stroke();
+    }
+  }
+  ctx.beginPath();
+  ctx.moveTo(-0.78, 0.88);
+  ctx.lineTo(0.78, 0.88);
+  ctx.stroke();
+}
+
+function iconFoundation(ctx: CanvasRenderingContext2D) {
+  ctx.beginPath();
+  ctx.moveTo(-0.85, 0.5);
+  ctx.lineTo(-0.55, 0.35);
+  ctx.lineTo(-0.2, 0.55);
+  ctx.lineTo(0.18, 0.32);
+  ctx.lineTo(0.55, 0.52);
+  ctx.lineTo(0.85, 0.38);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-0.62, -0.62);
+  ctx.lineTo(0.62, -0.62);
+  ctx.lineTo(0.48, -0.25);
+  ctx.lineTo(-0.48, -0.25);
+  ctx.closePath();
+  ctx.stroke();
+  for (const x of [-0.34, 0, 0.34]) {
+    ctx.beginPath();
+    ctx.moveTo(x, -0.25);
+    ctx.lineTo(x, 0.42);
+    ctx.stroke();
+  }
+}
+
+function iconBeam(ctx: CanvasRenderingContext2D) {
+  ctx.beginPath();
+  ctx.roundRect(-0.8, -0.78, 1.6, 0.24, 0.04);
+  ctx.roundRect(-0.8, 0.54, 1.6, 0.24, 0.04);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-0.18, -0.54);
+  ctx.lineTo(-0.18, 0.54);
+  ctx.moveTo(0.18, -0.54);
+  ctx.lineTo(0.18, 0.54);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-0.18, -0.15);
+  ctx.lineTo(0.18, 0.15);
+  ctx.moveTo(0.18, -0.15);
+  ctx.lineTo(-0.18, 0.15);
+  ctx.stroke();
+}
+
+function iconFloor(ctx: CanvasRenderingContext2D) {
+  for (let i = 0; i < 4; i += 1) {
+    const y = -0.58 + i * 0.38;
+    ctx.beginPath();
+    ctx.moveTo(-0.78, y);
+    ctx.lineTo(0.48, y);
+    ctx.lineTo(0.78, y + 0.16);
+    ctx.lineTo(-0.48, y + 0.16);
+    ctx.closePath();
+    ctx.stroke();
+  }
+}
+
+function iconElevator(ctx: CanvasRenderingContext2D) {
+  ctx.beginPath();
+  ctx.roundRect(-0.5, -0.86, 1.0, 1.72, 0.08);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, -0.86);
+  ctx.lineTo(0, 0.86);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-0.24, -0.38);
+  ctx.lineTo(-0.08, -0.58);
+  ctx.lineTo(0.08, -0.38);
+  ctx.moveTo(-0.24, 0.38);
+  ctx.lineTo(-0.08, 0.58);
+  ctx.lineTo(0.08, 0.38);
+  ctx.stroke();
+}
+
+function iconWall(ctx: CanvasRenderingContext2D) {
+  ctx.beginPath();
+  ctx.roundRect(-0.82, -0.72, 1.64, 1.44, 0.08);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-0.27, -0.72);
+  ctx.lineTo(-0.27, 0.72);
+  ctx.moveTo(0.27, -0.72);
+  ctx.lineTo(0.27, 0.72);
+  ctx.moveTo(-0.82, -0.24);
+  ctx.lineTo(0.82, -0.24);
+  ctx.moveTo(-0.82, 0.24);
+  ctx.lineTo(0.82, 0.24);
+  ctx.stroke();
+}
+
+function iconWrench(ctx: CanvasRenderingContext2D) {
+  ctx.beginPath();
+  ctx.arc(-0.38, -0.42, 0.34, Math.PI * 0.25, Math.PI * 1.45);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-0.14, -0.18);
+  ctx.lineTo(0.62, 0.58);
+  ctx.lineTo(0.46, 0.74);
+  ctx.lineTo(-0.3, -0.02);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0.6, 0.6, 0.16, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function iconWater(ctx: CanvasRenderingContext2D) {
+  ctx.beginPath();
+  ctx.moveTo(0, -0.85);
+  ctx.bezierCurveTo(0.48, -0.28, 0.68, 0.05, 0.68, 0.38);
+  ctx.bezierCurveTo(0.68, 0.75, 0.38, 0.92, 0, 0.92);
+  ctx.bezierCurveTo(-0.38, 0.92, -0.68, 0.75, -0.68, 0.38);
+  ctx.bezierCurveTo(-0.68, 0.05, -0.48, -0.28, 0, -0.85);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-0.32, 0.34);
+  ctx.quadraticCurveTo(0, 0.16, 0.32, 0.34);
+  ctx.stroke();
+}
+
 const ICON_ATLAS: Record<IconName, IconDrawFn> = {
   browser:  iconBrowser,
   server:   iconServer,
@@ -298,6 +435,14 @@ const ICON_ATLAS: Record<IconName, IconDrawFn> = {
   cpu:      iconCpu,
   cache:    iconCache,
   app:      iconApp,
+  building: iconBuilding,
+  foundation: iconFoundation,
+  beam:     iconBeam,
+  floor:    iconFloor,
+  elevator: iconElevator,
+  wall:     iconWall,
+  wrench:   iconWrench,
+  water:    iconWater,
 };
 
 // ── External interface ────────────────────────────────────────────────────────

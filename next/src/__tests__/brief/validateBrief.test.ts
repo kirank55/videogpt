@@ -155,4 +155,66 @@ describe("validateBrief", () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(result.scenes[0].graph.edges).toEqual([]);
   });
+
+  it("preserves valid layout roles and drops invalid ones", () => {
+    const result = validateBrief(validSceneBrief({
+      scenes: [
+        {
+          heading: "Roles",
+          diagramLayout: "client-server",
+          blocks: [
+            { heading: "Client", description: "First." },
+            { heading: "Server", description: "Second." },
+          ],
+          graph: {
+            nodes: [
+              { id: "client", label: "Client", layoutRole: "client" },
+              { id: "server", label: "Server", layoutRole: "server" },
+              { id: "bad", label: "Bad", layoutRole: "elsewhere" },
+            ],
+            edges: [{ from: "client", to: "server", animated: true }],
+          },
+        },
+      ],
+    }));
+
+    expect(result.scenes[0].graph.nodes[0].layoutRole).toBe("client");
+    expect(result.scenes[0].graph.nodes[1].layoutRole).toBe("server");
+    expect(result.scenes[0].graph.nodes[2].layoutRole).toBeUndefined();
+  });
+
+  it("enforces layout-specific budgets without splitting scenes", () => {
+    const result = validateBrief(validSceneBrief({
+      scenes: [
+        {
+          heading: "Over Budget",
+          diagramLayout: "client-server",
+          blocks: Array.from({ length: 6 }, (_, index) => ({
+            heading: `Block ${index + 1}`,
+            description: "Description",
+          })),
+          graph: {
+            nodes: Array.from({ length: 8 }, (_, index) => ({
+              id: `n${index + 1}`,
+              label: `Node ${index + 1}`,
+            })),
+            edges: [
+              { from: "n1", to: "n2", animated: true },
+              { from: "n2", to: "n3", animated: true },
+              { from: "n3", to: "n4", animated: true },
+              { from: "n7", to: "n8", animated: true },
+              { from: "n4", to: "n7", animated: true },
+            ],
+          },
+        },
+      ],
+    }));
+
+    const scene = result.scenes[0];
+    expect(result.scenes).toHaveLength(1);
+    expect(scene.blocks).toHaveLength(4);
+    expect(scene.graph.nodes).toHaveLength(6);
+    expect(scene.graph.nodes.map((node) => node.id)).toEqual(["n1", "n2", "n3", "n4", "n7", "n8"]);
+    expect(scene.graph.edges.filter((edge) => edge.animated)).toHaveLength(4);
+  });
 });

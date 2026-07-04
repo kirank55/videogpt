@@ -16,6 +16,8 @@ import type {
 
 export type Bounds = { left: number; top: number; right: number; bottom: number };
 
+type TextLikeEvent = Extract<TimelineEvent, { type: "text" }>;
+
 // ── AnimatedValue helpers ─────────────────────────────────────────────────────
 
 /** Type guard for the multi-keyframe variant of an AnimatedValue. */
@@ -89,6 +91,36 @@ function scaleBox(bounds: Bounds, scale: number, cx: number, cy: number): Bounds
   };
 }
 
+function estimateTextLineCount(text: string, fontSize: number, maxWidth: number): number {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 1;
+
+  const charWidth = fontSize * 0.58;
+  let lines = 1;
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length * charWidth <= maxWidth || !current) {
+      current = candidate;
+    } else {
+      lines += 1;
+      current = word;
+    }
+  }
+  return lines;
+}
+
+function getTextHeight(event: TextLikeEvent): number {
+  const lineHeight = event.lineHeight ?? event.fontSize * 1.15;
+  return estimateTextLineCount(event.text, event.fontSize, event.maxWidth) * lineHeight;
+}
+
+function getTextTop(event: TextLikeEvent, y: number, height: number): number {
+  if (event.verticalAlign === "middle") return y - height / 2;
+  if (event.verticalAlign === "bottom") return y - height;
+  return y;
+}
+
 /** Static (un-animated) bounding box of an event, or null for background/particle. */
 export function getStaticEventBounds(event: TimelineEvent): Bounds | null {
   switch (event.type) {
@@ -105,8 +137,9 @@ export function getStaticEventBounds(event: TimelineEvent): Bounds | null {
         left = event.x - event.maxWidth;
         right = event.x;
       }
-      const top = event.y;
-      const bottom = event.y + event.fontSize * 3;
+      const height = getTextHeight(event);
+      const top = getTextTop(event, event.y, height);
+      const bottom = top + height;
       return { left, top, right, bottom };
     }
     case "shape": {
@@ -178,8 +211,10 @@ export function getEventBounds(event: TimelineEvent): Bounds | null {
         left = event.x - event.maxWidth + txBounds.min;
         right = event.x + txBounds.max;
       }
-      const top = event.y + tyBounds.min;
-      const bottom = event.y + event.fontSize * 3 + tyBounds.max;
+      const height = getTextHeight(event);
+      const baseTop = getTextTop(event, event.y, height);
+      const top = baseTop + tyBounds.min;
+      const bottom = baseTop + height + tyBounds.max;
       return scaleBox({ left, top, right, bottom }, maxScale, event.x, event.y);
     }
     case "shape": {
