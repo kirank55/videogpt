@@ -1,12 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { PALETTES, DEFAULT_PALETTE } from "@/lib/others/catalog/palettes";
 import { STYLES, DEFAULT_STYLE } from "@/lib/others/catalog/styles";
-import { TIMINGS } from "@/lib/others/catalog/timings";
-import { SUPPORTED_DURATIONS } from "@/lib/agent/schemas/brief";
 import type { PaletteSpec } from "@/lib/others/catalog/palettes";
 import type { StyleSpec } from "@/lib/others/catalog/styles";
-
-// ── Required fields for each catalog entry ─────────────────────────────────
 
 const PALETTE_FIELDS: (keyof PaletteSpec)[] = [
   "bgFrom",
@@ -43,12 +39,9 @@ const STYLE_FIELDS: (keyof StyleSpec)[] = [
   "particleDensity",
 ];
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 describe("Catalog", () => {
-  // ── Palettes ────────────────────────────────────────────────────────────
-
   const paletteEntries = Object.entries(PALETTES);
+  const styleEntries = Object.entries(STYLES);
 
   it("has at least 6 named palettes", () => {
     expect(paletteEntries.length).toBeGreaterThanOrEqual(6);
@@ -96,10 +89,6 @@ describe("Catalog", () => {
     },
   );
 
-  // ── Styles ──────────────────────────────────────────────────────────────
-
-  const styleEntries = Object.entries(STYLES);
-
   it("has at least 4 named styles", () => {
     expect(styleEntries.length).toBeGreaterThanOrEqual(4);
   });
@@ -141,54 +130,6 @@ describe("Catalog", () => {
         "bounce",
       ];
       expect(validEasings).toContain(spec.easing);
-    },
-  );
-
-  // ── Timings ─────────────────────────────────────────────────────────────
-
-  it("every supported duration has an act timing table", () => {
-    for (const dur of SUPPORTED_DURATIONS) {
-      expect(
-        TIMINGS[dur],
-        `timing table for ${dur}s must exist`,
-      ).toBeDefined();
-    }
-  });
-
-  it.each(Object.entries(TIMINGS))(
-    "timing table for %ss has all 5 acts",
-    (_dur, table) => {
-      expect(table.act1).toBeDefined();
-      expect(table.act2).toBeDefined();
-      expect(table.act3).toBeDefined();
-      expect(table.act4).toBeDefined();
-      expect(table.act5).toBeDefined();
-    },
-  );
-
-  it.each(Object.entries(TIMINGS))(
-    "timing table for %ss has contiguous acts",
-    (_dur, table) => {
-      // Each act end == next act start
-      expect(table.act1.end).toBeCloseTo(table.act2.start, 5);
-      expect(table.act2.end).toBeCloseTo(table.act3.start, 5);
-      expect(table.act3.end).toBeCloseTo(table.act4.start, 5);
-      expect(table.act4.end).toBeCloseTo(table.act5.start, 5);
-    },
-  );
-
-  it.each(SUPPORTED_DURATIONS)(
-    "timing table for %ds: act5.end matches the duration",
-    (dur) => {
-      expect(TIMINGS[dur].act5.end).toBeCloseTo(dur, 1);
-    },
-  );
-
-  it.each(Object.entries(TIMINGS))(
-    "timing table for %ss: all stagger values are positive",
-    (_dur, table) => {
-      expect(table.act2.stagger).toBeGreaterThan(0);
-      expect(table.act4.stepStagger).toBeGreaterThan(0);
     },
   );
 });

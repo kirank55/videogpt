@@ -4,8 +4,33 @@ import { useEffect, useRef, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useStore } from "@/lib/ui/store";
 import { TopBar } from "@/components/layout/TopBar";
-import { renderProjectFrame } from "@/lib/ui/renderer";
+import { renderProjectFrame, type VideoProject } from "@/lib/ui/renderer";
 import { visibleEvents } from "@/lib/ui/renderer/visibleEvents";
+
+type DiagnosticEdge = {
+  animated?: boolean;
+};
+
+type DiagnosticScene = {
+  sceneWeight?: number;
+  entryAnimation?: string;
+  emphasizeIndex?: number;
+  blockStyle?: string;
+  diagramLayout?: string;
+  graph?: {
+    nodes?: unknown[];
+    edges?: DiagnosticEdge[];
+  };
+};
+
+type DiagnosticBrief = {
+  title?: string;
+  titleSize?: string;
+  titleAlign?: string;
+  palette?: string;
+  style?: string;
+  scenes?: DiagnosticScene[];
+};
 
 // ── Frame Thumbnail Component ────────────────────────────────────────────────
 function FrameThumbnail({
@@ -14,7 +39,7 @@ function FrameThumbnail({
   onClick,
   active,
 }: {
-  project: any;
+  project: VideoProject;
   time: number;
   onClick: () => void;
   active: boolean;
@@ -77,7 +102,7 @@ function FrameThumbnail({
 }
 
 // ── Interactive Rendering Explanation Component ────────────────────────────────
-function RenderingExplanation({ brief, project, duration }: { brief: any; project: any; duration: number }) {
+function RenderingExplanation({ brief, project }: { brief: DiagnosticBrief | undefined; project: VideoProject | undefined }) {
   if (!brief || !project) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center text-muted-foreground italic text-xs">
@@ -86,10 +111,17 @@ function RenderingExplanation({ brief, project, duration }: { brief: any; projec
     );
   }
 
-  const isTwoColumn = brief.layout === "two-column";
+  const scenes = Array.isArray(brief.scenes) ? brief.scenes : [];
+  const firstScene = scenes[0] ?? {};
+  const graphNodeCount = scenes.reduce((sum, scene) => sum + (scene.graph?.nodes?.length ?? 0), 0);
+  const graphEdgeCount = scenes.reduce((sum, scene) => sum + (scene.graph?.edges?.length ?? 0), 0);
+  const animatedEdgeCount = scenes.reduce(
+    (sum, scene) => sum + (scene.graph?.edges?.filter((edge) => edge.animated).length ?? 0),
+    0,
+  );
 
   const getEventTiming = (idPrefix: string) => {
-    const ev = project.events.find((e: any) => e.id === idPrefix || e.id?.startsWith(idPrefix));
+    const ev = project.events.find((e) => e.id === idPrefix || e.id.startsWith(idPrefix));
     if (!ev) return "Inactive";
     return `${ev.start.toFixed(1)}s – ${ev.end.toFixed(1)}s`;
   };
@@ -100,8 +132,8 @@ function RenderingExplanation({ brief, project, duration }: { brief: any; projec
       <div className="p-4 rounded-xl border border-border/60 bg-foreground/1 space-y-2">
         <div className="flex items-center justify-between">
           <span className="font-bold text-foreground text-sm">Brief Expansion Engine</span>
-          <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${isTwoColumn ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'}`}>
-            {brief.layout || "single-column"}
+          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            Graph
           </span>
         </div>
         <p className="text-[11px] leading-relaxed">
@@ -109,31 +141,31 @@ function RenderingExplanation({ brief, project, duration }: { brief: any; projec
         </p>
       </div>
 
-      {/* Timing Act Breakdown */}
+      {/* Timeline Breakdown */}
       <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Timeline Act Boundaries</h4>
+        <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Timeline Sections</h4>
         <p className="text-[11px] leading-relaxed">
-          AI weights <code className="bg-background px-1.5 py-0.5 rounded font-mono text-foreground">{JSON.stringify(brief.actWeights || [1, 1.5, 1, 1.5, 1])}</code> scale act timings proportionally. Active time-ranges extracted from compiled elements:
+          Scene weights <code className="bg-background px-1.5 py-0.5 rounded font-mono text-foreground">{JSON.stringify(scenes.map((scene) => scene.sceneWeight ?? 1))}</code> distribute the generated scenes. Active time-ranges are extracted from compiled elements:
         </p>
         <div className="grid grid-cols-5 gap-1.5 font-mono text-[9px]">
           <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Act 1: Title</span>
+            <span className="font-bold text-foreground">Title</span>
             <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("title")}</span>
           </div>
           <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Act 2: Stacks</span>
-            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("left-header")}</span>
+            <span className="font-bold text-foreground">Scene</span>
+            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("scene-0-heading")}</span>
           </div>
           <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Act 3: Flow Out</span>
-            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("req-packet")}</span>
+            <span className="font-bold text-foreground">Edges</span>
+            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("scene-0-edge-")}</span>
           </div>
           <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Act 4: Process</span>
-            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("step-progress-")}</span>
+            <span className="font-bold text-foreground">Packets</span>
+            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("scene-0-packet-")}</span>
           </div>
           <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Act 5: Outro</span>
+            <span className="font-bold text-foreground">Closing</span>
             <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("closing-line")}</span>
           </div>
         </div>
@@ -145,23 +177,23 @@ function RenderingExplanation({ brief, project, duration }: { brief: any; projec
         <div className="space-y-1 bg-background/40 p-2 rounded-xl border border-border/40 font-mono text-[9px]">
           <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
             <span className="text-foreground font-semibold">Layer 5 (Top): Text & Labels</span>
-            <span>Title, headers, outro, processing details</span>
+            <span>Title, scene headings, graph labels, outro</span>
           </div>
           <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
             <span className="text-foreground font-semibold">Layer 4: Tech Icons & Badges</span>
-            <span>Row icons, row labels, protocol annotation cards</span>
+            <span>Node icons, packet badges, highlighted details</span>
           </div>
           <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
             <span className="text-foreground font-semibold">Layer 3: Active Packets & Rings</span>
-            <span>Flowing request/response particles, pulse rings, progress bar fills</span>
+            <span>Path-animated packets and emphasized graph shapes</span>
           </div>
           <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
-            <span className="text-foreground font-semibold">Layer 2: Stack Card Rectangles</span>
-            <span>Row backgrounds, connector lines, request trails</span>
+            <span className="text-foreground font-semibold">Layer 2: Graph Structure</span>
+            <span>Node backgrounds, edge lines, block connectors</span>
           </div>
           <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
             <span className="text-foreground font-semibold">Layer 1: Accent Lines & Particles</span>
-            <span>Ambient particle systems, central divider, decoration limits</span>
+            <span>Ambient particle systems and global accents</span>
           </div>
           <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
             <span className="text-foreground font-semibold">Layer 0 (Base): Background Canvas</span>
@@ -185,65 +217,65 @@ function RenderingExplanation({ brief, project, duration }: { brief: any; projec
             <tbody className="divide-y divide-border/40 font-normal">
               <tr className="hover:bg-foreground/1">
                 <td className="p-2 font-mono font-semibold text-foreground">title</td>
-                <td className="p-2 italic text-foreground">"{brief.title}"</td>
+                <td className="p-2 italic text-foreground">{JSON.stringify(brief.title ?? "")}</td>
                 <td className="p-2 leading-relaxed">
                   Drawn on Layer 5 (ID: <code className="bg-background px-1 rounded text-foreground font-mono">title</code>). Formatted using sizing directive <code className="bg-background px-1 rounded font-mono">{brief.titleSize || "large"}</code> and aligned <code className="bg-background px-1 rounded font-mono">{brief.titleAlign || "left"}</code>.
                 </td>
               </tr>
               <tr className="hover:bg-foreground/1">
                 <td className="p-2 font-mono font-semibold text-foreground">palette</td>
-                <td className="p-2 font-mono text-foreground">"{brief.palette}"</td>
+                <td className="p-2 font-mono text-foreground">{JSON.stringify(brief.palette ?? "")}</td>
                 <td className="p-2 leading-relaxed">
                   Resolves background fills (Layer 0 ID: <code className="bg-background px-1 rounded text-foreground font-mono">bg</code>) and shapes styling via accent & surface values. Injected overrides are applied to accents or panels dynamically.
                 </td>
               </tr>
               <tr className="hover:bg-foreground/1">
                 <td className="p-2 font-mono font-semibold text-foreground">style</td>
-                <td className="p-2 font-mono text-foreground">"{brief.style}"</td>
+                <td className="p-2 font-mono text-foreground">{JSON.stringify(brief.style ?? "")}</td>
                 <td className="p-2 leading-relaxed">
                   Governs border radius, outline thicknesses, line dashed segments, and default easing functions.
                 </td>
               </tr>
               <tr className="hover:bg-foreground/1">
                 <td className="p-2 font-mono font-semibold text-foreground">entryAnimation</td>
-                <td className="p-2 font-mono text-foreground">"{brief.entryAnimation || "slide-up"}"</td>
+                <td className="p-2 font-mono text-foreground">{JSON.stringify(firstScene.entryAnimation || "slide-up")}</td>
                 <td className="p-2 leading-relaxed">
                   Drives translation vectors (e.g. translateY or scale bounce) from start position to final canvas layout configuration.
                 </td>
               </tr>
-              {isTwoColumn ? (
+              {graphNodeCount >= 0 ? (
                 <>
                   <tr className="hover:bg-foreground/1">
-                    <td className="p-2 font-mono font-semibold text-foreground">leftRows / rightRows</td>
+                    <td className="p-2 font-mono font-semibold text-foreground">graph.nodes</td>
                     <td className="p-2 leading-relaxed text-foreground">
-                      <div>Left ({brief.leftRows?.length || 0}): {brief.leftRows?.join(", ")}</div>
-                      <div className="mt-1">Right ({brief.rightRows?.length || 0}): {brief.rightRows?.join(", ")}</div>
+                      <div>{graphNodeCount} nodes</div>
+                      <div className="mt-1">{graphEdgeCount} edges</div>
                     </td>
                     <td className="p-2 leading-relaxed">
-                      Compiles into rectangle cards on Layer 2 and label texts on Layer 4. Icons correspond to keyword matches or fall back to seeded random choices.
+                      Nodes compile into rectangles, icons, and labels. Edges compile into connector lines.
                     </td>
                   </tr>
                   <tr className="hover:bg-foreground/1">
-                    <td className="p-2 font-mono font-semibold text-foreground">emphasizeLeft / emphasizeRight</td>
+                    <td className="p-2 font-mono font-semibold text-foreground">emphasizeIndex</td>
                     <td className="p-2 font-mono text-foreground">
-                      L: {brief.emphasizeLeft ?? 0}, R: {brief.emphasizeRight ?? 0}
+                      {firstScene.emphasizeIndex ?? 0}
                     </td>
                     <td className="p-2 leading-relaxed">
                       Indexes receive highlight focus: accent colors, thicker borders (1.5x), and glow shadow blurs.
                     </td>
                   </tr>
                   <tr className="hover:bg-foreground/1">
-                    <td className="p-2 font-mono font-semibold text-foreground">flow</td>
+                    <td className="p-2 font-mono font-semibold text-foreground">animatedEdges</td>
                     <td className="p-2 font-mono text-foreground font-semibold">
-                      {brief.flow ? "Enabled" : "Disabled"}
+                      {animatedEdgeCount}
                     </td>
                     <td className="p-2 leading-relaxed">
-                      {brief.flow ? (
+                      {animatedEdgeCount > 0 ? (
                         <span>
-                          Triggers request/response packets moving along curves, progress bars, processing steps with text annotations, and a roundtrip timeline overlay during Acts 3–5.
+                          Emits packet shapes that travel along animated graph edges.
                         </span>
                       ) : (
-                        <span>Static column cards display with no animated data transaction vectors.</span>
+                        <span>Static graph edges display without packet events.</span>
                       )}
                     </td>
                   </tr>
@@ -251,17 +283,17 @@ function RenderingExplanation({ brief, project, duration }: { brief: any; projec
               ) : (
                 <>
                   <tr className="hover:bg-foreground/1">
-                    <td className="p-2 font-mono font-semibold text-foreground">blocks</td>
+                    <td className="p-2 font-mono font-semibold text-foreground">scenes</td>
                     <td className="p-2 text-foreground">
-                      {brief.blocks?.length || 0} vertical elements
+                      {scenes.length} scene{scenes.length === 1 ? "" : "s"}
                     </td>
                     <td className="p-2 leading-relaxed">
-                      Generates content blocks stacked vertically with descriptions and icon illustrations.
+                      Scenes contain content blocks plus graph diagrams.
                     </td>
                   </tr>
                   <tr className="hover:bg-foreground/1">
                     <td className="p-2 font-mono font-semibold text-foreground">blockStyle</td>
-                    <td className="p-2 font-mono text-foreground">"{brief.blockStyle || "stacked"}"</td>
+                    <td className="p-2 font-mono text-foreground">{JSON.stringify(firstScene.blockStyle || "cards")}</td>
                     <td className="p-2 leading-relaxed">
                       Determines outline card bounds (<code className="bg-background px-1 rounded text-foreground font-mono">cards</code>), vertical dots (<code className="bg-background px-1 rounded text-foreground font-mono">timeline</code>), or serial counts (<code className="bg-background px-1 rounded text-foreground font-mono">numbered</code>).
                     </td>
@@ -458,15 +490,15 @@ function AdvanceWorkspace() {
                         </td>
                       </tr>
                       <tr className="border-b border-border/40 py-2">
-                        <td className="font-semibold text-foreground py-2.5">Layout Selector</td>
+                        <td className="font-semibold text-foreground py-2.5">Diagram Model</td>
                         <td className="font-mono text-[11px] bg-background px-2 py-0.5 rounded border border-border/40 inline-block text-foreground font-bold">
-                          {brief?.leftRows || brief?.rightRows ? "Two-Column" : "Single-Column"}
+                          Graph
                         </td>
                       </tr>
-                      {brief?.flow !== undefined && (
+                      {brief?.scenes && (
                         <tr className="border-b border-border/40 py-2">
-                          <td className="font-semibold text-foreground py-2.5">Data Flow Animations</td>
-                          <td className="text-foreground font-semibold">{brief.flow ? "Enabled" : "Disabled"}</td>
+                          <td className="font-semibold text-foreground py-2.5">Scenes</td>
+                          <td className="text-foreground font-semibold">{brief.scenes.length}</td>
                         </tr>
                       )}
                     </tbody>
@@ -482,7 +514,7 @@ function AdvanceWorkspace() {
             )}
 
             {activeTab === "explanation" && (
-              <RenderingExplanation brief={brief} project={project} duration={duration} />
+              <RenderingExplanation brief={brief} project={project} />
             )}
           </div>
         </section>
@@ -560,17 +592,17 @@ function AdvanceWorkspace() {
                         <span className="font-semibold text-foreground">Timing:</span>{" "}
                         {event.start.toFixed(1)}s – {event.end.toFixed(1)}s
                       </div>
-                      {/* Custom context summary based on properties */}
-                      {event.type === "text" && (event as any).properties?.text && (
+                      {/* Custom context summary based on event fields */}
+                      {event.type === "text" && (
                         <div className="text-[11px] border-t border-border/40 pt-1.5 mt-1">
                           <span className="font-semibold text-foreground">Content:</span>{" "}
-                          <span className="italic">"{(event as any).properties.text}"</span>
+                          <span className="italic">{JSON.stringify(event.text)}</span>
                         </div>
                       )}
-                      {event.type === "shape" && (event as any).properties?.shapeType && (
+                      {event.type === "shape" && (
                         <div className="text-[11px] border-t border-border/40 pt-1.5 mt-1">
                           <span className="font-semibold text-foreground">Shape:</span>{" "}
-                          {(event as any).properties.shapeType}
+                          {event.shapeType}
                         </div>
                       )}
                     </div>

@@ -103,21 +103,6 @@ const LenientBriefSchema = z.preprocess(
     }).optional().catch(undefined),
 
     scenes: z.array(LenientSceneSchema).transform((a) => a.slice(0, 8)).optional().catch(undefined),
-
-    // Legacy single-column/two-column fields. They are accepted only to build a
-    // one-scene fallback when the LLM or client has not moved to scenes yet.
-    layout: z.enum(["two-column", "single-column"]).optional().catch(undefined),
-    blocks: z.array(LenientBlockSchema).transform((a) => a.slice(0, 5)).optional().catch(undefined),
-    leftHeader: z.string().optional().catch(undefined),
-    rightHeader: z.string().optional().catch(undefined),
-    leftRows: z.array(z.string().min(1)).transform((a) => a.slice(0, 4)).optional().catch(undefined),
-    rightRows: z.array(z.string().min(1)).transform((a) => a.slice(0, 4)).optional().catch(undefined),
-    flow: z.boolean().optional().catch(undefined),
-    requestLabel: z.string().optional().catch(undefined),
-    responseLabel: z.string().optional().catch(undefined),
-    processingSteps: z.array(z.string().min(1)).transform((a) => a.slice(0, 3)).optional().catch(undefined),
-    entryAnimation: EntryAnimationSchema.optional().catch(undefined),
-    blockStyle: BlockStyleSchema.optional().catch(undefined),
   }),
 );
 
@@ -146,10 +131,7 @@ function slugId(value: string, fallback: string): string {
   return slug || fallback;
 }
 
-function normaliseBlocks(
-  raw: LenientScene["blocks"] | LenientBrief["blocks"],
-  layout: DiagramLayout,
-): BriefBlock[] {
+function normaliseBlocks(raw: LenientScene["blocks"], layout: DiagramLayout): BriefBlock[] {
   const budget = SCENE_CONTENT_BUDGETS[layout];
   const blocks = (raw ?? []).filter((block): block is BriefBlock =>
     block !== null && typeof block === "object" && Boolean(block.heading) && Boolean(block.description),
@@ -292,52 +274,14 @@ function normaliseGraph(raw: LenientScene["graph"], blocks: BriefBlock[], layout
   };
 }
 
-function sceneFromLegacy(parsed: LenientBrief): LenientScene {
-  if (parsed.layout === "two-column") {
-    const left = parsed.leftRows?.length ? parsed.leftRows : [parsed.leftHeader ?? "Client"];
-    const right = parsed.rightRows?.length ? parsed.rightRows : [parsed.rightHeader ?? "Server"];
-    return {
-      heading: parsed.subtitle ?? parsed.title,
-      diagramLayout: "client-server",
-      blocks: [
-        { heading: parsed.leftHeader ?? "Client", description: left.join(", ") },
-        { heading: parsed.rightHeader ?? "Server", description: right.join(", ") },
-        ...(parsed.processingSteps ?? []).map((step) => ({ heading: step, description: "Processing step." })),
-      ],
-      graph: {
-        nodes: [
-          ...left.map((label, index) => ({ id: `client-${index + 1}`, label })),
-          ...right.map((label, index) => ({ id: `server-${index + 1}`, label })),
-        ],
-        edges: parsed.flow
-          ? [
-              {
-                from: "client-1",
-                to: "server-1",
-                label: parsed.requestLabel ?? "Request",
-                animated: true,
-              },
-              {
-                from: "server-1",
-                to: "client-1",
-                label: parsed.responseLabel ?? "Response",
-                animated: true,
-              },
-            ]
-          : [],
-      },
-      entryAnimation: parsed.entryAnimation,
-      blockStyle: parsed.blockStyle,
-      transition: "fade",
-    };
-  }
-
+function defaultScene(parsed: LenientBrief): LenientScene {
   return {
     heading: parsed.subtitle ?? parsed.title,
     diagramLayout: "stack",
-    blocks: parsed.blocks,
-    entryAnimation: parsed.entryAnimation,
-    blockStyle: parsed.blockStyle,
+    blocks: DEFAULT_BLOCKS,
+    graph: graphFromBlocks(DEFAULT_BLOCKS, "stack"),
+    entryAnimation: "slide-up",
+    blockStyle: "cards",
     transition: "fade",
   };
 }
@@ -367,7 +311,7 @@ export function validateBrief(raw: unknown): VideoBrief {
   const rawScenes =
     parsed.scenes && parsed.scenes.length > 0
       ? parsed.scenes
-      : [sceneFromLegacy(parsed)];
+      : [defaultScene(parsed)];
 
   return {
     title: parsed.title,

@@ -21,28 +21,18 @@ function getChapters(project: VideoProject): Chapter[] {
     chapters.push({ name: "Title", time: 0 });
   }
 
-  const clientEvent = events.find(e => e.id === "client-header" || e.id === "client-rect" || e.id?.includes("browser"));
-  if (clientEvent) {
-    chapters.push({ name: "Client Setup", time: clientEvent.start });
-  }
+  events
+    .filter((e) => e.type === "text" && /^scene-\d+-heading$/.test(e.id))
+    .forEach((event) => {
+      const name = event.type === "text" ? event.text : "Scene";
+      if (!chapters.some(c => Math.abs(c.time - event.start) < 0.5)) {
+        chapters.push({ name, time: event.start });
+      }
+    });
 
-  const reqEvent = events.find(e => e.id === "req-label" || e.id === "req-packet" || e.id?.includes("request") || e.id?.includes("req"));
-  if (reqEvent) {
-    chapters.push({ name: "Request Flow", time: reqEvent.start });
-  }
-
-  const procEvent = events.find(e => e.id === "processing-glow" || e.id?.includes("processing") || e.id?.includes("logic") || e.id?.includes("api"));
-  if (procEvent) {
-    if (!chapters.some(c => Math.abs(c.time - procEvent.start) < 0.5)) {
-      chapters.push({ name: "Processing", time: procEvent.start });
-    }
-  }
-
-  const resEvent = events.find(e => e.id === "res-label" || e.id === "res-packet" || e.id?.includes("response") || e.id?.includes("res"));
-  if (resEvent) {
-    if (!chapters.some(c => Math.abs(c.time - resEvent.start) < 0.5)) {
-      chapters.push({ name: "Response Flow", time: resEvent.start });
-    }
+  const firstPacketEvent = events.find(e => e.id.includes("-packet-"));
+  if (firstPacketEvent && !chapters.some(c => Math.abs(c.time - firstPacketEvent.start) < 0.5)) {
+    chapters.push({ name: "Animated Flow", time: firstPacketEvent.start });
   }
 
   const outroEvent = events.find(e => e.id === "closing-line" || e.id === "outro-separator" || e.id?.includes("outro") || e.id?.includes("closing"));

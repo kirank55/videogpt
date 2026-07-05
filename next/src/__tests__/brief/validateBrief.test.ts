@@ -56,46 +56,23 @@ describe("validateBrief", () => {
     expect(result.scenes[0].graph.nodes.length).toBeGreaterThan(0);
   });
 
-  it("wraps legacy single-column blocks into one scene", () => {
+  it("ignores retired root-level layout fields and creates a graph scene fallback", () => {
     const result = validateBrief({
-      layout: "single-column",
-      title: "The Water Cycle",
+      layout: "retired-layout",
+      title: "Retired Layout",
       blocks: [
-        { heading: "Evaporation", description: "Water rises." },
-        { heading: "Condensation", description: "Clouds form." },
-        { heading: "Precipitation", description: "Rain falls." },
+        { heading: "Ignored Root Block", description: "This should not become a scene block." },
+        { heading: "Ignored Root Detail", description: "Scenes are the only authored content unit." },
       ],
       palette: "midnight",
       style: "modern",
     });
 
     expect(result.scenes).toHaveLength(1);
-    expect(result.scenes[0].heading).toBe("The Water Cycle");
-    expect(result.scenes[0].blocks).toHaveLength(3);
+    expect(result.scenes[0].heading).toBe("Retired Layout");
     expect(result.scenes[0].diagramLayout).toBe("stack");
-  });
-
-  it("wraps legacy two-column flow into a client-server scene", () => {
-    const result = validateBrief({
-      layout: "two-column",
-      title: "API Call",
-      leftHeader: "Client",
-      rightHeader: "Server",
-      leftRows: ["Browser"],
-      rightRows: ["API"],
-      flow: true,
-      requestLabel: "GET /api",
-      responseLabel: "200 OK",
-      palette: "midnight",
-      style: "modern",
-    });
-
-    expect(result.scenes).toHaveLength(1);
-    expect(result.scenes[0].diagramLayout).toBe("client-server");
-    expect(result.scenes[0].graph.edges).toEqual([
-      expect.objectContaining({ label: "GET /api", animated: true }),
-      expect.objectContaining({ label: "200 OK", animated: true }),
-    ]);
+    expect(result.scenes[0].graph.nodes.map((node) => node.label)).toEqual(["Key Point", "Key Detail"]);
+    expect(result.scenes[0].blocks.map((block) => block.heading)).toEqual(["Key Point", "Key Detail"]);
   });
 
   it("pads and truncates scene blocks to the 2-5 range", () => {
