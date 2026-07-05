@@ -23,6 +23,11 @@ import {
   type SceneLayoutPlan,
 } from "./sceneLayout";
 import {
+  compileStoryboardScene,
+  type StoryboardDrawingDiagnostics,
+  type StoryboardDrawingRegion,
+} from "./storyboardDrawing";
+import {
   W,
   H,
   ce,
@@ -48,6 +53,7 @@ export type SceneSlice = {
 
 export type BriefExpansionDiagnostics = {
   layout: SceneLayoutDiagnostics[];
+  storyboard: StoryboardDrawingDiagnostics[];
 };
 
 export type BriefExpansionResult = {
@@ -140,6 +146,43 @@ function bookendTiming(
     closingDuration: scaledClosing,
     contentStart,
     contentEnd: safeContentEnd,
+  };
+}
+
+function storyboardRegionForScene(
+  scene: Scene,
+  fallbackRegion: StoryboardDrawingRegion,
+): StoryboardDrawingRegion {
+  if (scene.diagramIntent.family === "graph-flow" || !scene.storyboard) {
+    return fallbackRegion;
+  }
+  return {
+    x: 220,
+    y: 270,
+    width: W - 440,
+    height: 620,
+  };
+}
+
+function isSetupContextScene(sceneIndex: number, sceneCount: number): boolean {
+  return sceneIndex === 0 && sceneCount > 1;
+}
+
+function setupContextScene(scene: Scene): Scene {
+  return {
+    ...scene,
+    storyboard: undefined,
+    emphasizeIndex: scene.emphasizeIndex ?? -1,
+  };
+}
+
+function setupStoryboardDiagnostics(scene: Scene): StoryboardDrawingDiagnostics {
+  return {
+    sceneHeading: scene.heading,
+    used: false,
+    stageCount: scene.storyboard?.stages.length ?? 0,
+    shapeCount: 0,
+    fallbackReason: "setup scene uses compact context rendering",
   };
 }
 
@@ -736,8 +779,10 @@ function addSceneEvents(
   basePalette: PaletteSpec,
   style: StyleSpec,
   sceneIndex: number,
+  sceneCount: number,
   duration: number,
   diagnostics: SceneLayoutDiagnostics[],
+  storyboardDiagnostics: StoryboardDrawingDiagnostics[],
 ) {
   const palette = resolveColors(basePalette, scene.colorOverrides);
   const glow = gb(style);
@@ -747,7 +792,9 @@ function addSceneEvents(
   const headingStart = ce(slice.start + 0.08, duration);
   const headingEase = scene.actEasings?.heading ?? style.easing;
   const contentEase = scene.actEasings?.content ?? style.easing;
-  const plan = layoutScene(scene, { width: W, height: H });
+  const isSetupScene = isSetupContextScene(sceneIndex, sceneCount);
+  const renderScene = isSetupScene ? setupContextScene(scene) : scene;
+  const plan = layoutScene(renderScene, { width: W, height: H });
   diagnostics.push(plan.diagnostics);
 
   if (sceneIndex > 0 && scene.transition !== "none") {
@@ -806,13 +853,32 @@ function addSceneEvents(
     });
   }
 
-  addBlockEvents(events, scene, plan, palette, style, slice, contentStart, sceneIndex);
+  if (isSetupScene) {
+    storyboardDiagnostics.push(setupStoryboardDiagnostics(scene));
+  } else {
+    const storyboard = compileStoryboardScene(
+      renderScene,
+      slice,
+      storyboardRegionForScene(renderScene, plan.regions.diagramRegion),
+      palette,
+      style,
+      sceneIndex,
+    );
+    storyboardDiagnostics.push(storyboard.diagnostics);
+
+    if (storyboard.diagnostics.used) {
+      events.push(...storyboard.events);
+      return;
+    }
+  }
+
+  addBlockEvents(events, renderScene, plan, palette, style, slice, contentStart, sceneIndex);
 
   const nodeStagger = Math.min(0.22, slice.duration / Math.max(plan.nodes.length * 10, 14));
   plan.nodes.forEach((node, index) => {
     addNodeEvents(
       events,
-      scene,
+      renderScene,
       node,
       palette,
       style,
@@ -827,7 +893,7 @@ function addSceneEvents(
   plan.edges.forEach((edge, index) => {
     addEdgeEvents(
       events,
-      scene,
+      renderScene,
       edge,
       palette,
       style,
@@ -908,6 +974,7 @@ export function buildProjectFromBriefWithDiagnostics(
   const style = STYLES[brief.style] ?? STYLES[DEFAULT_STYLE];
   const events: TimelineEvent[] = [];
   const layoutDiagnostics: SceneLayoutDiagnostics[] = [];
+  const storyboardDiagnostics: StoryboardDrawingDiagnostics[] = [];
 
   const background: TimelineEvent = {
     id: "bg",
@@ -963,7 +1030,18 @@ export function buildProjectFromBriefWithDiagnostics(
   brief.scenes.forEach((scene, index) => {
     const slice = slices[index];
     if (!slice) return;
-    addSceneEvents(events, scene, slice, basePalette, style, index, duration, layoutDiagnostics);
+    addSceneEvents(
+      events,
+      scene,
+      slice,
+      basePalette,
+      style,
+      index,
+      brief.scenes.length,
+      duration,
+      layoutDiagnostics,
+      storyboardDiagnostics,
+    );
   });
 
   if (brief.decorations?.decoBaseline !== false) {
@@ -1002,6 +1080,7 @@ export function buildProjectFromBriefWithDiagnostics(
     project,
     diagnostics: {
       layout: layoutDiagnostics,
+      storyboard: storyboardDiagnostics,
     },
   };
 }

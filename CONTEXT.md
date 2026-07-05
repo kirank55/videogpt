@@ -8,6 +8,10 @@ The context for translating natural-language prompts into animated infographic v
 The AI-authored, duration-agnostic description of *what* a video contains and *how* it feels. The expander computes *where* (coordinates) and *when* (timestamps) from it.
 _Avoid_: spec, config, project (a VideoProject is the expanded output)
 
+**Legacy Brief**:
+A previously generated brief that lacks the current scene or primitive diagram contract. Legacy Briefs are not a compatibility target for new generation; they may be discarded or rejected rather than migrated.
+_Avoid_: old project, fallback brief
+
 **VideoProject**:
 The renderable output of the Brief Expander: a flat `TimelineEvent[]` with absolute start/end times on a fixed canvas.
 _Avoid_: brief, scene
@@ -15,6 +19,10 @@ _Avoid_: brief, scene
 **Scene**:
 A composable content segment within a video. A video is a sequence of 1..N Scenes, where N scales with duration. Each Scene carries its own content blocks, diagram, and creative fields. The video-level title and closing bracket the whole; scenes are the content between them.
 _Avoid_: segment, chapter, section, act
+
+**Supporting Block**:
+A short textual caption or callout within a Scene. In graph-flow scenes, blocks may remain a primary explanatory surface; in primitive-first scenes, Visual Primitives and Primitive Relationships carry the explanation, and blocks support them with concise context.
+_Avoid_: main diagram, paragraph, card-only explanation
 
 **Scene Content Budget**:
 The practical amount of content a single Scene can fit without degrading readability. Generation should respect layout-specific node and block budgets: `pipeline` max 5 nodes/5 blocks, `client-server` max 6 nodes/4 blocks, `hub-spoke` max 5 nodes/4 blocks, and `stack` max 5 nodes/5 blocks. All layouts support at most 4 animated edges per scene. Validation may normalize excessive content; the Scene Layout Module fits or falls back inside the scene it receives. The Brief Expander does not invent or split Scenes.
@@ -49,6 +57,42 @@ The intermediate layout artifact for one Scene. Contains named Layout Regions, l
 _Avoid_: VideoProject, TimelineEvent, diagnostics-only report
 
 ## Diagrams
+
+**Diagram Intent**:
+A scene's subject-specific visual aim before layout is chosen. It names the diagram family, perspective, signature visuals, and motion cues that should make the diagram feel shaped by the prompt rather than by a generic graph template.
+_Avoid_: prompt, layout strategy, style
+
+**Diagram Script**:
+A developer-only, scene-local description of the diagram's visual story and choreography before it is compiled into Visual Primitives and Primitive Relationships. It preserves creative intent in readable language so generation, validation, and retry diagnostics can compare what the scene meant to draw against what it actually planned.
+_Avoid_: prompt, timeline, renderer events
+
+**Diagram Family**:
+A broad visual explanation form, such as graph-flow, field-range, spatial cutaway, build-up, cycle, comparison, or timeline. Graph-flow uses Nodes and Edges; non-graph families use Visual Primitives as their primary authored material.
+_Avoid_: layout strategy, renderer primitive, template
+
+**Graph-Flow Scene**:
+A Scene whose subject is naturally represented as Nodes and Edges, such as software architecture, request/response, queues, APIs, databases, service dependencies, or event streams. Graph-flow is first-class for system diagrams; it is not a legacy fallback for non-graph domains.
+_Avoid_: primitive-first scene, legacy graph
+
+**Visual Primitive**:
+A semantic, prompt-authored diagram object for non-graph families. Its `type` is freeform so the prompt can name subject-specific things like satellite, range circle, concrete pier, soil layer, or crane hook; the expander still decides coordinates and emits renderer Shapes.
+_Avoid_: node, icon, bitmap, raw shape
+
+**Primitive-First Scene**:
+A non-graph Scene where Visual Primitives and Primitive Relationships are the primary explanation surface. Supporting Blocks may appear as captions or callouts, but the scene should remain understandable from the diagram itself.
+_Avoid_: card-first scene, graph-flow scene
+
+**Primitive Grammar**:
+The broad authored vocabulary of freeform Visual Primitive types, relationships, anchors, motion cues, and labels that lets a prompt describe many kinds of diagrams without requiring a topic-specific renderer. Diagram Families arrange and constrain this grammar; they do not replace it.
+_Avoid_: icon set, diagram family, renderer API
+
+**Primitive Relationship**:
+A first-class authored relationship between Visual Primitives that describes the mechanism, visual metaphor, and motion choreography between them. Primitive Relationships are the verbs of a diagram, such as signal travels, ranges intersect, load transfers, layer supports, or fluid flows.
+_Avoid_: edge, dependency, connector
+
+**Prompt-Specific Primitive**:
+A Visual Primitive whose type or label comes from the user's topic domain rather than from generic planning language. Satellites, range circles, concrete piers, soil layers, and crane hooks are prompt-specific; process, system, component, step, input, and output are generic unless the prompt itself is about those terms.
+_Avoid_: generic primitive, placeholder, topic label
 
 **Node**:
 A labeled box in a diagram graph. Has a label, an icon, an optional `kind` for visual/semantic flavor, and an optional `layoutRole` for placement. The expander positions nodes and sizes their boxes to fit the label. The AI never writes node coordinates.

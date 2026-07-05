@@ -11,6 +11,25 @@ import { STYLES } from "@/lib/others/catalog/styles";
 import type { SupportedDuration, VideoBrief } from "@/lib/agent/schemas/brief";
 import type { ShapeEvent, TextEvent } from "@/lib/ui/renderer";
 
+type RectShapeEvent = Extract<ShapeEvent, { shapeType: "rect" }>;
+
+function graphMeta(subject: string, visuals: string[]) {
+  return {
+    diagramScript: {
+      summary: `Show ${subject} as a graph-flow diagram.`,
+      beats: visuals,
+      visualStory: `${visuals.join(" -> ")} forms the visible system flow.`,
+      mustShow: visuals,
+    },
+    diagramIntent: {
+      family: "graph-flow" as const,
+      subject,
+      signatureVisuals: visuals,
+      motionCues: visuals.length > 1 ? [`${visuals[0]} to ${visuals.at(-1)}`] : [],
+    },
+  };
+}
+
 function sceneBrief(overrides: Partial<VideoBrief> = {}): VideoBrief {
   return {
     title: "Client Server Flow",
@@ -22,6 +41,7 @@ function sceneBrief(overrides: Partial<VideoBrief> = {}): VideoBrief {
     scenes: [
       {
         heading: "Request Leaves The Browser",
+        ...graphMeta("request leaving browser", ["Client", "Server"]),
         diagramLayout: "client-server",
         blocks: [
           { heading: "Client", description: "The browser prepares a request.", icon: "browser" },
@@ -43,6 +63,7 @@ function sceneBrief(overrides: Partial<VideoBrief> = {}): VideoBrief {
       },
       {
         heading: "Response Comes Back",
+        ...graphMeta("response returning to browser", ["Database", "API", "UI"]),
         diagramLayout: "pipeline",
         blocks: [
           { heading: "Query", description: "The server reads the data.", icon: "database" },
@@ -84,6 +105,7 @@ function skyscraperBrief(): VideoBrief {
     scenes: [
       {
         heading: "1. Deep Foundations",
+        ...graphMeta("deep foundation sequence", ["Bedrock", "Concrete Mat", "Waterproofing"]),
         diagramLayout: "stack",
         blocks: [
           { heading: "Bedrock Anchors", description: "Piles driven deep into bedrock support immense weight.", icon: "gear" },
@@ -108,6 +130,7 @@ function skyscraperBrief(): VideoBrief {
       },
       {
         heading: "2. Steel Superstructure",
+        ...graphMeta("steel superstructure sequence", ["Steel Frame", "Floor Decks", "Core & Elevators"]),
         diagramLayout: "pipeline",
         blocks: [
           { heading: "Steel Frame", description: "Columns and beams form the skeleton of the tower.", icon: "cpu" },
@@ -132,6 +155,7 @@ function skyscraperBrief(): VideoBrief {
       },
       {
         heading: "3. Facade & Finishing",
+        ...graphMeta("facade finishing hub", ["Building Shell", "Curtain Wall", "MEP Systems", "Interior Fit-Out"]),
         diagramLayout: "hub-spoke",
         blocks: [
           { heading: "Curtain Wall", description: "Glass panels are installed from top to bottom.", icon: "browser" },
@@ -181,6 +205,7 @@ function generatedSkyscraperBrief(): VideoBrief {
     scenes: [
       {
         heading: "Deep Foundations",
+        ...graphMeta("generated deep foundations", ["Bedrock", "Piles", "Concrete Mat"]),
         diagramLayout: "stack",
         blocks: [
           { heading: "Bedrock Anchors", description: "Piles driven deep into stable rock to support immense weight.", icon: "foundation" },
@@ -204,6 +229,7 @@ function generatedSkyscraperBrief(): VideoBrief {
       },
       {
         heading: "Steel Core & Floors",
+        ...graphMeta("generated steel core and floors", ["Columns & Beams", "Concrete Core", "Floor Slabs"]),
         diagramLayout: "pipeline",
         blocks: [
           { heading: "Steel Frame", description: "Vertical columns and horizontal beams form the skeleton.", icon: "beam" },
@@ -228,6 +254,7 @@ function generatedSkyscraperBrief(): VideoBrief {
       },
       {
         heading: "Facade & Finishing",
+        ...graphMeta("generated facade finishing", ["Skyscraper", "Curtain Wall", "Interior Systems"]),
         diagramLayout: "hub-spoke",
         blocks: [
           { heading: "Glass Curtain Wall", description: "Lightweight panels enclose the building, allowing natural light.", icon: "building" },
@@ -248,6 +275,105 @@ function generatedSkyscraperBrief(): VideoBrief {
         blockStyle: "cards",
         emphasizeIndex: 0,
         transition: "zoom-in",
+      },
+    ],
+  };
+}
+
+function storyboardSkyscraperBrief(): VideoBrief {
+  return {
+    title: "Skyscraper Storyboard",
+    subtitle: "Drawn from foundation to facade",
+    closingLine: "The tower is complete.",
+    palette: "slate",
+    style: "modern",
+    particleIntensity: 0,
+    titleSize: "large",
+    titleAlign: "center",
+    closingStyle: "fade-up",
+    scenes: [
+      {
+        heading: "Tower Drawing",
+        diagramScript: {
+          summary: "Draw a skyscraper as it grows.",
+          beats: ["Foundation", "Core", "Floors", "Windows"],
+          visualStory: "The same tower drawing gains foundation, core, floors, and windows.",
+          mustShow: ["foundation", "core", "floors", "windows"],
+        },
+        diagramIntent: {
+          family: "build-up",
+          subject: "skyscraper drawing",
+          signatureVisuals: ["foundation", "core", "floors", "windows"],
+          motionCues: ["draw upward"],
+        },
+        diagramLayout: "stack",
+        blocks: [
+          { heading: "Foundation", description: "The base is drawn first.", icon: "foundation" },
+          { heading: "Core", description: "The vertical core rises.", icon: "wall" },
+          { heading: "Windows", description: "Facade panels appear.", icon: "building" },
+        ],
+        graph: {
+          nodes: [
+            { id: "foundation", label: "Foundation" },
+            { id: "core", label: "Core" },
+            { id: "windows", label: "Windows" },
+          ],
+          edges: [],
+        },
+        visualPrimitives: [
+          { id: "foundation", type: "foundation mat", label: "Foundation", drawingRole: "layer" },
+          { id: "core", type: "concrete core", label: "Core", drawingRole: "support" },
+          { id: "tower", type: "tower mass", label: "Tower Body", drawingRole: "mass" },
+          { id: "windows", type: "window panels", label: "Windows", drawingRole: "panel" },
+        ],
+        primitiveRelationships: [
+          { from: ["foundation"], to: ["core"], relation: "supports" },
+          { from: ["core"], to: ["tower"], relation: "stiffens" },
+        ],
+        storyboard: {
+          style: "line-drawing",
+          continuityKey: "tower",
+          stages: [
+            { label: "Foundation", operation: "reveal", primitiveIds: ["foundation"] },
+            { label: "Core rises", operation: "grow", primitiveIds: ["core"] },
+            { label: "Floors stack", operation: "grow", primitiveIds: ["tower"] },
+            { label: "Windows", operation: "fill", primitiveIds: ["windows"] },
+          ],
+        },
+        entryAnimation: "slide-up",
+        blockStyle: "cards",
+        emphasizeIndex: -1,
+        transition: "fade",
+      },
+    ],
+  };
+}
+
+function primitiveBriefWithoutStoryboard(): VideoBrief {
+  return {
+    ...storyboardSkyscraperBrief(),
+    scenes: [
+      {
+        ...storyboardSkyscraperBrief().scenes[0],
+        storyboard: undefined,
+      },
+    ],
+  };
+}
+
+function twoSceneStoryboardBrief(): VideoBrief {
+  const scene = storyboardSkyscraperBrief().scenes[0];
+  return {
+    ...storyboardSkyscraperBrief(),
+    scenes: [
+      {
+        ...scene,
+        heading: "Phase 1: Foundation Context",
+        blockStyle: "cards",
+      },
+      {
+        ...scene,
+        heading: "Main Drawing Animation",
       },
     ],
   };
@@ -452,9 +578,65 @@ describe("buildProjectFromBrief", () => {
     const project = buildProjectFromBrief(sceneBrief(), DUR);
     const shapes = shapeEvents(project);
 
-    expect(shapes.some((event) => event.id === "scene-0-node-client")).toBe(true);
-    expect(shapes.some((event) => event.id === "scene-0-edge-0" && event.shapeType === "line")).toBe(true);
-    expect(shapes.some((event) => event.id === "scene-0-packet-0" && event.shapeType === "circle")).toBe(true);
+    expect(shapes.some((event) => event.id === "scene-1-node-db")).toBe(true);
+    expect(shapes.some((event) => event.id === "scene-1-edge-0" && event.shapeType === "line")).toBe(true);
+    expect(shapes.some((event) => event.id === "scene-1-packet-0" && event.shapeType === "circle")).toBe(true);
+  });
+
+  it("uses storyboard drawing instead of generic cards and node rectangles for non-graph scenes", () => {
+    const result = buildProjectFromBriefWithDiagnostics(storyboardSkyscraperBrief(), DUR);
+    const shapes = shapeEvents(result.project);
+    const storyboardRects = shapes.filter((event): event is RectShapeEvent =>
+      event.shapeType === "rect" && event.id.includes("scene-0-storyboard-primitive")
+    );
+    const drawingCenterX = storyboardRects.reduce((sum, event) =>
+      sum + event.x + event.width / 2, 0
+    ) / storyboardRects.length;
+
+    expect(result.diagnostics.storyboard[0]).toMatchObject({
+      used: true,
+      stageCount: 4,
+      layoutFamily: "build-up",
+    });
+    expect(result.diagnostics.storyboard[0].boundsCoverage).toBeGreaterThan(0.3);
+    expect(shapes.some((event) => event.id.includes("scene-0-storyboard-primitive"))).toBe(true);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-node-"))).toBe(false);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-block-card"))).toBe(false);
+    expect(drawingCenterX).toBeGreaterThan(760);
+    expect(drawingCenterX).toBeLessThan(1160);
+  });
+
+  it("skips setup storyboard drawing but keeps relevant stack context diagrams", () => {
+    const result = buildProjectFromBriefWithDiagnostics(twoSceneStoryboardBrief(), DUR);
+    const shapes = shapeEvents(result.project);
+    const text = textEvents(result.project);
+
+    expect(result.diagnostics.storyboard[0]).toMatchObject({
+      used: false,
+      fallbackReason: "setup scene uses compact context rendering",
+      stageCount: 4,
+    });
+    expect(result.diagnostics.storyboard[1]).toMatchObject({
+      used: true,
+      layoutFamily: "build-up",
+    });
+    expect(shapes.some((event) => event.id.includes("scene-0-storyboard-primitive"))).toBe(false);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-node-"))).toBe(true);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-edge-"))).toBe(true);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-block-card"))).toBe(true);
+    expect(text.some((event) => event.id.startsWith("scene-0-block-heading"))).toBe(true);
+    expect(shapes.some((event) => event.id.includes("scene-1-storyboard-primitive"))).toBe(true);
+  });
+
+  it("falls back to existing scene rendering when a non-graph storyboard is missing", () => {
+    const result = buildProjectFromBriefWithDiagnostics(primitiveBriefWithoutStoryboard(), DUR);
+    const shapes = shapeEvents(result.project);
+
+    expect(result.diagnostics.storyboard[0]).toMatchObject({
+      used: false,
+      fallbackReason: "scene has no storyboard stages",
+    });
+    expect(shapes.some((event) => event.id.startsWith("scene-0-node-"))).toBe(true);
   });
 
   it("uses scene weights to give later scenes more time", () => {

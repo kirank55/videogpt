@@ -22,14 +22,23 @@
 // deterministic fallback project (generate) or the unchanged current brief (modify).
 
 import { callOpenRouter, callOpenRouterStream, type Usage } from "@/lib/agent/ai/openrouter";
-import { buildSystemPrompt, buildModifyPrompt } from "@/lib/agent/ai/prompts";
+import { buildSystemPrompt, buildModifyPrompt, buildPrimitiveRetryPrompt } from "@/lib/agent/ai/prompts";
 import { parseLLMResponse, type LLMResponse } from "@/lib/agent/schemas/llmResponse";
 import { validateBrief } from "@/lib/agent/brief/validateBrief";
+import {
+  analyzePrimitiveBrief,
+  formatPrimitiveDiagnosticsForRetry,
+  type PrimitiveDiagnostics,
+} from "@/lib/agent/brief/primitiveDiagnostics";
 import {
   buildProjectFromBriefWithDiagnostics,
   hydrateBrief,
   type BriefExpansionDiagnostics,
 } from "@/lib/agent/brief/buildProjectFromBrief";
+import {
+  composeNarrativeBrief,
+  type NarrativeCompositionDiagnostics,
+} from "@/lib/agent/brief/narrativeComposer";
 import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
 import type { VideoProject }     from "@/lib/ui/renderer";
 
@@ -46,6 +55,14 @@ export interface PipelineDiagnostics {
   usage?: Usage;
   /** Developer-only deterministic layout decisions from brief expansion. */
   layout?: BriefExpansionDiagnostics["layout"];
+  /** Developer-only storyboard drawing compiler diagnostics from brief expansion. */
+  storyboard?: BriefExpansionDiagnostics["storyboard"];
+  /** Developer-only structure normalization diagnostics. */
+  narrative?: NarrativeCompositionDiagnostics;
+  /** Developer-only primitive specificity and structural diagnostics. */
+  primitive?: PrimitiveDiagnostics;
+  /** True when the pipeline used its one primitive-improvement retry. */
+  primitiveRetried?: boolean;
 }
 
 export interface PipelineResult {
@@ -66,6 +83,7 @@ export interface PipelineResult {
 export type PipelineEvent =
   | { type: "prompt-built" }
   | { type: "calling-openrouter" }
+  | { type: "primitive-retry"; score: number }
   | { type: "streaming"; tokenCount: number; charCount: number }
   | { type: "expanding" };
 
@@ -120,20 +138,28 @@ function fallbackBrief(title: string): VideoBrief {
  * defaults, and expand into a VideoProject. One function — not separate
  * validate/hydrate/build steps — so the brief→project expansion cannot drift.
  */
-function expandResponse(
-  raw: unknown,
+function expandParsedResponse(
+  response: LLMResponse,
   duration: SupportedDuration,
+  userPrompt: string,
   extras: Partial<PipelineDiagnostics> = {},
 ): { response: LLMResponse; project: VideoProject; diagnostics: PipelineDiagnostics } {
-  const response = parseLLMResponse(raw);
-  const brief    = hydrateBrief(response.brief);
+  const hydrated = hydrateBrief(response.brief);
+  const composed = composeNarrativeBrief(hydrated, { userPrompt });
+  const brief    = composed.brief;
   const expanded = buildProjectFromBriefWithDiagnostics(brief, duration);
   const project  = expanded.project;
   project.name   = response.projectName;
   return {
     response: { ...response, brief },
     project,
-    diagnostics: { phase: "6b-llm", layout: expanded.diagnostics.layout, ...extras },
+    diagnostics: {
+      phase: "6b-llm",
+      layout: expanded.diagnostics.layout,
+      storyboard: expanded.diagnostics.storyboard,
+      narrative: composed.diagnostics,
+      ...extras,
+    },
   };
 }
 
@@ -155,6 +181,7 @@ async function runIntake(
     projectName?: string;
     summary?: string;
     layout?: BriefExpansionDiagnostics["layout"];
+    storyboard?: BriefExpansionDiagnostics["storyboard"];
   },
 ): Promise<PipelineResult> {
   const emit = opts.onEvent ?? (() => {});
@@ -166,9 +193,11 @@ async function runIntake(
     let usage: Usage | undefined;
     const onUsage = (u: Usage) => { usage = u; };
 
-    let raw: unknown;
-    if (opts.onEvent) {
-      raw = await callOpenRouterStream(systemPrompt, userPrompt, {
+    const callModel = async (prompt: string): Promise<unknown> => {
+      if (!opts.onEvent) {
+        return callOpenRouter(systemPrompt, prompt, { onUsage });
+      }
+      return callOpenRouterStream(systemPrompt, prompt, {
         onChunk: (_delta, accumulated) => {
           emit({
             type: "streaming",
@@ -178,28 +207,47 @@ async function runIntake(
         },
         onUsage,
       });
-    } else {
-      raw = await callOpenRouter(systemPrompt, userPrompt, { onUsage });
+    };
+
+    let raw = await callModel(userPrompt);
+    let response = parseLLMResponse(raw);
+    let primitive = analyzePrimitiveBrief(response.brief, { userPrompt });
+    let primitiveRetried = false;
+
+    if (primitive.shouldRetry) {
+      primitiveRetried = true;
+      emit({ type: "primitive-retry", score: primitive.score });
+      raw = await callModel(buildPrimitiveRetryPrompt(
+        userPrompt,
+        formatPrimitiveDiagnosticsForRetry(primitive),
+      ));
+      response = parseLLMResponse(raw);
+      primitive = analyzePrimitiveBrief(response.brief, { userPrompt });
     }
 
     emit({ type: "expanding" });
-    const { response, project, diagnostics } = expandResponse(raw, duration, { rawBrief: raw, usage });
+    const { response: expandedResponse, project, diagnostics } = expandParsedResponse(response, duration, userPrompt, {
+      rawBrief: raw,
+      usage,
+      primitive,
+      primitiveRetried,
+    });
     return {
       project,
-      brief:       response.brief,
-      projectName: response.projectName,
-      summary:     response.summary,
+      brief:       expandedResponse.brief,
+      projectName: expandedResponse.projectName,
+      summary:     expandedResponse.summary,
       diagnostics,
     };
   } catch (err) {
     const llmError = err instanceof Error ? err.message : String(err);
-    const { brief, project, projectName, summary, layout } = onFallback();
+    const { brief, project, projectName, summary, layout, storyboard } = onFallback();
     return {
       project,
       brief,
       projectName: projectName ?? brief.title,
       summary:     summary ?? "",
-      diagnostics: { phase: "6b-llm", llmError, layout },
+      diagnostics: { phase: "6b-llm", llmError, layout, storyboard },
     };
   }
 }
@@ -222,7 +270,12 @@ export async function runGeneratePipeline(
   return runIntake(systemPrompt, userPrompt, duration, opts, () => {
     const brief = fallbackBrief(userPrompt.slice(0, 60) || "Untitled");
     const expanded = buildProjectFromBriefWithDiagnostics(brief, duration);
-    return { brief, project: expanded.project, layout: expanded.diagnostics.layout };
+    return {
+      brief,
+      project: expanded.project,
+      layout: expanded.diagnostics.layout,
+      storyboard: expanded.diagnostics.storyboard,
+    };
   });
 }
 
@@ -250,6 +303,7 @@ export async function runModifyPipeline(
       brief: currentBrief,
       project: expanded.project,
       layout: expanded.diagnostics.layout,
+      storyboard: expanded.diagnostics.storyboard,
     };
   });
 }

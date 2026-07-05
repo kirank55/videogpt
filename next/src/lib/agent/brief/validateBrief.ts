@@ -4,17 +4,26 @@ import type {
   BriefGraph,
   BriefGraphEdge,
   BriefGraphNode,
+  DiagramFamily,
   DiagramLayout,
+  DiagramScript,
+  PrimitiveRelationship,
   Scene,
+  VisualPrimitive,
   VideoBrief,
 } from "@/lib/agent/schemas/brief";
 import {
   BlockStyleSchema,
   ClosingStyleSchema,
+  DiagramFamilySchema,
+  DiagramPerspectiveSchema,
   DiagramLayoutSchema,
+  DrawingRoleSchema,
   EntryAnimationSchema,
   ICON_NAMES,
   LayoutRoleSchema,
+  PrimitiveTimingRoleSchema,
+  StoryboardOperationSchema,
   TRANSITION_PRESETS,
   TitleSizeSchema,
   TransitionPresetSchema,
@@ -30,12 +39,30 @@ const VALID_STYLES = new Set(Object.keys(STYLES));
 const IconNameSchema = z.enum(ICON_NAMES).catch("gear");
 const EasingSchema = EasingNameSchema.catch("easeInOut");
 const LenientLayoutRoleSchema = LayoutRoleSchema.optional().catch(undefined);
+const LenientDrawingRoleSchema = DrawingRoleSchema.optional().catch(undefined);
 
 const LenientBlockSchema = z.object({
   heading: z.string().min(1).catch("Key Point"),
   description: z.string().min(1).catch("An important detail."),
   icon: IconNameSchema.optional().catch(undefined),
 }).catch({ heading: "Key Point", description: "An important detail." });
+
+const LenientDiagramScriptSchema = z.object({
+  summary: z.string().min(1).catch("Diagram summary"),
+  beats: z.array(z.string().min(1)).transform((a) => a.slice(0, 6)).optional().catch(undefined),
+  visualStory: z.string().min(1).catch("Show the main mechanism visually."),
+  mustShow: z.array(z.string().min(1)).transform((a) => a.slice(0, 8)).optional().catch(undefined),
+  mustAvoid: z.array(z.string().min(1)).transform((a) => a.slice(0, 8)).optional().catch(undefined),
+}).optional().catch(undefined);
+
+const LenientDiagramIntentSchema = z.object({
+  family: DiagramFamilySchema.optional().catch(undefined),
+  subject: z.string().min(1).optional().catch(undefined),
+  perspective: DiagramPerspectiveSchema.optional().catch(undefined),
+  signatureVisuals: z.array(z.string().min(1)).transform((a) => a.slice(0, 8)).optional().catch(undefined),
+  motionCues: z.array(z.string().min(1)).transform((a) => a.slice(0, 8)).optional().catch(undefined),
+  avoid: z.array(z.string().min(1)).transform((a) => a.slice(0, 8)).optional().catch(undefined),
+}).optional().catch(undefined);
 
 const LenientNodeSchema = z.object({
   id: z.string().min(1).catch("node"),
@@ -60,11 +87,53 @@ const LenientGraphSchema = z.object({
   edges: z.array(LenientEdgeSchema).transform((a) => a.slice(0, 12)).optional().catch(undefined),
 }).catch({});
 
+const LenientVisualPrimitiveSchema = z.object({
+  id: z.string().min(1).catch("primitive"),
+  type: z.string().min(1).catch("primitive"),
+  label: z.string().min(1).catch("Primitive"),
+  description: z.string().optional().catch(undefined),
+  renderAs: z.string().optional().catch(undefined),
+  shapeHint: z.string().optional().catch(undefined),
+  materialHint: z.string().optional().catch(undefined),
+  role: z.string().optional().catch(undefined),
+  placementHint: z.string().optional().catch(undefined),
+  motion: z.string().optional().catch(undefined),
+  styleHint: z.string().optional().catch(undefined),
+  dependsOn: z.array(z.string().min(1)).transform((a) => a.slice(0, 8)).optional().catch(undefined),
+  drawingRole: LenientDrawingRoleSchema,
+}).catch({ id: "primitive", type: "primitive", label: "Primitive" });
+
+const LenientPrimitiveRelationshipSchema = z.object({
+  from: z.array(z.string().min(1)).transform((a) => a.slice(0, 8)).catch([]),
+  to: z.array(z.string().min(1)).transform((a) => a.slice(0, 8)).catch([]),
+  relation: z.string().min(1).catch("relates to"),
+  visualMetaphor: z.string().optional().catch(undefined),
+  motion: z.string().optional().catch(undefined),
+  timingRole: PrimitiveTimingRoleSchema.optional().catch(undefined),
+}).catch({ from: [], to: [], relation: "relates to" });
+
+const LenientStoryboardStageSchema = z.object({
+  label: z.string().min(1).catch("Stage"),
+  operation: StoryboardOperationSchema.catch("reveal"),
+  primitiveIds: z.array(z.string().min(1)).transform((a) => a.slice(0, 8)).catch([]),
+}).catch({ label: "Stage", operation: "reveal" as const, primitiveIds: [] });
+
+const LenientStoryboardSchema = z.object({
+  style: z.literal("line-drawing").catch("line-drawing"),
+  continuityKey: z.string().optional().catch(undefined),
+  stages: z.array(LenientStoryboardStageSchema).transform((a) => a.slice(0, 8)).catch([]),
+}).optional().catch(undefined);
+
 const LenientSceneSchema = z.object({
   heading: z.string().min(1).catch("Scene"),
+  diagramScript: LenientDiagramScriptSchema,
+  diagramIntent: LenientDiagramIntentSchema,
   diagramLayout: DiagramLayoutSchema.catch("stack"),
   blocks: z.array(LenientBlockSchema).transform((a) => a.slice(0, 5)).optional().catch(undefined),
   graph: LenientGraphSchema.optional().catch(undefined),
+  visualPrimitives: z.array(LenientVisualPrimitiveSchema).transform((a) => a.slice(0, 12)).optional().catch(undefined),
+  primitiveRelationships: z.array(LenientPrimitiveRelationshipSchema).transform((a) => a.slice(0, 12)).optional().catch(undefined),
+  storyboard: LenientStoryboardSchema,
   entryAnimation: EntryAnimationSchema.optional().catch(undefined),
   blockStyle: BlockStyleSchema.optional().catch(undefined),
   emphasizeIndex: z.number().int().min(-1).max(4).optional().catch(undefined),
@@ -157,6 +226,149 @@ function graphFromBlocks(blocks: BriefBlock[], layout: DiagramLayout): BriefGrap
         }));
 
   return { nodes, edges };
+}
+
+function defaultDiagramFamily(layout: DiagramLayout): DiagramFamily {
+  return layout === "client-server" || layout === "hub-spoke" || layout === "pipeline" || layout === "stack"
+    ? "graph-flow"
+    : "graph-flow";
+}
+
+function normaliseDiagramScript(
+  raw: LenientScene["diagramScript"],
+  heading: string,
+  blocks: BriefBlock[],
+): DiagramScript {
+  return {
+    summary: raw?.summary ?? heading,
+    beats: raw?.beats && raw.beats.length > 0
+      ? raw.beats
+      : blocks.slice(0, 3).map((block) => block.heading),
+    visualStory: raw?.visualStory ?? `Show ${heading} as a clear visual mechanism.`,
+    mustShow: raw?.mustShow ?? blocks.slice(0, 3).map((block) => block.heading),
+    mustAvoid: raw?.mustAvoid,
+  };
+}
+
+function normaliseDiagramIntent(
+  raw: LenientScene["diagramIntent"],
+  heading: string,
+  layout: DiagramLayout,
+  script: DiagramScript,
+): Scene["diagramIntent"] {
+  const family = raw?.family ?? defaultDiagramFamily(layout);
+  return {
+    family,
+    subject: raw?.subject ?? heading,
+    perspective: raw?.perspective,
+    signatureVisuals: raw?.signatureVisuals ?? script.mustShow,
+    motionCues: raw?.motionCues ?? [],
+    avoid: raw?.avoid,
+  };
+}
+
+function normaliseVisualPrimitives(raw: LenientScene["visualPrimitives"]): VisualPrimitive[] {
+  const primitives: VisualPrimitive[] = [];
+  const used = new Set<string>();
+
+  for (const item of raw ?? []) {
+    const base = item.id.trim() || slugId(item.label || item.type, `primitive-${primitives.length + 1}`);
+    let id = base;
+    let suffix = 2;
+    while (used.has(id)) {
+      id = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    used.add(id);
+    primitives.push({
+      id,
+      type: item.type,
+      label: item.label,
+      description: item.description,
+      renderAs: item.renderAs,
+      shapeHint: item.shapeHint,
+      materialHint: item.materialHint,
+      role: item.role,
+      placementHint: item.placementHint,
+      motion: item.motion,
+      styleHint: item.styleHint,
+      dependsOn: item.dependsOn,
+      drawingRole: item.drawingRole,
+    });
+  }
+
+  return primitives;
+}
+
+function normaliseStoryboard(
+  raw: LenientScene["storyboard"],
+  primitives: VisualPrimitive[],
+): Scene["storyboard"] {
+  if (!raw) return undefined;
+
+  const primitiveIds = new Set(primitives.map((primitive) => primitive.id));
+  const stages = raw.stages
+    .map((stage) => ({
+      label: stage.label,
+      operation: stage.operation,
+      primitiveIds: [...new Set(stage.primitiveIds)].filter((id) => primitiveIds.has(id)),
+    }))
+    .filter((stage) => stage.primitiveIds.length > 0);
+
+  if (stages.length === 0) return undefined;
+
+  return {
+    style: "line-drawing",
+    continuityKey: raw.continuityKey,
+    stages,
+  };
+}
+
+function normalisePrimitiveRelationships(
+  raw: LenientScene["primitiveRelationships"],
+): PrimitiveRelationship[] {
+  return (raw ?? [])
+    .filter((relationship) => relationship.from.length > 0 && relationship.to.length > 0)
+    .map((relationship) => ({
+      from: relationship.from,
+      to: relationship.to,
+      relation: relationship.relation,
+      visualMetaphor: relationship.visualMetaphor,
+      motion: relationship.motion,
+      timingRole: relationship.timingRole,
+    }));
+}
+
+function graphFromPrimitives(
+  primitives: VisualPrimitive[],
+  relationships: PrimitiveRelationship[],
+  blocks: BriefBlock[],
+  layout: DiagramLayout,
+): BriefGraph {
+  if (primitives.length === 0) return graphFromBlocks(blocks, layout);
+
+  const nodes = primitives.slice(0, SCENE_CONTENT_BUDGETS[layout].maxNodes).map((primitive) => ({
+    id: primitive.id,
+    label: primitive.label,
+    kind: primitive.type,
+  }));
+  const ids = new Set(nodes.map((node) => node.id));
+  const edges = relationships.flatMap((relationship) =>
+    relationship.from.flatMap((from) =>
+      relationship.to.map((to) => ({
+        from,
+        to,
+        label: relationship.relation,
+        animated: Boolean(relationship.motion),
+        packetLabel: relationship.motion,
+      })),
+    ),
+  ).filter((edge) => ids.has(edge.from) && ids.has(edge.to) && edge.from !== edge.to);
+
+  return {
+    nodes,
+    edges: trimEdgesToBudget(edges, layout),
+  };
 }
 
 function trimNodesToBudget(
@@ -277,6 +489,18 @@ function normaliseGraph(raw: LenientScene["graph"], blocks: BriefBlock[], layout
 function defaultScene(parsed: LenientBrief): LenientScene {
   return {
     heading: parsed.subtitle ?? parsed.title,
+    diagramScript: {
+      summary: parsed.subtitle ?? parsed.title,
+      beats: DEFAULT_BLOCKS.map((block) => block.heading),
+      visualStory: "Show the fallback points as a simple graph-flow diagram.",
+      mustShow: DEFAULT_BLOCKS.map((block) => block.heading),
+    },
+    diagramIntent: {
+      family: "graph-flow",
+      subject: parsed.subtitle ?? parsed.title,
+      signatureVisuals: DEFAULT_BLOCKS.map((block) => block.heading),
+      motionCues: ["step through the fallback points"],
+    },
     diagramLayout: "stack",
     blocks: DEFAULT_BLOCKS,
     graph: graphFromBlocks(DEFAULT_BLOCKS, "stack"),
@@ -288,14 +512,29 @@ function defaultScene(parsed: LenientBrief): LenientScene {
 
 function normaliseScene(raw: LenientScene, index: number, title: string): Scene {
   const layout = raw.diagramLayout ?? "stack";
+  const heading = raw.heading || (index === 0 ? title : `Scene ${index + 1}`);
   const blocks = normaliseBlocks(raw.blocks, layout);
+  const diagramScript = normaliseDiagramScript(raw.diagramScript, heading, blocks);
+  const diagramIntent = normaliseDiagramIntent(raw.diagramIntent, heading, layout, diagramScript);
+  const visualPrimitives = normaliseVisualPrimitives(raw.visualPrimitives);
+  const primitiveRelationships = normalisePrimitiveRelationships(raw.primitiveRelationships);
+  const storyboard = normaliseStoryboard(raw.storyboard, visualPrimitives);
   const transition = raw.transition ?? TRANSITION_PRESETS[(index + 1) % TRANSITION_PRESETS.length];
+  const graphFallback = graphFromPrimitives(visualPrimitives, primitiveRelationships, blocks, layout);
+  const graph = raw.graph
+    ? normaliseGraph(raw.graph, blocks, layout)
+    : graphFallback;
 
   return {
-    heading: raw.heading || (index === 0 ? title : `Scene ${index + 1}`),
+    heading,
+    diagramScript,
+    diagramIntent,
     diagramLayout: layout,
     blocks,
-    graph: normaliseGraph(raw.graph, blocks, layout),
+    graph,
+    visualPrimitives,
+    primitiveRelationships,
+    storyboard,
     entryAnimation: raw.entryAnimation ?? "slide-up",
     blockStyle: raw.blockStyle ?? "cards",
     emphasizeIndex: raw.emphasizeIndex ?? 0,

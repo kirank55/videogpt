@@ -14,6 +14,18 @@ export function createSeedProject(name: string, duration: number): VideoProject 
     scenes: [
       {
         heading: "Prompt to Timeline",
+        diagramScript: {
+          summary: "Show the app pipeline from prompt to rendered timeline.",
+          beats: ["Prompt", "Brief", "Render"],
+          visualStory: "A prompt becomes a structured scene brief, then expands into renderable timeline events.",
+          mustShow: ["Prompt", "Scene Brief", "Timeline"],
+        },
+        diagramIntent: {
+          family: "graph-flow",
+          subject: "VideoGPT generation pipeline",
+          signatureVisuals: ["Prompt", "Scene Brief", "Timeline"],
+          motionCues: ["author", "expand"],
+        },
         diagramLayout: "pipeline",
         blocks: [
           { heading: "Prompt", description: "A user asks for a visual explanation.", icon: "browser" },

@@ -12,6 +12,23 @@
 
 import { buildProjectFromBrief } from "../lib/agent/brief/buildProjectFromBrief";
 
+function graphMeta(subject: string, visuals: string[]) {
+  return {
+    diagramScript: {
+      summary: `Show ${subject} as a graph-flow diagram.`,
+      beats: visuals,
+      visualStory: `${visuals.join(" -> ")} forms the visible system flow.`,
+      mustShow: visuals,
+    },
+    diagramIntent: {
+      family: "graph-flow" as const,
+      subject,
+      signatureVisuals: visuals,
+      motionCues: visuals.length > 1 ? [`${visuals[0]} to ${visuals.at(-1)}`] : [],
+    },
+  };
+}
+
 const bigDemoProject = buildProjectFromBrief({
   title: "Client-Server System Layout",
   subtitle: "Web Request Flow Sequence",
@@ -21,6 +38,7 @@ const bigDemoProject = buildProjectFromBrief({
   scenes: [
     {
       heading: "Request Crossing The Boundary",
+      ...graphMeta("client-server request flow", ["Browser", "API Router", "SQL Store"]),
       diagramLayout: "client-server",
       blocks: [
         { heading: "Client", description: "Browser state prepares an authenticated request.", icon: "browser" },
@@ -53,6 +71,7 @@ const demoProject = buildProjectFromBrief({
   scenes: [
     {
       heading: "Two Layer Overview",
+      ...graphMeta("two layer architecture", ["Web Layer", "Service Layer"]),
       diagramLayout: "stack",
       blocks: [
         { heading: "Web Layer", description: "Vibrant and interactive client views", icon: "browser" },
