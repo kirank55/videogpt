@@ -7,7 +7,7 @@ import type {
 } from "@/lib/agent/schemas/brief";
 import type { PaletteSpec } from "@/lib/others/catalog/palettes";
 import type { StyleSpec } from "@/lib/others/catalog/styles";
-import type { AnimatedValue, ShapeEvent, TimelineEvent } from "@/lib/ui/renderer";
+import type { AnimatedValue, ShapeEvent, ShapeFill, TimelineEvent } from "@/lib/ui/renderer";
 import { transitionValue, withAlpha } from "./briefHelpers";
 
 export type StoryboardDrawingRegion = {
@@ -42,7 +42,16 @@ export type StoryboardDrawingResult = {
 
 type Point = { x: number; y: number };
 type Rect = { x: number; y: number; width: number; height: number };
-type GeometryDetail = "window-grid" | "comparison-panel" | "cycle-glyph";
+type GeometryDetail =
+  | "beam-array"
+  | "construction-crane"
+  | "cutaway-container"
+  | "cycle-glyph"
+  | "layer-depth"
+  | "panel-grid"
+  | "slab-stack"
+  | "window-grid"
+  | "comparison-panel";
 type GlyphKind = "sun" | "cloud" | "rain" | "water" | "signal" | "plain";
 
 type PrimitiveGeometryBase = {
@@ -157,6 +166,18 @@ function primitiveText(primitive: VisualPrimitive): string {
     primitive.role,
     primitive.placementHint,
   ].filter(Boolean).join(" "));
+}
+
+function primitiveMatches(primitive: VisualPrimitive, pattern: RegExp): boolean {
+  return pattern.test(primitiveText(primitive));
+}
+
+function panelDetailFor(primitive: VisualPrimitive): GeometryDetail {
+  if (primitiveMatches(primitive, /\b(deck|floor|slab|plate|platform|terrace)\b/)) return "slab-stack";
+  if (primitiveMatches(primitive, /\b(window|glass|curtain|cladding|facade|fa[cç]ade|wall|skin)\b/)) {
+    return "window-grid";
+  }
+  return "panel-grid";
 }
 
 function isReceiverPrimitive(primitive: VisualPrimitive): boolean {
@@ -352,7 +373,7 @@ function layoutCutaway(
       const h = Math.min(78, bounds.height / (layerCount + 2));
       const y = bounds.y + bounds.height - h * (layerIndex + 1);
       layerIndex += 1;
-      geometries.set(primitive.id, rectGeometry(primitive, role, bounds.x + 50, y, bounds.width - 100, h));
+      geometries.set(primitive.id, rectGeometry(primitive, role, bounds.x + 50, y, bounds.width - 100, h, "layer-depth"));
       return;
     }
 
@@ -373,7 +394,15 @@ function layoutCutaway(
     }
 
     if (role === "container") {
-      geometries.set(primitive.id, rectGeometry(primitive, role, bounds.x + 84, bounds.y + 45, bounds.width - 168, bounds.height - 88));
+      geometries.set(primitive.id, rectGeometry(
+        primitive,
+        role,
+        bounds.x + 84,
+        bounds.y + 45,
+        bounds.width - 168,
+        bounds.height - 88,
+        "cutaway-container",
+      ));
       return;
     }
 
@@ -381,7 +410,15 @@ function layoutCutaway(
     const h = role === "panel" ? 78 : 150;
     const x = distribute(index, primitives.length, bounds.x + 80, bounds.x + bounds.width - w - 80);
     const y = bounds.y + bounds.height * 0.28;
-    geometries.set(primitive.id, rectGeometry(primitive, role, x, y, w, h));
+    geometries.set(primitive.id, rectGeometry(
+      primitive,
+      role,
+      x,
+      y,
+      w,
+      h,
+      role === "panel" ? panelDetailFor(primitive) : undefined,
+    ));
   });
 
   return geometries;
@@ -443,6 +480,13 @@ function layoutBuildUp(
   const towerY = towerBaseY - towerHeight;
   let layerIndex = 0;
   let supportIndex = 0;
+  const verticalSupports = primitives.filter((primitive) => {
+    const role = inferDrawingRole(primitive);
+    return (role === "support" || role === "path" || role === "flow")
+      && !primitiveMatches(primitive, /\b(beam|girder|truss|joist|brace|deck|slab|floor)\b/);
+  });
+  const frameHeight = towerHeight * 0.72;
+  const frameY = towerBaseY - frameHeight - towerHeight * 0.04;
 
   primitives.forEach((primitive, index) => {
     const role = inferDrawingRole(primitive);
@@ -458,16 +502,42 @@ function layoutBuildUp(
         y,
         layerWidth,
         h,
+        "layer-depth",
       ));
       return;
     }
 
     if (role === "support" || role === "path" || role === "flow") {
-      const supportCount = primitives.filter((candidate) => {
-        const candidateRole = inferDrawingRole(candidate);
-        return candidateRole === "support" || candidateRole === "path" || candidateRole === "flow";
-      }).length;
-      const x = distribute(supportIndex, Math.max(1, supportCount), towerX + towerWidth * 0.35, towerX + towerWidth * 0.65);
+      if (primitiveMatches(primitive, /\b(beam|girder|truss|joist|brace)\b/)) {
+        geometries.set(primitive.id, rectGeometry(
+          primitive,
+          role,
+          towerX - towerWidth * 0.22,
+          frameY,
+          towerWidth * 1.44,
+          frameHeight,
+          "beam-array",
+        ));
+        return;
+      }
+
+      if (primitiveMatches(primitive, /\b(deck|slab|floor|plate|platform)\b/)) {
+        geometries.set(primitive.id, rectGeometry(
+          primitive,
+          role,
+          towerX - towerWidth * 0.12,
+          frameY + frameHeight * 0.08,
+          towerWidth * 1.24,
+          frameHeight * 0.78,
+          "slab-stack",
+        ));
+        return;
+      }
+
+      const supportCount = Math.max(1, verticalSupports.length);
+      const x = primitiveMatches(primitive, /\b(core|shaft|spine|mast|trunk|column)\b/)
+        ? center.x
+        : distribute(supportIndex, supportCount, towerX + towerWidth * 0.35, towerX + towerWidth * 0.65);
       supportIndex += 1;
       geometries.set(primitive.id, {
         kind: "line",
@@ -483,14 +553,32 @@ function layoutBuildUp(
     }
 
     if (role === "panel") {
+      const detail = panelDetailFor(primitive);
+      const width = detail === "slab-stack" ? towerWidth * 1.24 : towerWidth * 0.74;
+      const height = detail === "slab-stack" ? frameHeight * 0.76 : towerHeight * 0.64;
       geometries.set(primitive.id, rectGeometry(
         primitive,
         role,
-        towerX + towerWidth * 0.18,
-        towerY + towerHeight * 0.18,
-        towerWidth * 0.64,
-        towerHeight * 0.62,
-        "window-grid",
+        center.x - width / 2,
+        detail === "slab-stack" ? frameY + frameHeight * 0.1 : towerY + towerHeight * 0.18,
+        width,
+        height,
+        detail,
+      ));
+      return;
+    }
+
+    if (primitiveMatches(primitive, /\b(crane|derrick|hoist|boom|hook)\b/)) {
+      const craneWidth = Math.min(420, bounds.width * 0.28);
+      const craneHeight = Math.min(230, bounds.height * 0.42);
+      geometries.set(primitive.id, rectGeometry(
+        primitive,
+        role,
+        center.x + towerWidth * 0.24,
+        Math.max(bounds.y + 28, towerY - craneHeight * 0.2),
+        craneWidth,
+        craneHeight,
+        "construction-crane",
       ));
       return;
     }
@@ -518,7 +606,15 @@ function layoutBuildUp(
     const y = role === "mass" || role === "container"
       ? towerY
       : bounds.y + bounds.height * 0.36;
-    geometries.set(primitive.id, rectGeometry(primitive, role, x, y, width, height));
+    geometries.set(primitive.id, rectGeometry(
+      primitive,
+      role,
+      x,
+      y,
+      width,
+      height,
+      role === "container" ? "cutaway-container" : undefined,
+    ));
   });
 
   return geometries;
@@ -743,6 +839,496 @@ function primitiveFill(
   return "transparent";
 }
 
+function safeStart(start: number, end: number, offset = 0): number {
+  return Math.min(start + offset, end - 0.05);
+}
+
+function detailLine(
+  id: string,
+  start: number,
+  end: number,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  points: { x1: number; y1: number; x2: number; y2: number },
+  options: {
+    stroke?: string;
+    layer?: number;
+    lineWidth?: number;
+    lineDash?: number[];
+    arrowEnd?: boolean;
+    arrowSize?: number;
+  } = {},
+): ShapeEvent {
+  return {
+    id,
+    type: "shape",
+    shapeType: "line",
+    start,
+    end,
+    layer: options.layer ?? 4,
+    ...points,
+    stroke: options.stroke ?? withAlpha(palette.accent1, 0.86),
+    lineWidth: options.lineWidth ?? Math.max(1.4, style.strokeWeight),
+    lineDash: options.lineDash,
+    arrowEnd: options.arrowEnd,
+    arrowSize: options.arrowSize,
+    drawProgress: transitionValue(0, 1, start, end, style.easing, 0.55),
+    opacity: revealOpacity(start, end, style.easing),
+  };
+}
+
+function rectBaseEvent(
+  geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
+  start: number,
+  end: number,
+  operation: StoryboardOperation,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  idPrefix: string,
+  options: {
+    fill?: ShapeFill;
+    stroke?: string;
+    strokeWidth?: number;
+    layer?: number;
+  } = {},
+): ShapeEvent {
+  const stroke = options.stroke ?? primitiveStroke(geometry.role, palette);
+  return {
+    id: `${idPrefix}-${geometry.primitive.id}`,
+    type: "shape",
+    shapeType: "rect",
+    start,
+    end,
+    layer: options.layer ?? 3,
+    x: geometry.x,
+    y: geometry.y,
+    width: geometry.width,
+    height: geometry.height,
+    radius: Math.min(style.radius, 10),
+    fill: options.fill ?? primitiveFill(geometry.role, operation, palette),
+    stroke,
+    strokeWidth: options.strokeWidth ?? Math.max(1.5, style.strokeWeight),
+    ...motionFor(operation, start, end, style),
+  };
+}
+
+function rectTraceEvents(
+  geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
+  start: number,
+  end: number,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  idPrefix: string,
+): ShapeEvent[] {
+  const stroke = withAlpha(primitiveStroke(geometry.role, palette), 0.92);
+  const x = geometry.x;
+  const y = geometry.y;
+  const w = geometry.width;
+  const h = geometry.height;
+  const segments = [
+    { x1: x, y1: y, x2: x + w, y2: y },
+    { x1: x + w, y1: y, x2: x + w, y2: y + h },
+    { x1: x + w, y1: y + h, x2: x, y2: y + h },
+    { x1: x, y1: y + h, x2: x, y2: y },
+  ];
+  return segments.map((points, index) => {
+    const segmentStart = safeStart(start, end, index * 0.06);
+    return detailLine(
+      `${idPrefix}-${geometry.primitive.id}-trace-${index}`,
+      segmentStart,
+      end,
+      palette,
+      style,
+      points,
+      { stroke, layer: 5, lineWidth: Math.max(1.6, style.strokeWeight * 1.05) },
+    );
+  });
+}
+
+function fillSweepEvents(
+  geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
+  start: number,
+  end: number,
+  operation: StoryboardOperation,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  idPrefix: string,
+): ShapeEvent[] {
+  if (operation !== "fill") return [];
+  const sweepStart = safeStart(start, end, 0.08);
+  return [{
+    id: `${idPrefix}-${geometry.primitive.id}-fill-sweep`,
+    type: "shape",
+    shapeType: "rect",
+    start: sweepStart,
+    end,
+    layer: 4,
+    x: geometry.x,
+    y: geometry.y,
+    width: geometry.width,
+    height: geometry.height,
+    radius: Math.min(style.radius, 8),
+    fill: withAlpha(primitiveStroke(geometry.role, palette), 0.18),
+    stroke: withAlpha(primitiveStroke(geometry.role, palette), 0.38),
+    strokeWidth: 1,
+    scaleX: transitionValue(0.05, 1, sweepStart, end, style.easing, 0.55),
+    opacity: revealOpacity(sweepStart, end, style.easing),
+  }];
+}
+
+function layeredRectDetailEvents(
+  geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
+  start: number,
+  end: number,
+  operation: StoryboardOperation,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  idPrefix: string,
+): ShapeEvent[] {
+  const stroke = primitiveStroke(geometry.role, palette);
+  const events: ShapeEvent[] = [
+    rectBaseEvent(
+      geometry,
+      start,
+      end,
+      operation,
+      palette,
+      style,
+      idPrefix,
+      {
+        fill: withAlpha(palette.surface, geometry.role === "background" ? 0.22 : 0.32),
+        stroke: withAlpha(stroke, 0.78),
+      },
+    ),
+  ];
+  const hatchCount = clamp(Math.floor(geometry.width / 110), 4, 9);
+  for (let index = 0; index < hatchCount; index++) {
+    const x = geometry.x + distribute(index, hatchCount, 18, geometry.width - 18);
+    const lineStart = safeStart(start, end, index * 0.025);
+    events.push(detailLine(
+      `${idPrefix}-${geometry.primitive.id}-hatch-${index}`,
+      lineStart,
+      end,
+      palette,
+      style,
+      {
+        x1: x - 22,
+        y1: geometry.y + geometry.height * 0.78,
+        x2: x + 22,
+        y2: geometry.y + geometry.height * 0.28,
+      },
+      {
+        stroke: withAlpha(stroke, 0.38),
+        layer: 4,
+        lineWidth: Math.max(1, style.strokeWeight * 0.62),
+      },
+    ));
+  }
+  return events;
+}
+
+function beamArrayEvents(
+  geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
+  start: number,
+  end: number,
+  operation: StoryboardOperation,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  idPrefix: string,
+): ShapeEvent[] {
+  const stroke = primitiveStroke(geometry.role, palette);
+  const beamCount = clamp(Math.floor(geometry.height / 56), 3, 8);
+  const events: ShapeEvent[] = rectTraceEvents(geometry, start, end, palette, style, idPrefix).map((event) => ({
+    ...event,
+    stroke: withAlpha(stroke, 0.28),
+    lineWidth: Math.max(1, style.strokeWeight * 0.65),
+    lineDash: style.lineDash,
+    layer: 2,
+  }));
+  const centerX = geometry.x + geometry.width / 2;
+
+  for (let index = 0; index < beamCount; index++) {
+    const y = distribute(index, beamCount, geometry.y + 16, geometry.y + geometry.height - 16);
+    const beamStart = safeStart(start, end, index * 0.055);
+    const leftFirst = index % 2 === 0;
+    events.push(detailLine(
+      `${idPrefix}-${geometry.primitive.id}-beam-${index}-a`,
+      beamStart,
+      end,
+      palette,
+      style,
+      {
+        x1: centerX,
+        y1: y,
+        x2: leftFirst ? geometry.x : geometry.x + geometry.width,
+        y2: y,
+      },
+      {
+        stroke,
+        layer: 4,
+        lineWidth: Math.max(2.4, style.strokeWeight * 1.35),
+      },
+    ));
+    events.push(detailLine(
+      `${idPrefix}-${geometry.primitive.id}-beam-${index}-b`,
+      safeStart(beamStart, end, 0.045),
+      end,
+      palette,
+      style,
+      {
+        x1: centerX,
+        y1: y,
+        x2: leftFirst ? geometry.x + geometry.width : geometry.x,
+        y2: y,
+      },
+      {
+        stroke,
+        layer: 4,
+        lineWidth: Math.max(2.4, style.strokeWeight * 1.35),
+      },
+    ));
+  }
+
+  if (operation === "fill") {
+    events.push(...fillSweepEvents(geometry, start, end, operation, palette, style, idPrefix));
+  }
+  return events;
+}
+
+function slabStackEvents(
+  geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
+  start: number,
+  end: number,
+  operation: StoryboardOperation,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  idPrefix: string,
+): ShapeEvent[] {
+  const stroke = primitiveStroke(geometry.role, palette);
+  const slabCount = clamp(Math.floor(geometry.height / 64), 3, 7);
+  const slabHeight = Math.min(18, geometry.height / (slabCount * 2.8));
+  const events: ShapeEvent[] = [];
+
+  for (let index = 0; index < slabCount; index++) {
+    const y = distribute(index, slabCount, geometry.y + 14, geometry.y + geometry.height - slabHeight - 14);
+    const slabStart = safeStart(start, end, index * 0.06);
+    events.push({
+      id: `${idPrefix}-${geometry.primitive.id}-slab-${index}`,
+      type: "shape",
+      shapeType: "rect",
+      start: slabStart,
+      end,
+      layer: 4,
+      x: geometry.x,
+      y,
+      width: geometry.width,
+      height: slabHeight,
+      radius: 3,
+      fill: withAlpha(stroke, operation === "fill" ? 0.18 : 0.08),
+      stroke: withAlpha(stroke, 0.82),
+      strokeWidth: Math.max(1.1, style.strokeWeight * 0.72),
+      scaleX: operation === "grow" || operation === "fill"
+        ? transitionValue(0.08, 1, slabStart, end, style.easing, 0.55)
+        : undefined,
+      opacity: revealOpacity(slabStart, end, style.easing),
+    });
+  }
+
+  events.push(...rectTraceEvents(geometry, start, end, palette, style, idPrefix).map((event) => ({
+    ...event,
+    stroke: withAlpha(stroke, 0.28),
+    lineWidth: Math.max(1, style.strokeWeight * 0.62),
+    layer: 2,
+  })));
+  events.push(...fillSweepEvents(geometry, start, end, operation, palette, style, idPrefix));
+  return events;
+}
+
+function panelGridEvents(
+  geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
+  start: number,
+  end: number,
+  operation: StoryboardOperation,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  idPrefix: string,
+  dense: boolean,
+): ShapeEvent[] {
+  const stroke = primitiveStroke(geometry.role, palette);
+  const events: ShapeEvent[] = [
+    rectBaseEvent(
+      geometry,
+      start,
+      end,
+      operation,
+      palette,
+      style,
+      idPrefix,
+      {
+        fill: operation === "fill" ? withAlpha(stroke, 0.12) : "transparent",
+        stroke: withAlpha(stroke, 0.78),
+      },
+    ),
+  ];
+  const cols = clamp(Math.floor(geometry.width / (dense ? 54 : 90)), dense ? 3 : 2, dense ? 8 : 5);
+  const rows = clamp(Math.floor(geometry.height / (dense ? 54 : 82)), dense ? 3 : 2, dense ? 9 : 6);
+  const gapX = geometry.width / (cols + 1);
+  const gapY = geometry.height / (rows + 1);
+  const paneWidth = Math.min(dense ? 34 : 52, gapX * 0.52);
+  const paneHeight = Math.min(dense ? 30 : 42, gapY * 0.46);
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const paneStart = safeStart(start, end, (row * cols + col) * (dense ? 0.018 : 0.028));
+      events.push({
+        id: `${idPrefix}-${geometry.primitive.id}-pane-${row}-${col}`,
+        type: "shape",
+        shapeType: "rect",
+        start: paneStart,
+        end,
+        layer: 4,
+        x: geometry.x + gapX * (col + 1) - paneWidth / 2,
+        y: geometry.y + gapY * (row + 1) - paneHeight / 2,
+        width: paneWidth,
+        height: paneHeight,
+        radius: 2,
+        fill: withAlpha(stroke, operation === "fill" ? 0.2 : dense ? 0.08 : 0.06),
+        stroke: withAlpha(stroke, dense ? 0.82 : 0.62),
+        strokeWidth: 1,
+        ...motionFor(operation === "grow" ? "reveal" : operation, paneStart, end, style),
+      });
+    }
+  }
+
+  events.push(...fillSweepEvents(geometry, start, end, operation, palette, style, idPrefix));
+  return operation === "trace"
+    ? [...events, ...rectTraceEvents(geometry, start, end, palette, style, idPrefix)]
+    : events;
+}
+
+function cutawayContainerEvents(
+  geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
+  start: number,
+  end: number,
+  operation: StoryboardOperation,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  idPrefix: string,
+): ShapeEvent[] {
+  const stroke = primitiveStroke(geometry.role, palette);
+  const inset = Math.min(28, Math.min(geometry.width, geometry.height) * 0.08);
+  const innerStart = safeStart(start, end, 0.1);
+  const events: ShapeEvent[] = [
+    rectBaseEvent(
+      geometry,
+      start,
+      end,
+      operation,
+      palette,
+      style,
+      idPrefix,
+      {
+        fill: withAlpha(palette.surface, 0.16),
+        stroke: withAlpha(stroke, 0.86),
+      },
+    ),
+    {
+      id: `${idPrefix}-${geometry.primitive.id}-inner`,
+      type: "shape",
+      shapeType: "rect",
+      start: innerStart,
+      end,
+      layer: 3,
+      x: geometry.x + inset,
+      y: geometry.y + inset,
+      width: Math.max(4, geometry.width - inset * 2),
+      height: Math.max(4, geometry.height - inset * 2),
+      radius: Math.min(style.radius, 8),
+      fill: "transparent",
+      stroke: withAlpha(stroke, 0.42),
+      strokeWidth: Math.max(1, style.strokeWeight * 0.7),
+      opacity: revealOpacity(innerStart, end, style.easing),
+    },
+    ...fillSweepEvents(geometry, start, end, operation, palette, style, idPrefix),
+  ];
+  if (operation === "trace") {
+    events.push(...rectTraceEvents(geometry, start, end, palette, style, idPrefix));
+  }
+  return events;
+}
+
+function constructionCraneEvents(
+  geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
+  start: number,
+  end: number,
+  operation: StoryboardOperation,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  idPrefix: string,
+): ShapeEvent[] {
+  const stroke = primitiveStroke(geometry.role, palette);
+  const mastX = geometry.x + geometry.width * 0.22;
+  const mastTop = geometry.y + geometry.height * 0.16;
+  const mastBottom = geometry.y + geometry.height * 0.92;
+  const boomY = mastTop;
+  const hookX = geometry.x + geometry.width * 0.76;
+  const boomStart = safeStart(start, end, 0.08);
+  const hookStart = safeStart(start, end, 0.22);
+  return [
+    detailLine(
+      `${idPrefix}-${geometry.primitive.id}-mast`,
+      start,
+      end,
+      palette,
+      style,
+      { x1: mastX, y1: mastBottom, x2: mastX, y2: mastTop },
+      { stroke, layer: 5, lineWidth: Math.max(2, style.strokeWeight * 1.2) },
+    ),
+    detailLine(
+      `${idPrefix}-${geometry.primitive.id}-boom`,
+      boomStart,
+      end,
+      palette,
+      style,
+      { x1: mastX, y1: boomY, x2: geometry.x + geometry.width * 0.92, y2: boomY },
+      { stroke, layer: 5, lineWidth: Math.max(2, style.strokeWeight * 1.2) },
+    ),
+    detailLine(
+      `${idPrefix}-${geometry.primitive.id}-counterboom`,
+      safeStart(start, end, 0.14),
+      end,
+      palette,
+      style,
+      { x1: mastX, y1: boomY, x2: geometry.x + geometry.width * 0.04, y2: boomY + geometry.height * 0.08 },
+      { stroke: withAlpha(stroke, 0.76), layer: 5, lineWidth: Math.max(1.6, style.strokeWeight) },
+    ),
+    detailLine(
+      `${idPrefix}-${geometry.primitive.id}-hook-line`,
+      hookStart,
+      end,
+      palette,
+      style,
+      { x1: hookX, y1: boomY, x2: hookX, y2: geometry.y + geometry.height * 0.54 },
+      { stroke: withAlpha(stroke, 0.72), layer: 5, lineWidth: Math.max(1.2, style.strokeWeight * 0.75) },
+    ),
+    {
+      id: `${idPrefix}-${geometry.primitive.id}-hook`,
+      type: "shape",
+      shapeType: "circle",
+      start: safeStart(hookStart, end, 0.12),
+      end,
+      layer: 5,
+      x: hookX,
+      y: geometry.y + geometry.height * 0.58,
+      radius: 8,
+      fill: withAlpha(stroke, 0.22),
+      stroke,
+      strokeWidth: Math.max(1.2, style.strokeWeight * 0.8),
+      ...motionFor(operation === "move" ? "move" : "reveal", safeStart(hookStart, end, 0.12), end, style),
+    },
+  ];
+}
+
 function rectEventsForPrimitive(
   geometry: Extract<PrimitiveGeometry, { kind: "rect" }>,
   start: number,
@@ -754,56 +1340,29 @@ function rectEventsForPrimitive(
 ): ShapeEvent[] {
   const stroke = primitiveStroke(geometry.role, palette);
   const fill = primitiveFill(geometry.role, operation, palette);
+  if (geometry.detail === "beam-array") {
+    return beamArrayEvents(geometry, start, end, operation, palette, style, idPrefix);
+  }
+  if (geometry.detail === "construction-crane") {
+    return constructionCraneEvents(geometry, start, end, operation, palette, style, idPrefix);
+  }
+  if (geometry.detail === "cutaway-container") {
+    return cutawayContainerEvents(geometry, start, end, operation, palette, style, idPrefix);
+  }
+  if (geometry.detail === "layer-depth") {
+    return layeredRectDetailEvents(geometry, start, end, operation, palette, style, idPrefix);
+  }
+  if (geometry.detail === "panel-grid") {
+    return panelGridEvents(geometry, start, end, operation, palette, style, idPrefix, false);
+  }
+  if (geometry.detail === "slab-stack") {
+    return slabStackEvents(geometry, start, end, operation, palette, style, idPrefix);
+  }
   if (geometry.detail === "window-grid") {
-    const events: ShapeEvent[] = [];
-    const cols = clamp(Math.floor(geometry.width / 54), 3, 7);
-    const rows = clamp(Math.floor(geometry.height / 54), 3, 8);
-    const gapX = geometry.width / (cols + 1);
-    const gapY = geometry.height / (rows + 1);
-    const paneWidth = Math.min(34, gapX * 0.48);
-    const paneHeight = Math.min(30, gapY * 0.42);
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const paneStart = Math.min(start + (row * cols + col) * 0.018, end - 0.05);
-        events.push({
-          id: `${idPrefix}-${geometry.primitive.id}-pane-${row}-${col}`,
-          type: "shape",
-          shapeType: "rect",
-          start: paneStart,
-          end,
-          layer: 4,
-          x: geometry.x + gapX * (col + 1) - paneWidth / 2,
-          y: geometry.y + gapY * (row + 1) - paneHeight / 2,
-          width: paneWidth,
-          height: paneHeight,
-          radius: 2,
-          fill: withAlpha(stroke, operation === "fill" ? 0.2 : 0.08),
-          stroke: withAlpha(stroke, 0.82),
-          strokeWidth: 1,
-          ...motionFor(operation === "grow" ? "reveal" : operation, paneStart, end, style),
-        });
-      }
-    }
-    return events;
+    return panelGridEvents(geometry, start, end, operation, palette, style, idPrefix, true);
   }
 
-  const events: ShapeEvent[] = [{
-    id: `${idPrefix}-${geometry.primitive.id}`,
-    type: "shape",
-    shapeType: "rect",
-    start,
-    end,
-    layer: 3,
-    x: geometry.x,
-    y: geometry.y,
-    width: geometry.width,
-    height: geometry.height,
-    radius: Math.min(style.radius, 10),
-    fill,
-    stroke,
-    strokeWidth: Math.max(1.5, style.strokeWeight),
-    ...motionFor(operation, start, end, style),
-  }];
+  const events: ShapeEvent[] = [rectBaseEvent(geometry, start, end, operation, palette, style, idPrefix, { fill, stroke })];
 
   if (geometry.role === "panel" && geometry.detail !== "comparison-panel") {
     events.push({
@@ -823,6 +1382,11 @@ function rectEventsForPrimitive(
       strokeWidth: 1,
       ...motionFor("reveal", Math.min(start + 0.12, end - 0.05), end, style),
     });
+  }
+
+  events.push(...fillSweepEvents(geometry, start, end, operation, palette, style, idPrefix));
+  if (operation === "trace") {
+    events.push(...rectTraceEvents(geometry, start, end, palette, style, idPrefix));
   }
 
   return events;
@@ -1147,6 +1711,73 @@ function connectorEventsForStage(
   return events;
 }
 
+function familyGuideEvents(
+  scene: Scene,
+  stages: StoryboardStage[],
+  geometries: Map<string, PrimitiveGeometry>,
+  slice: StoryboardDrawingSlice,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  sceneIndex: number,
+): ShapeEvent[] {
+  const guideStage = Math.max(0, stages.findIndex((stage) => stage.operation === "trace" || stage.operation === "connect"));
+  const start = safeStart(stageStart(slice, guideStage, stages.length), slice.end, 0.04);
+
+  if (scene.diagramIntent.family === "cycle") {
+    const bounds = unionBounds(geometries.values());
+    if (!bounds || bounds.width <= 0 || bounds.height <= 0) return [];
+    return [{
+      id: `scene-${sceneIndex}-storyboard-cycle-guide`,
+      type: "shape",
+      shapeType: "circle",
+      start,
+      end: slice.end,
+      layer: 1,
+      x: bounds.x + bounds.width / 2,
+      y: bounds.y + bounds.height / 2,
+      radius: Math.max(36, Math.min(bounds.width, bounds.height) * 0.54),
+      fill: "transparent",
+      stroke: withAlpha(palette.accent2, 0.28),
+      strokeWidth: Math.max(1.3, style.strokeWeight * 0.72),
+      drawProgress: transitionValue(0, 1, start, slice.end, style.easing, 0.75),
+      opacity: revealOpacity(start, slice.end, style.easing),
+    }];
+  }
+
+  if (scene.diagramIntent.family === "field-range") {
+    const pins = [...geometries.values()].filter((geometry) =>
+      geometry.kind === "circle" && geometry.role === "pin"
+    );
+    const receiver = pins.find((geometry) => isReceiverPrimitive(geometry.primitive));
+    if (!receiver) return [];
+    return pins
+      .filter((geometry) => geometry !== receiver)
+      .map((geometry, index) => detailLine(
+        `scene-${sceneIndex}-storyboard-field-link-${index}`,
+        safeStart(start, slice.end, index * 0.045),
+        slice.end,
+        palette,
+        style,
+        {
+          x1: geometry.center.x,
+          y1: geometry.center.y,
+          x2: receiver.center.x,
+          y2: receiver.center.y,
+        },
+        {
+          stroke: withAlpha(palette.accent2, 0.48),
+          layer: 2,
+          lineWidth: Math.max(1.4, style.strokeWeight * 0.75),
+          lineDash: style.lineDash,
+          arrowEnd: true,
+          arrowSize: 8,
+        },
+      ));
+  }
+
+  return [];
+}
+
 function comparisonConnectorEvents(
   stages: StoryboardStage[],
   geometries: Map<string, PrimitiveGeometry>,
@@ -1374,6 +2005,7 @@ export function compileStoryboardScene(
       sceneIndex,
     ));
   });
+  events.push(...familyGuideEvents(scene, scene.storyboard.stages, geometries, slice, palette, style, sceneIndex));
 
   scene.storyboard.stages.forEach((stage, index) => {
     events.push(...connectorEventsForStage(scene, stage, index, stageCount, geometries, slice, palette, style, sceneIndex));

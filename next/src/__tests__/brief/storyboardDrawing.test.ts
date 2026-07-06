@@ -119,7 +119,8 @@ describe("compileStoryboardScene", () => {
       },
     }));
 
-    const circles = shapeEvents(scene).filter((event): event is CircleShapeEvent => event.shapeType === "circle");
+    const shapes = shapeEvents(scene);
+    const circles = shapes.filter((event): event is CircleShapeEvent => event.shapeType === "circle");
     const rings = circles.filter((event) => event.id.includes("range") && event.fill === "transparent");
     const satellites = circles.filter((event) => event.id.includes("sat") && !event.id.includes("signal"));
     const receiver = circles.find((event) => event.id.includes("receiver") && !event.id.includes("pulse"));
@@ -130,6 +131,7 @@ describe("compileStoryboardScene", () => {
     expect(rings.every((event) => Math.hypot(event.x - center.x, event.y - center.y) > 40)).toBe(true);
     expect(receiver).toBeDefined();
     expect(Math.hypot(receiver!.x - center.x, receiver!.y - center.y)).toBeGreaterThan(20);
+    expect(shapes.some((event) => event.shapeType === "line" && event.id.includes("field-link"))).toBe(true);
   });
 
   it("emits circular positions and traced connectors for cycle scenes", () => {
@@ -159,7 +161,75 @@ describe("compileStoryboardScene", () => {
 
     expect(shapes.filter((event) => event.shapeType === "circle").length).toBeGreaterThanOrEqual(3);
     expect(connectors.length).toBeGreaterThanOrEqual(3);
+    expect(shapes.some((event) => event.id.includes("cycle-guide") && event.shapeType === "circle")).toBe(true);
     expect(shapes.some((event) => /-(rain|cloud|water|ray)-/.test(event.id))).toBe(true);
+  });
+
+  it("emits stronger cross-section detail for spatial cutaway scenes", () => {
+    const scene = sceneFrom(baseScene("spatial-cutaway", {
+      visualPrimitives: [
+        { id: "soil", type: "soil layer", label: "Soil Layer", drawingRole: "layer" },
+        { id: "vessel", type: "container shell", label: "Tank Shell", drawingRole: "container" },
+        { id: "pier", type: "support pier", label: "Support Pier", drawingRole: "support" },
+        { id: "liner", type: "inner panel liner", label: "Liner Panels", drawingRole: "panel" },
+      ],
+      primitiveRelationships: [
+        { from: ["pier"], to: ["vessel"], relation: "supports" },
+        { from: ["liner"], to: ["vessel"], relation: "lines interior" },
+      ],
+      storyboard: {
+        style: "line-drawing",
+        stages: [
+          { label: "Ground", operation: "reveal", primitiveIds: ["soil"] },
+          { label: "Shell", operation: "trace", primitiveIds: ["vessel"] },
+          { label: "Pier", operation: "grow", primitiveIds: ["pier"] },
+          { label: "Liner", operation: "fill", primitiveIds: ["liner"] },
+        ],
+      },
+    }));
+
+    const shapes = shapeEvents(scene);
+
+    expect(shapes.some((event) => event.id.includes("soil-hatch") && event.shapeType === "line")).toBe(true);
+    expect(shapes.some((event) => event.id.includes("vessel-inner") && event.shapeType === "rect")).toBe(true);
+    expect(shapes.some((event) => event.id.includes("vessel-trace") && event.shapeType === "line")).toBe(true);
+    expect(shapes.some((event) => event.id.includes("liner-fill-sweep") && event.shapeType === "rect")).toBe(true);
+  });
+
+  it("makes generic storyboard operations visibly distinct", () => {
+    const scene = sceneFrom(baseScene("build-up", {
+      visualPrimitives: [
+        { id: "base", type: "base layer", label: "Base Layer", drawingRole: "layer" },
+        { id: "frame", type: "modular beam frame", label: "Beam Frame", drawingRole: "support" },
+        { id: "skin", type: "outer panel skin", label: "Outer Skin", drawingRole: "panel" },
+        { id: "finish", type: "finish slab plate", label: "Finish Plate", drawingRole: "panel" },
+        { id: "sensor", type: "inspection pin", label: "Inspection Point", drawingRole: "pin" },
+      ],
+      primitiveRelationships: [
+        { from: ["frame"], to: ["skin"], relation: "connects to" },
+        { from: ["sensor"], to: ["finish"], relation: "checks" },
+      ],
+      storyboard: {
+        style: "line-drawing",
+        stages: [
+          { label: "Base", operation: "reveal", primitiveIds: ["base"] },
+          { label: "Frame grows", operation: "grow", primitiveIds: ["frame"] },
+          { label: "Trace skin", operation: "trace", primitiveIds: ["skin"] },
+          { label: "Fill finish", operation: "fill", primitiveIds: ["finish"] },
+          { label: "Inspect", operation: "pulse", primitiveIds: ["sensor"] },
+          { label: "Connect", operation: "connect", primitiveIds: ["frame", "sensor"] },
+        ],
+      },
+    }));
+
+    const shapes = shapeEvents(scene);
+
+    expect(shapes.some((event) => event.id.includes("base-hatch") && event.shapeType === "line")).toBe(true);
+    expect(shapes.some((event) => event.id.includes("frame-beam") && event.shapeType === "line")).toBe(true);
+    expect(shapes.some((event) => event.id.includes("skin-trace") && event.shapeType === "line")).toBe(true);
+    expect(shapes.some((event) => event.id.includes("finish-fill-sweep") && event.shapeType === "rect")).toBe(true);
+    expect(shapes.some((event) => event.id.includes("storyboard-pulse") && event.shapeType === "circle")).toBe(true);
+    expect(shapes.some((event) => event.id.includes("storyboard-connector") && event.shapeType === "line")).toBe(true);
   });
 
   it("places comparison storyboard primitives into two drawing regions", () => {

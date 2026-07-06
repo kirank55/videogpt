@@ -610,6 +610,9 @@ describe("buildProjectFromBrief", () => {
     const result = buildProjectFromBriefWithDiagnostics(twoSceneStoryboardBrief(), DUR);
     const shapes = shapeEvents(result.project);
     const text = textEvents(result.project);
+    const title = text.find((event) => event.id === "title");
+    const firstHeading = text.find((event) => event.id === "scene-0-heading");
+    const closing = text.find((event) => event.id === "closing-line");
 
     expect(result.diagnostics.storyboard[0]).toMatchObject({
       used: false,
@@ -626,6 +629,10 @@ describe("buildProjectFromBrief", () => {
     expect(shapes.some((event) => event.id.startsWith("scene-0-block-card"))).toBe(true);
     expect(text.some((event) => event.id.startsWith("scene-0-block-heading"))).toBe(true);
     expect(shapes.some((event) => event.id.includes("scene-1-storyboard-primitive"))).toBe(true);
+    expect(title?.text).toBe("Skyscraper Storyboard");
+    expect(closing?.text).toBe("The tower is complete.");
+    expect(title!.end).toBeLessThanOrEqual(firstHeading!.start);
+    expect(firstHeading!.end).toBeLessThanOrEqual(closing!.start);
   });
 
   it("falls back to existing scene rendering when a non-graph storyboard is missing", () => {
