@@ -94,7 +94,7 @@ export type TextEvent = BaseTimelineEvent & {
   fontFamily?: string;
   lineHeight?: number;
   align?: CanvasTextAlign;
-  verticalAlign?: "top" | "middle";
+  verticalAlign?: "top" | "middle" | "bottom";
   backdrop?: {
     fill: string;
     stroke?: string;
@@ -123,7 +123,15 @@ export type IconName =
   | "shield"
   | "cpu"
   | "cache"
-  | "app";
+  | "app"
+  | "building"
+  | "foundation"
+  | "beam"
+  | "floor"
+  | "elevator"
+  | "wall"
+  | "wrench"
+  | "water";
 
 export type ShapeEvent = BaseTimelineEvent &
   (

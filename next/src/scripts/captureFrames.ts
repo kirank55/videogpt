@@ -52,8 +52,13 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`   Brief: "${brief.title}" | Layout: ${brief.layout}`);
-  console.log(`   VisualElements: ${brief.visualElements ? brief.visualElements.length : 0} items`);
+  console.log(
+    `   Brief: "${brief.title}" | Scenes: ${brief.scenes.length} ` +
+    `(${brief.scenes.map((scene) => scene.diagramLayout).join(", ")})`,
+  );
+  console.log(
+    `   Graph nodes: ${brief.scenes.reduce((sum, scene) => sum + scene.graph.nodes.length, 0)} items`,
+  );
 
   // 2. Save project temporarily to public folder as a synchronous script file
   console.log("2. Writing temporary project js data to public folder...");

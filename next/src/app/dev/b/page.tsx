@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useEffect, useRef, useState, Suspense } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
 import Script from "next/script";
-import { useStore } from "@/lib/ui/store";
-import { renderProjectFrame, type VideoProject } from "@/lib/ui/renderer";
+import { renderProjectFrame, type TextEvent, type VideoProject } from "@/lib/ui/renderer";
 import { TopBar } from "@/components/layout/TopBar";
 
 import { PlayerCard } from "@/components/player/PlayerCard";
@@ -31,50 +30,65 @@ function ProjectThumbnail({ project }: { project: VideoProject }) {
 }
 
 function parseProjectBrief(project: VideoProject) {
-  const titleEvent = project.events.find(e => e.id === "title" && e.type === "text") as any;
-  const subtitleEvent = project.events.find(e => e.id === "subtitle" && e.type === "text") as any;
-  const closingLineEvent = project.events.find(e => e.id === "closing-line" && e.type === "text") as any;
+  const isTextEvent = (event: VideoProject["events"][number]): event is TextEvent =>
+    event.type === "text";
+  const titleEvent = project.events.find((e): e is TextEvent => e.id === "title" && isTextEvent(e));
+  const subtitleEvent = project.events.find((e): e is TextEvent => e.id === "subtitle" && isTextEvent(e));
+  const closingLineEvent = project.events.find((e): e is TextEvent => e.id === "closing-line" && isTextEvent(e));
 
   const title = titleEvent?.text || project.name;
   const subtitle = subtitleEvent?.text || "";
   const closingLine = closingLineEvent?.text || "";
 
-  // Parse blocks (single-column)
-  const blocks: Array<{ heading: string; description: string }> = [];
-  project.events.forEach((e: any) => {
-    if (e.type === "text" && e.id.startsWith("block-heading-")) {
-      const index = e.id.replace("block-heading-", "");
-      const descEvent = project.events.find(d => d.id === `block-desc-${index}` && d.type === "text") as any;
+  const sceneHeadings: string[] = [];
+  const blocks: Array<{ sceneIndex: number; heading: string; description: string }> = [];
+  const nodes: Array<{ sceneIndex: number; label: string }> = [];
+
+  project.events.forEach((e) => {
+    if (!isTextEvent(e)) return;
+
+    const sceneMatch = e.id.match(/^scene-(\d+)-heading$/);
+    if (sceneMatch) {
+      sceneHeadings[Number(sceneMatch[1])] = e.text;
+      return;
+    }
+
+    const blockMatch = e.id.match(/^scene-(\d+)-block-heading-(\d+)$/);
+    if (blockMatch) {
+      const sceneIndex = Number(blockMatch[1]);
+      const blockIndex = Number(blockMatch[2]);
+      const descEvent = project.events.find(
+        (d): d is TextEvent => d.id === `scene-${sceneIndex}-block-desc-${blockIndex}` && isTextEvent(d),
+      );
       blocks.push({
+        sceneIndex,
         heading: e.text,
-        description: descEvent?.text || ""
+        description: descEvent?.text || "",
+      });
+      return;
+    }
+
+    const nodeMatch = e.id.match(/^scene-(\d+)-node-label-/);
+    if (nodeMatch) {
+      nodes.push({
+        sceneIndex: Number(nodeMatch[1]),
+        label: e.text,
       });
     }
   });
 
-  // Parse two-column elements
-  const leftRows: string[] = [];
-  const rightRows: string[] = [];
-  project.events.forEach((e: any) => {
-    if (e.type === "text" && e.id.startsWith("left-label-")) {
-      leftRows.push(e.text);
-    }
-    if (e.type === "text" && e.id.startsWith("right-label-")) {
-      rightRows.push(e.text);
-    }
-  });
-
-  // Flow details
-  const hasFlow = project.events.some(e => e.id === "req-packet");
+  const edgeCount = project.events.filter(e => e.id.includes("-edge-")).length;
+  const packetCount = project.events.filter(e => e.id.includes("-packet-")).length;
 
   return {
     title,
     subtitle,
     closingLine,
+    sceneHeadings: sceneHeadings.filter(Boolean),
     blocks,
-    leftRows,
-    rightRows,
-    hasFlow
+    nodes,
+    edgeCount,
+    packetCount,
   };
 }
 
@@ -154,12 +168,12 @@ function VideoPlayerModal({ project, onClose }: { project: VideoProject; onClose
                   {briefInfo.subtitle && <p className="text-sm text-zinc-400 mt-1">{briefInfo.subtitle}</p>}
                 </div>
 
-                {/* Layout Type */}
+                {/* Graph Summary */}
                 <div className="grid grid-cols-2 gap-4 border-t border-zinc-800/80 pt-4">
                   <div>
-                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Layout</h3>
+                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Diagram Model</h3>
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-zinc-800 text-zinc-300 uppercase">
-                      {briefInfo.blocks.length > 0 ? "Single-Column" : "Two-Column (Split)"}
+                      Graph
                     </span>
                   </div>
                   <div>
@@ -169,9 +183,20 @@ function VideoPlayerModal({ project, onClose }: { project: VideoProject; onClose
                 </div>
 
                 {/* Content Details */}
-                {briefInfo.blocks.length > 0 ? (
+                <div className="border-t border-zinc-800/80 pt-4">
+                  <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-3">Scenes</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {(briefInfo.sceneHeadings.length > 0 ? briefInfo.sceneHeadings : ["Scene 1"]).map((heading, idx) => (
+                      <span key={`${heading}-${idx}`} className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-xs font-medium">
+                        {heading}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {briefInfo.blocks.length > 0 && (
                   <div className="border-t border-zinc-800/80 pt-4">
-                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-3">Blocks / Steps</h3>
+                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-3">Blocks</h3>
                     <div className="space-y-3">
                       {briefInfo.blocks.map((block, idx) => (
                         <div key={idx} className="bg-zinc-950 p-3 rounded-lg border border-zinc-800/50">
@@ -188,39 +213,24 @@ function VideoPlayerModal({ project, onClose }: { project: VideoProject; onClose
                       ))}
                     </div>
                   </div>
-                ) : (
-                  <div className="border-t border-zinc-800/80 pt-4 space-y-4">
-                    {/* Two Column details */}
-                    {briefInfo.leftRows.length > 0 && (
-                      <div>
-                        <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-2">Left Stack Layers</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {briefInfo.leftRows.map((row, idx) => (
-                            <span key={idx} className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-xs font-medium">
-                              {row}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {briefInfo.rightRows.length > 0 && (
-                      <div>
-                        <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-2">Right Stack Layers</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {briefInfo.rightRows.map((row, idx) => (
-                            <span key={idx} className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-xs font-medium">
-                              {row}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Interactive Flow</h3>
-                      <span className="text-sm">{briefInfo.hasFlow ? "Enabled (Request / Response animation)" : "Disabled"}</span>
+                )}
+
+                <div className="border-t border-zinc-800/80 pt-4 space-y-4">
+                  <div>
+                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-2">Graph Nodes</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {briefInfo.nodes.map((node, idx) => (
+                        <span key={`${node.sceneIndex}-${node.label}-${idx}`} className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-xs font-medium">
+                          {node.label}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                )}
+                  <div>
+                    <h3 className="text-xs uppercase tracking-wider text-zinc-500 font-bold mb-1">Animated Packets</h3>
+                    <span className="text-sm">{briefInfo.packetCount} packet event{briefInfo.packetCount === 1 ? "" : "s"} across {briefInfo.edgeCount} edge layer{briefInfo.edgeCount === 1 ? "" : "s"}</span>
+                  </div>
+                </div>
 
                 {/* Closing Line */}
                 {briefInfo.closingLine && (
@@ -286,7 +296,6 @@ interface CustomWindow extends Window {
 }
 
 function BriefOnlyContent() {
-  const sessions = useStore((s) => s.sessions);
   const [tempProjects, setTempProjects] = useState<VideoProject[]>([]);
   const [activeProject, setActiveProject] = useState<VideoProject | null>(null);
 
@@ -390,11 +399,11 @@ function BriefOnlyContent() {
                   {/* Summary of layout details */}
                   <div className="mt-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     <span>
-                      {item.project.events.some(e => e.id.startsWith("block-heading-")) ? "Single Column" : "Two-Column Split"}
+                      Graph
                     </span>
                     <span>•</span>
                     <span>
-                      {item.project.events.filter(e => e.type === "text" && (e.id.startsWith("block-heading-") || e.id.startsWith("left-label-") || e.id.startsWith("right-label-"))).length} Steps
+                      {new Set(item.project.events.map(e => e.id.match(/^scene-(\d+)-heading$/)?.[1]).filter(Boolean)).size || 1} Scenes
                     </span>
                     <span>•</span>
                     <span>{item.project.duration}s</span>

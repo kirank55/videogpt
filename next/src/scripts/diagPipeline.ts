@@ -12,7 +12,8 @@ async function main() {
 
   const { brief, diagnostics } = result;
   console.log(`Done in ${elapsed}s`);
-  console.log(`Layout:   ${brief.layout}`);
+  console.log(`Scenes:   ${brief.scenes.length}`);
+  console.log(`Layouts:  ${brief.scenes.map((scene) => scene.diagramLayout).join(", ")}`);
   console.log(`Title:    ${brief.title}`);
   console.log(`Palette:  ${brief.palette} / ${brief.style}`);
   console.log(`Events:   ${result.project.events.length}`);

@@ -33,12 +33,12 @@ export async function POST(req: NextRequest) {
       rawBrief !== null &&
       "duration" in rawBrief
       ? (rawBrief as Record<string, unknown>).duration
-      : 15;
-  const duration = resolveDuration(rawDur, 15);
+      : 5;
+  const duration = resolveDuration(rawDur);
 
   console.log(
     `[api/modify] instruction="${prompt}" ` +
-    `currentBrief.layout=${currentBrief.layout} duration=${duration}s`,
+    `currentBrief.scenes=${currentBrief.scenes.length} duration=${duration}s`,
   );
   const t0 = Date.now();
 
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     console.warn(`[api/modify] LLM error (${elapsed}s): ${llmError}`);
   } else {
     console.log(
-      `[api/modify] done (${elapsed}s) layout=${brief.layout} ` +
+      `[api/modify] done (${elapsed}s) scenes=${brief.scenes.length} ` +
       `palette=${brief.palette}/${brief.style} ` +
       `events=${project.events.length}`,
     );

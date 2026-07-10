@@ -1,260 +1,185 @@
 #!/usr/bin/env tsx
-// ── Eval Harness ─────────────────────────────────────────────────────────────
-//
-// Runs 10–15 test prompts through the real LLM pipeline.
-// For each prompt it:
-//   1. Calls runGeneratePipeline (live OpenRouter call)
-//   2. Reports pass/fail per prompt in a matrix
-//   3. Logs real token usage (from OpenRouter `usage`) + elapsed time
-//
-// Usage:
-//   npm run eval                  — runs all test prompts
-//   npm run eval -- --fast        — skip sleep between requests
-//
-// Pass criteria:
-//   - Brief layout matches expected type (two-column / single-column)
-//   - llmError is undefined (LLM actually responded)
-//
-// Exit code 0 if ≥80% pass; exit code 1 otherwise.
-
-// Environment variables are loaded by tsx --env-file flags in package.json scripts.
-// OPENROUTER_API_KEY must be set in .env.local (and/or .env in project root).
 
 import { runGeneratePipeline } from "@/lib/agent/ai/pipeline";
-import type { SupportedDuration } from "@/lib/agent/schemas/brief";
+import type { DiagramFamily, SupportedDuration } from "@/lib/agent/schemas/brief";
 
-// ── Test cases ────────────────────────────────────────────────────────────────
+type ExpectedMode = "primitive-first" | "graph-flow";
 
-interface TestCase {
+type TestCase = {
   prompt: string;
   duration: SupportedDuration;
-  expectedLayout: "two-column" | "single-column" | "any";
+  expectedMode: ExpectedMode;
+  expectedFamilies?: DiagramFamily[];
   description: string;
-}
+};
 
 const TEST_CASES: TestCase[] = [
-  // ── Two-column (client/server / compare) ──────────────────────────────────
   {
-    prompt: "a 15-second video about client-server architecture",
+    prompt: "a 15-second video explaining GPS signal trilateration",
     duration: 15,
-    expectedLayout: "two-column",
-    description: "client-server keyword → two-column",
+    expectedMode: "primitive-first",
+    expectedFamilies: ["field-range"],
+    description: "GPS signal/trilateration",
   },
   {
-    prompt: "explain how HTTP request and response works",
-    duration: 10,
-    expectedLayout: "two-column",
-    description: "request/response keywords → two-column",
-  },
-  {
-    prompt: "compare frontend and backend responsibilities",
+    prompt: "a 15-second video explaining skyscraper construction from groundbreaking to grand opening",
     duration: 15,
-    expectedLayout: "two-column",
-    description: "frontend/backend keywords → two-column",
+    expectedMode: "primitive-first",
+    expectedFamilies: ["spatial-cutaway", "build-up", "timeline"],
+    description: "skyscraper construction",
   },
   {
-    prompt: "how does a REST API call work between client and server",
-    duration: 20,
-    expectedLayout: "two-column",
-    description: "api + client/server → two-column with flow",
-  },
-  {
-    prompt: "SQL vs NoSQL database architecture",
+    prompt: "explain the water cycle as a 15-second animated diagram",
     duration: 15,
-    expectedLayout: "two-column",
-    description: "vs keyword → two-column",
+    expectedMode: "primitive-first",
+    expectedFamilies: ["cycle"],
+    description: "water cycle",
   },
   {
-    prompt: "before and after microservice migration",
-    duration: 10,
-    expectedLayout: "two-column",
-    description: "before/after → two-column",
-  },
-
-  // ── Single-column (explainer / how-to) ────────────────────────────────────
-  {
-    prompt: "explain the water cycle",
+    prompt: "explain human heart blood flow in a 15-second medical animation",
     duration: 15,
-    expectedLayout: "single-column",
-    description: "nature explainer → single-column",
+    expectedMode: "primitive-first",
+    expectedFamilies: ["cycle", "spatial-cutaway"],
+    description: "human heart blood flow",
   },
   {
-    prompt: "how photosynthesis works",
-    duration: 10,
-    expectedLayout: "single-column",
-    description: "biology explainer → single-column",
-  },
-  {
-    prompt: "the history of the internet in 20 seconds",
-    duration: 20,
-    expectedLayout: "single-column",
-    description: "history topic → single-column",
-  },
-  {
-    prompt: "how to improve code quality with TDD",
+    prompt: "explain supply chain logistics from factory to customer",
     duration: 15,
-    expectedLayout: "single-column",
-    description: "how-to steps → single-column",
+    expectedMode: "primitive-first",
+    expectedFamilies: ["timeline", "cycle", "comparison"],
+    description: "supply chain logistics",
   },
   {
-    prompt: "what is machine learning",
-    duration: 10,
-    expectedLayout: "single-column",
-    description: "ML explainer (no architecture keywords) → single-column",
-  },
-  {
-    prompt: "benefits of using TypeScript over JavaScript",
+    prompt: "explain a courtroom process from opening statements to verdict",
     duration: 15,
-    expectedLayout: "any", // could go either way — either is fine
-    description: "ambiguous: may be single or two-column",
-  },
-
-  // ── Edge cases / stress tests ──────────────────────────────────────────────
-  {
-    prompt: "kubernetes pod scheduling and resource management",
-    duration: 20,
-    expectedLayout: "any",
-    description: "infra topic — AI decides layout",
+    expectedMode: "primitive-first",
+    expectedFamilies: ["timeline", "comparison"],
+    description: "courtroom process",
   },
   {
-    prompt: "a 5-second intro about video generation with AI",
-    duration: 5,
-    expectedLayout: "any",
-    description: "short 5s video — timing table stress test",
-  },
-  {
-    prompt: "event-driven architecture with producer and consumer services",
+    prompt: "explain database replication between primary and read replicas",
     duration: 15,
-    expectedLayout: "two-column",
-    description: "producer/consumer keywords → two-column",
+    expectedMode: "graph-flow",
+    expectedFamilies: ["graph-flow"],
+    description: "database replication",
+  },
+  {
+    prompt: "explain OAuth login with browser, identity provider, and application server",
+    duration: 15,
+    expectedMode: "graph-flow",
+    expectedFamilies: ["graph-flow"],
+    description: "OAuth login",
   },
 ];
 
-// ── Runner ────────────────────────────────────────────────────────────────────
-
 const isFast = process.argv.includes("--fast");
-const DELAY_MS = isFast ? 0 : 1200; // gentle rate-limit buffer
+const delayMs = isFast ? 0 : 1200;
 
-async function sleep(ms: number) {
+function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-interface ResultRow {
+type ResultRow = {
   idx: number;
-  prompt: string;
   pass: boolean;
-  layout: string;
+  score: number;
+  sceneSummary: string;
   llmError?: string;
   elapsedMs: number;
-  promptTokens?: number;
-  completionTokens?: number;
   totalTokens?: number;
   note: string;
+};
+
+function familiesMatch(actual: DiagramFamily[], expected: DiagramFamily[] | undefined): boolean {
+  if (!expected || expected.length === 0) return true;
+  return actual.some((family) => expected.includes(family));
+}
+
+function modeMatches(actual: DiagramFamily[], expectedMode: ExpectedMode): boolean {
+  const hasGraphFlow = actual.includes("graph-flow");
+  return expectedMode === "graph-flow"
+    ? hasGraphFlow
+    : actual.some((family) => family !== "graph-flow");
 }
 
 async function runEval() {
-  console.log("\n═══════════════════════════════════════════════════════════════");
-  console.log(" VideoGPT — Eval Harness");
-  console.log(`  ${TEST_CASES.length} prompts  |  model: ${process.env.DEFAULT_MODEL ?? "default"}`);
-  console.log("═══════════════════════════════════════════════════════════════\n");
+  console.log("\nVideoGPT Primitive Diagram Eval Harness");
+  console.log(`${TEST_CASES.length} prompts | model: ${process.env.DEFAULT_MODEL ?? "default"}\n`);
 
   const results: ResultRow[] = [];
 
-  for (let i = 0; i < TEST_CASES.length; i++) {
+  for (let i = 0; i < TEST_CASES.length; i += 1) {
     const tc = TEST_CASES[i];
-    process.stdout.write(`[${String(i + 1).padStart(2)}/${TEST_CASES.length}] ${tc.description} … `);
+    process.stdout.write(`[${String(i + 1).padStart(2)}/${TEST_CASES.length}] ${tc.description} ... `);
 
-    let result: ResultRow;
-    const t0 = Date.now();
+    const startedAt = Date.now();
     try {
       const { brief, diagnostics } = await runGeneratePipeline(tc.prompt, tc.duration);
-      const elapsedMs = Date.now() - t0;
-      const layoutOk =
-        tc.expectedLayout === "any" || brief.layout === tc.expectedLayout;
-      const pass = !diagnostics.llmError && layoutOk;
+      const elapsedMs = Date.now() - startedAt;
+      const families = brief.scenes.map((scene) => scene.diagramIntent.family);
+      const sceneSummary = `${brief.scenes.length} scenes: ${families.join(", ")}`;
+      const primitive = diagnostics.primitive;
+      const hardFailures = primitive?.hardFailures ?? [];
+      const score = primitive?.score ?? 0;
+      const modeOk = modeMatches(families, tc.expectedMode);
+      const familyOk = familiesMatch(families, tc.expectedFamilies);
+      const pass = !diagnostics.llmError && hardFailures.length === 0 && modeOk && familyOk;
 
-      result = {
+      const note = [
+        !modeOk ? `expected ${tc.expectedMode}` : "",
+        !familyOk ? `missing one of ${tc.expectedFamilies?.join("/")}` : "",
+        hardFailures.length > 0 ? `hard failures: ${hardFailures.slice(0, 2).join("; ")}` : "",
+        diagnostics.primitiveRetried ? "retried" : "",
+        diagnostics.llmError ? `LLM error: ${diagnostics.llmError.slice(0, 120)}` : "",
+      ].filter(Boolean).join(", ") || "ok";
+
+      results.push({
         idx: i + 1,
-        prompt: tc.prompt,
         pass,
-        layout: brief.layout,
+        score,
+        sceneSummary,
         llmError: diagnostics.llmError,
         elapsedMs,
-        promptTokens: diagnostics.usage?.prompt_tokens,
-        completionTokens: diagnostics.usage?.completion_tokens,
         totalTokens: diagnostics.usage?.total_tokens,
-        note: [
-          !layoutOk
-            ? `layout=${brief.layout} (expected ${tc.expectedLayout})`
-            : "",
-          diagnostics.llmError
-            ? `LLM ERR: ${diagnostics.llmError.slice(0, 120)}`
-            : "",
-        ]
-          .filter(Boolean)
-          .join(", ") || "ok",
-      };
-    } catch (err) {
-      const elapsedMs = Date.now() - t0;
-      result = {
+        note,
+      });
+    } catch (error) {
+      results.push({
         idx: i + 1,
-        prompt: tc.prompt,
         pass: false,
-        layout: "?",
-        llmError: err instanceof Error ? err.message : String(err),
-        elapsedMs,
+        score: 0,
+        sceneSummary: "?",
+        llmError: error instanceof Error ? error.message : String(error),
+        elapsedMs: Date.now() - startedAt,
         note: "threw unexpectedly",
-      };
+      });
     }
 
-    results.push(result);
-    console.log(result.pass ? "✅ PASS" : `❌ FAIL  (${result.note})`);
-
-    if (i < TEST_CASES.length - 1 && DELAY_MS > 0) {
-      await sleep(DELAY_MS);
-    }
+    const current = results[results.length - 1];
+    console.log(current.pass ? `PASS (${current.score})` : `FAIL (${current.note})`);
+    if (i < TEST_CASES.length - 1 && delayMs > 0) await sleep(delayMs);
   }
 
-  // ── Summary matrix ─────────────────────────────────────────────────────────
+  const passed = results.filter((result) => result.pass).length;
+  const averageScore = Math.round(results.reduce((sum, result) => sum + result.score, 0) / results.length);
+  const rate = Math.round((passed / results.length) * 100);
 
-  const passed = results.filter((r) => r.pass).length;
-  const total = results.length;
-  const rate = Math.round((passed / total) * 100);
-
-  console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(" RESULTS");
-  console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-  console.log(
-    `${"#".padEnd(3)} ${"PASS".padEnd(5)} ${"LAYOUT".padEnd(14)} ${"TOK".padEnd(8)} ${"MS".padEnd(7)} NOTE`,
-  );
-  console.log("─".repeat(70));
-  for (const r of results) {
+  console.log("\nRESULTS");
+  console.log(`${"#".padEnd(3)} ${"PASS".padEnd(5)} ${"SCORE".padEnd(7)} ${"TOK".padEnd(8)} ${"MS".padEnd(7)} ${"SCENES".padEnd(46)} NOTE`);
+  console.log("-".repeat(110));
+  for (const result of results) {
     console.log(
-      `${String(r.idx).padEnd(3)} ${(r.pass ? "✅" : "❌").padEnd(5)} ${r.layout.padEnd(14)} ${(r.totalTokens != null ? String(r.totalTokens) : "-").padEnd(8)} ${String(r.elapsedMs).padEnd(7)} ${r.note}`,
+      `${String(result.idx).padEnd(3)} ${(result.pass ? "yes" : "no").padEnd(5)} ` +
+      `${String(result.score).padEnd(7)} ${String(result.totalTokens ?? "-").padEnd(8)} ${String(result.elapsedMs).padEnd(7)} ` +
+      `${result.sceneSummary.slice(0, 44).padEnd(46)} ${result.note}`,
     );
   }
-  console.log("─".repeat(70));
-  console.log(`\nPassed ${passed}/${total} (${rate}%)`);
 
-  const totTok = results.reduce((s, r) => s + (r.totalTokens ?? 0), 0);
-  const totPromptTok = results.reduce((s, r) => s + (r.promptTokens ?? 0), 0);
-  const totCompletionTok = results.reduce((s, r) => s + (r.completionTokens ?? 0), 0);
-  const avgMs = Math.round(results.reduce((s, r) => s + r.elapsedMs, 0) / results.length);
-  console.log(
-    `Totals — prompt: ${totPromptTok}  completion: ${totCompletionTok}  total: ${totTok} tokens  |  avg elapsed: ${avgMs}ms`,
-  );
-
-  const threshold = 80;
-  if (rate >= threshold) {
-    console.log(`✅ Eval passed — ≥${threshold}% success rate\n`);
-    process.exit(0);
-  } else {
-    console.log(`❌ Eval failed — below ${threshold}% threshold\n`);
-    process.exit(1);
-  }
+  console.log(`\nPassed ${passed}/${results.length} (${rate}%) | average score ${averageScore}/100`);
+  process.exit(rate >= 80 && averageScore >= 70 ? 0 : 1);
 }
 
-runEval().catch((err) => {
-  console.error("Eval harness crashed:", err);
+runEval().catch((error) => {
+  console.error("Eval harness crashed:", error);
   process.exit(1);
 });

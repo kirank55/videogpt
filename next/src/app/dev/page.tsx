@@ -89,18 +89,16 @@ function DevVideoCard({
   onPlay: () => void;
   onDiagnostics?: () => void;
 }) {
-  const layout = item.project.events.some((e) =>
-    e.id.startsWith("block-heading-")
-  )
-    ? "Single Column"
-    : "Two-Column Split";
-
-  const textEventCount = item.project.events.filter(
+  const sceneCount = new Set(
+    item.project.events
+      .map((e) => e.id.match(/^scene-(\d+)-heading$/)?.[1])
+      .filter(Boolean),
+  ).size;
+  const graphLayerCount = item.project.events.filter(
     (e) =>
-      e.type === "text" &&
-      (e.id.startsWith("block-heading-") ||
-        e.id.startsWith("left-label-") ||
-        e.id.startsWith("right-label-"))
+      e.id.includes("-node-") ||
+      e.id.includes("-edge-") ||
+      e.id.includes("-packet-"),
   ).length;
 
   return (
@@ -128,9 +126,11 @@ function DevVideoCard({
               )}
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              <span>{layout}</span>
+              <span>Graph Scenes</span>
               <span>•</span>
-              <span>{textEventCount} Layers</span>
+              <span>{sceneCount || 1} Scenes</span>
+              <span>•</span>
+              <span>{graphLayerCount} Graph Layers</span>
               <span>•</span>
               <span>{item.project.duration}s</span>
             </div>
@@ -360,7 +360,9 @@ function DevDashboardContent() {
           unique.push(p);
         }
       }
-      setTempProjects(unique);
+      setTimeout(() => {
+        setTempProjects(unique);
+      }, 0);
     }
   }, []);
 
@@ -447,7 +449,7 @@ function DevDashboardContent() {
                 Nothing to diagnose yet
               </h2>
               <p className="mt-2.5 max-w-sm text-xs text-muted-foreground leading-relaxed">
-                Generate some videos from the workspace and they'll appear here with diagnostic tools.
+                Generate some videos from the workspace and they will appear here with diagnostic tools.
               </p>
               <button
                 type="button"

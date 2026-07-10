@@ -1,150 +1,169 @@
-// ── Prompt builders ───────────────────────────────────────────────────────────
-//
-// The AI produces a VideoBrief (~350 tokens).  It never touches coordinates,
-// timing arithmetic, or particle counts — those are computed deterministically
-// by the Brief Expander (buildProjectFromBrief).
-//
-// Two prompts:
-//   buildSystemPrompt(duration) — used for fresh generation
-//   buildModifyPrompt(currentBrief, instruction) — used for modifications
-//
-// The JSON schema embedded in the system prompt must stay in sync with
-// src/lib/schemas/brief.ts.  When the schema changes, update both files.
-
 import type { SupportedDuration, VideoBrief } from "@/lib/agent/schemas/brief";
 
-// ── Two-column trigger keywords ───────────────────────────────────────────────
-//
-// If the user's prompt contains any of these (case-insensitive), the AI should
-// output layout = "two-column".  Otherwise, default to "single-column".
-
-const TWO_COLUMN_KEYWORDS = [
-  "vs", "versus", "client", "server", "frontend", "backend",
-  "before", "after", "request", "response", "architecture",
-  "compare", "comparison", "difference", "vs.", "api", "endpoint",
-  "database", "microservice", "service", "producer", "consumer",
-  "sender", "receiver", "push", "pull", "sync", "async",
+const ICONS = [
+  "browser",
+  "server",
+  "database",
+  "cloud",
+  "lock",
+  "globe",
+  "gear",
+  "code",
+  "api",
+  "mobile",
+  "router",
+  "shield",
+  "cpu",
+  "cache",
+  "app",
+  "building",
+  "foundation",
+  "beam",
+  "floor",
+  "elevator",
+  "wall",
+  "wrench",
+  "water",
 ] as const;
-
-// ── Palette + Style catalog summaries ─────────────────────────────────────────
 
 const PALETTE_CATALOG = `
 PALETTES (pick one name):
-  "midnight"  — deep navy/blue, blue+teal accents        [tech, data, networking]
-  "neon"      — ultra-dark, cyan+pink neon accents        [cyberpunk, AI, ML]
-  "aurora"    — dark blue, purple+teal accents            [science, space, magic]
-  "ember"     — near-black, orange+red accents            [performance, infra, ops]
-  "forest"    — near-black green, green+teal accents      [environment, biology]
-  "slate"     — dark grey-blue, muted cool accents        [enterprise, finance]
-  "paper"     — warm cream, rust+forest-green accents     [explainers, education]
-  "ice"       — light blue-white, navy+sky accents        [cloud, data, clean]
+  "midnight" - deep navy/blue, blue+teal accents [tech, data, networking]
+  "neon" - ultra-dark, cyan+pink accents [AI, ML, cyber]
+  "aurora" - dark blue, purple+teal accents [science, space]
+  "ember" - near-black, orange+red accents [performance, infra, ops]
+  "forest" - near-black green, green+teal accents [biology, environment]
+  "slate" - dark grey-blue, muted cool accents [enterprise, finance]
+  "paper" - warm cream, rust+forest-green accents [education]
+  "ice" - light blue-white, navy+sky accents [cloud, clean data]
 `.trim();
 
 const STYLE_CATALOG = `
 STYLES (pick one name):
-  "modern"     — rounded, softly glowing, dense particles  [good default]
-  "brutalist"  — sharp corners, no glow, no particles      [stark, data-center]
-  "sketch"     — slightly rough, dashed connectors         [hand-drawn, educational]
-  "neon-glow"  — heavy bloom, ultra-rounded, dense haze    [cyberpunk, AI, synthwave]
-  "minimal"    — ultra-thin lines, barely-there glow       [clean, whitespace-focused]
+  "modern" - rounded, softly glowing, medium particles
+  "brutalist" - sharp corners, no glow, no particles
+  "sketch" - rougher dashed connectors, educational
+  "neon-glow" - heavy bloom, dense haze
+  "minimal" - thin lines, restrained motion
 `.trim();
 
 const COMPATIBILITY_HINTS = `
 SOFT COMPATIBILITY GUIDANCE:
-  neon palette → neon-glow or modern style
-  paper palette → sketch or minimal style
-  ember palette → brutalist or modern
-  midnight / aurora / slate → modern, minimal, or neon-glow
-  ice palette → minimal or modern
+  neon -> neon-glow or modern
+  paper -> sketch or minimal
+  ember -> brutalist or modern
+  midnight / aurora / slate -> modern, minimal, or neon-glow
+  ice -> minimal or modern
   Avoid: paper + neon-glow, neon + brutalist
 `.trim();
 
 const DIAGRAM_GUIDE = `
-━━━ DIAGRAM DESIGN & COORDINATES GUIDE ━━━
-Use visualElements to build a high-quality, creative, and animated diagram on the right half of the canvas.
-- Coordinate box: width=700 (x: 0 to 700), height=600 (y: 0 to 600). Origin: Top-left is (0,0). y=0 is TOP, y=600 is BOTTOM.
+DIAGRAM GUIDE:
+Every scene chooses a diagramIntent.family.
 
-- MANDATORY Composition Rules (CRITICAL):
-  * NO LAZY STACKED BARS: DO NOT just draw a vertical list of simple horizontal bar rectangles with labels inside them (like a list of text). This looks extremely basic and unprofessional.
-  * NODE-ICON COMBINATIONS: Design every diagram using visual "nodes". A node is a circle or styled rectangle, containing a tech icon inside, with a text label positioned either centered inside or just below/above it.
-  * CONNECTORS & FLOWS: Connect nodes together using type: "line" elements with "arrowEnd": true. The lines must have "startPadding" and "endPadding" (typically 20 to 45 depending on the node size) so the line and its arrowhead stop exactly at the outer boundary of the node rather than overlapping the center.
-  * NO TEXT OVERLAPPING LINES: Never draw connector lines that cross through the center of rectangles or circles that contain text, as it makes the text unreadable. Connectors must connect outer boundaries.
-  * STEP-BY-STEP STAGGER: Use "blockIndex" to reveal elements sequentially. Show Node 1 in blockIndex 0, the connector line in blockIndex 1, Node 2 in blockIndex 1, and so on.
+Diagram families:
+  "graph-flow" - software/system diagrams: architecture, APIs, queues, request/response, databases, event streams
+  "field-range" - signals, coverage, waves, ranges, influence zones, trilateration
+  "spatial-cutaway" - cross-sections, anatomy, geology, buildings, machines, infrastructure
+  "build-up" - assembly, construction, manufacturing, layer-by-layer growth
+  "cycle" - loops, circulation, feedback, lifecycle, natural cycles
+  "comparison" - before/after, two models, opposing sides, alternate outcomes
+  "timeline" - legal/civic processes, logistics stages, construction milestones, historical sequence
 
-- Standard Layout Templates (Apply to ANY topic):
-  * FLOW / PIPELINE (Sequential): Stagger nodes horizontally. Place Node 1 at (150, 300), Node 2 at (350, 300), Node 3 at (550, 300). Connect Node 1 -> Node 2 with a horizontal line, and Node 2 -> Node 3 with another.
-  * CLIENT-SERVER / DISTRIBUTED: Place Client nodes/columns on the left (e.g., X=150, Y=200 and Y=400), and Server nodes/columns on the right (e.g., X=550, Y=200 and Y=400). Draw horizontal/diagonal lines with arrows between them representing communication.
-  * HUB & SPOKE (Centralized): Place a main central hub node (e.g., cloud or database) at (350, 300). Place peripheral nodes around it (e.g., X=150, Y=300; X=350, Y=120; X=550, Y=300; X=350, Y=480) and connect all of them to the hub.
-  * STRUCTURAL STACK (Vertical): For stacked database layers or physical buildings, stack them vertically from the bottom up (e.g. Foundation at Y=480, height=80; Level 1 at Y=380, height=100; Spire at Y=300, height=80), centered at X=350. IMPORTANT: If drawing connector lines between stacked blocks, space them out with a vertical gap (e.g., a 20-30px gap). Do not draw vertical lines inside or through solid blocks.
+For graph-flow scenes:
+  Use graph: { nodes, edges } as the primary diagram.
+  diagramLayout may be "pipeline", "client-server", "hub-spoke", or "stack".
+  Nodes and edges should be system-specific, not generic.
 
-- Entry Animations:
-  * "draw": Use this for lines, outline circles, connecting lines, and arrows. They will draw from start to end progressively.
-  * "grow-y": Use this for vertical pillars, skyscraper levels, or bar charts. They scale vertically.
-  * "grow-x": Use this for horizontal progress meters or dividers.
-  * "bounce-in" or "scale-up": Use this for icons, badges, text labels, and structural nodes (circles).
+For non-graph scenes:
+  Use diagramScript -> diagramIntent -> visualPrimitives + primitiveRelationships + storyboard.
+  visualPrimitives are freeform prompt-shaped objects. Use types like "satellite", "range circle", "receiver pin", "soil layer", "concrete pier", "crane hook", "valve", "judge bench", etc.
+  Assign drawingRole on each visualPrimitive when possible: mass, container, layer, support, path, flow, ring, pin, panel, label, background.
+  primitiveRelationships are first-class verbs/choreography between primitives.
+  Use relationships that help deterministic drawing: emitter-to-range, range-to-receiver, support-to-mass, layer-supports-mass, panel-on-mass, cycle-next, before-to-after.
+  storyboard is the chronological drawing plan for the scene. It references primitive ids only; it never contains coordinates, SVG, or renderer events.
+  Include at least 3 prompt-specific primitives and at least 2 relationships per non-graph scene.
+  Use renderAs/shapeHint/materialHint to guide deterministic rendering.
+  Do not use generic primitive labels like process, system, component, step, input, output, item, node, or element unless the user's prompt is actually about those terms.
+
+diagramScript:
+  { summary, beats, visualStory, mustShow, mustAvoid? }
+  Developer-only creative intent. mustShow must name concrete visuals that also appear in visualPrimitives or primitiveRelationships.
+
+diagramIntent:
+  { family, subject, perspective?, signatureVisuals, motionCues, avoid? }
+
+visualPrimitive:
+  { id, type, label, description?, renderAs?, shapeHint?, materialHint?, role?, placementHint?, motion?, styleHint?, dependsOn?, drawingRole? }
+
+primitiveRelationship:
+  { from, to, relation, visualMetaphor?, motion?, timingRole? }
+  from/to are arrays of primitive ids.
+
+storyboard:
+  { style: "line-drawing", continuityKey?, stages: [{ label, operation, primitiveIds }] }
+  operation is one of: reveal, grow, connect, fill, pulse, trace, move.
+  primitiveIds must reference visualPrimitive ids in the same scene.
+
+Graph-flow graph node:
+  { id, label, icon?, kind?, layoutRole?, color? }
+
+Graph-flow graph edge:
+  { from, to, label?, animated?, packetLabel?, packetColor? }
 `.trim();
 
-// ── JSON Schema for the LLM response envelope ────────────────────────────────
-//
-// The LLM outputs a JSON object with three top-level keys:
-//   projectName — short, human-readable project name (max 60 chars)
-//   summary     — 1–2 sentence summary shown in the chat UI (max 200 chars)
-//   brief       — the VideoBrief object (schema below must match schemas/brief.ts)
+const PROCESS_TIMELINE_GUIDE = `
+PROCESS / TIMELINE STORYTELLING:
+When the user asks how a real-world thing is built, manufactured, assembled, shipped, constructed, or otherwise changes over time, make the middle content one chronological drawing animation, not unrelated topic panels.
+  First pick the stage order. Scene headings, diagramScript.beats, and block headings must preserve that order.
+  Put that order into storyboard.stages so the renderer can draw the same object gaining parts over time.
+  Add relationships that bind the drawing together, such as foundation supports core, core supports tower mass, cladding panels attach to tower mass.
+  Use stage/time labels when natural: Month 0, Year 1, Year 2, Phase 3, or Step 4.
+  Each scene's visualStory should answer what is added next, with visible changes such as excavate, pour, core rises, floors repeat, cladding climbs, doors open.
+  Prefer diagramIntent.family "timeline" or "build-up", diagramLayout "pipeline" or "stack", and blockStyle "timeline" or "numbered".
+  Carry visual continuity across adjacent scenes: the same drawing should progressively gain the next piece.
+  For skyscraper construction, a coherent order is: Groundbreaking -> Deep Pit & Foundation -> Core Breaks Ground -> Speed Rise -> Topping Out & Cladding -> Grand Opening.
+`.trim();
+
+const DEFAULT_VIDEO_STRUCTURE_GUIDE = `
+DEFAULT VIDEO STRUCTURE:
+For normal explainer prompts, produce exactly two content scenes between the automatic title and conclusion.
+  Scene 1 is Phase 1 / setup / context: introduce the starting state, initial components, source material, actors, base, or problem.
+  Scene 2 is the single main diagram animation before the conclusion: one coherent drawing, graph, cycle, comparison, timeline, or flow that explains the full mechanism.
+  Do not create separate content scenes for every phase unless the user explicitly asks for a multi-part or multi-scene video.
+  The title is handled by brief.title/subtitle. The conclusion is handled by closingLine. Do not add title or conclusion as scenes.
+  If the topic has many stages, put those stages into Scene 2 storyboard.stages instead of creating many scenes.
+  Scene 2 should carry the full visual explanation; Scene 1 should be a compact setup/phase-1 scene, not another full repeated diagram.
+`.trim();
+
+const FIRST_PASS_QUALITY_GATE = `
+FIRST-PASS QUALITY GATE:
+Before writing the final JSON, silently audit your brief and revise it once inside this same response.
+Do not output draft notes, audit notes, or an alternate brief.
+The final JSON must already pass these checks:
+  - Normal explainer prompts have exactly two content scenes: Phase 1 setup/context, then one main diagram animation before the conclusion.
+  - Non-graph scenes have storyboard.style "line-drawing" and storyboard stages that reference existing visualPrimitive ids.
+  - Non-graph scenes have at least 3 prompt-specific visualPrimitives, at least 2 primitiveRelationships, and useful drawingRole values.
+  - primitiveRelationships only reference visualPrimitive ids that exist in the same scene.
+  - diagramScript.mustShow items are visible in visualPrimitives or primitiveRelationships.
+  - Real-world process prompts preserve chronological continuity in storyboard.stages instead of separate repetitive scenes.
+  - Graph-flow scenes have a valid graph with concrete topic-specific nodes and edges.
+`.trim();
 
 const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
   type: "object",
-  required: ["layout", "title", "palette", "style"],
+  required: ["title", "palette", "style", "scenes"],
   additionalProperties: false,
   properties: {
-    layout: {
-      type: "string",
-      enum: ["two-column", "single-column"],
-      description: "two-column: client/server, compare, architecture. single-column: explainers, steps.",
-    },
     title: { type: "string", minLength: 1, maxLength: 80 },
     subtitle: { type: "string", maxLength: 120 },
     closingLine: { type: "string", maxLength: 100 },
-
-    // Two-column fields
-    leftHeader: { type: "string", maxLength: 30 },
-    rightHeader: { type: "string", maxLength: 30 },
-    leftRows: { type: "array", items: { type: "string", maxLength: 40 }, minItems: 2, maxItems: 4 },
-    rightRows: { type: "array", items: { type: "string", maxLength: 40 }, minItems: 2, maxItems: 4 },
-    flow: { type: "boolean" },
-    requestLabel: { type: "string", maxLength: 60 },
-    requestBody: { type: "string", maxLength: 80 },
-    responseLabel: { type: "string", maxLength: 60 },
-    processingSteps: { type: "array", items: { type: "string", maxLength: 50 }, maxItems: 3 },
-    annotations: { type: "array", items: { type: "string", maxLength: 30 }, maxItems: 3 },
-    flowStyle: { type: "string", enum: ["arc", "straight", "zigzag"] },
-
-    // Single-column fields
-    blocks: {
-      type: "array",
-      items: {
-        type: "object",
-        required: ["heading", "description"],
-        additionalProperties: false,
-        properties: {
-          heading: { type: "string", maxLength: 60 },
-          description: { type: "string", maxLength: 140 },
-          icon: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] },
-        },
-      },
-      minItems: 2, maxItems: 5,
-    },
-
     palette: { type: "string", enum: ["midnight", "neon", "aurora", "ember", "forest", "slate", "paper", "ice"] },
     style: { type: "string", enum: ["modern", "brutalist", "sketch", "neon-glow", "minimal"] },
-
-    // Creative fields
-    variant: { type: "string", enum: ["standard", "diagonal", "asymmetric"] },
-    entryAnimation: { type: "string", enum: ["slide-up", "slide-down", "slide-left", "slide-right", "fade-only", "scale-up", "bounce-in"] },
-    emphasizeLeft: { type: "number" },
-    emphasizeRight: { type: "number" },
-    leftIcons: { type: "array", items: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] }, maxItems: 4 },
-    rightIcons: { type: "array", items: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] }, maxItems: 4 },
-    blockIcons: { type: "array", items: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] }, maxItems: 5 },
+    particleIntensity: { type: "number", minimum: 0, maximum: 3 },
+    titleSize: { type: "string", enum: ["small", "medium", "large", "hero"] },
+    titleAlign: { type: "string", enum: ["left", "center"] },
+    closingStyle: { type: "string", enum: ["fade-up", "fade-center", "none"] },
     decorations: {
       type: "object",
       additionalProperties: false,
@@ -156,58 +175,214 @@ const VIDEO_BRIEF_JSON_SCHEMA: Record<string, unknown> = {
         decoBaseline: { type: "boolean" },
       },
     },
-    actWeights: { type: "array", items: { type: "number" }, minItems: 5, maxItems: 5 },
-    titleSize: { type: "string", enum: ["small", "medium", "large", "hero"] },
-    titleAlign: { type: "string", enum: ["left", "center"] },
-    particleIntensity: { type: "number" },
-    closingStyle: { type: "string", enum: ["fade-up", "fade-center", "none"] },
-    actEasings: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        title: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
-        stacks: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
-        flow: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
-        closing: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
-      },
-    },
-    colorOverrides: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        accent1: { type: "string" },
-        accent2: { type: "string" },
-        surface: { type: "string" },
-      },
-    },
-    blockStyle: { type: "string", enum: ["stacked", "cards", "timeline", "numbered"] },
-    visualElements: {
+    scenes: {
       type: "array",
-      description: "MANDATORY shape/line/icon diagram elements to render on the right half of the canvas inside a 700x600 coordinate box to visualize the concept. You must always populate this array with a meaningful diagram.",
+      minItems: 1,
+      maxItems: 8,
       items: {
         type: "object",
-        required: ["type"],
+        required: [
+          "heading",
+          "diagramScript",
+          "diagramIntent",
+          "diagramLayout",
+          "blocks",
+          "entryAnimation",
+          "blockStyle",
+          "transition",
+        ],
         additionalProperties: false,
         properties: {
-          type: { type: "string", enum: ["rect", "circle", "line", "icon"] },
-          blockIndex: { type: "integer", minimum: 0, maximum: 4, description: "Block index (0-based) that triggers this element's entrance" },
-          x: { type: "number", description: "Relative X (0-700) for rect, circle, or icon" },
-          y: { type: "number", description: "Relative Y (0-600) for rect, circle, or icon" },
-          width: { type: "number", description: "Width for rect" },
-          height: { type: "number", description: "Height for rect" },
-          radius: { type: "number", description: "Radius for circle" },
-          x1: { type: "number", description: "Line start X (0-700)" },
-          y1: { type: "number", description: "Line start Y (0-600)" },
-          x2: { type: "number", description: "Line end X (0-700)" },
-          y2: { type: "number", description: "Line end Y (0-600)" },
-          color: { type: "string", enum: ["accent1", "accent2", "muted", "text", "surface"] },
-          fillType: { type: "string", enum: ["solid", "outline", "dashed"] },
-          iconName: { type: "string", enum: ["browser", "server", "database", "cloud", "lock", "globe", "gear", "code", "api", "mobile", "router", "shield", "cpu", "cache", "app"] },
-          label: { type: "string", maxLength: 40, description: "Text label centered within/on the element" },
-          entry: { type: "string", enum: ["fade", "slide-up", "slide-down", "scale-up", "grow-y", "grow-x", "draw"] },
-          startPadding: { type: "number", description: "Offset line start position to stop overlap with shapes (usually equal to shape radius, e.g. 20-40)" },
-          endPadding: { type: "number", description: "Offset line end position to stop overlap with shapes (usually equal to shape radius, e.g. 20-40)" },
-          labelBackdrop: { type: "boolean", description: "Defaults to true. Renders a rounded surface backdrop behind the label for legibility." },
+          heading: { type: "string", minLength: 1, maxLength: 70 },
+          diagramScript: {
+            type: "object",
+            required: ["summary", "beats", "visualStory", "mustShow"],
+            additionalProperties: false,
+            properties: {
+              summary: { type: "string", maxLength: 180 },
+              beats: { type: "array", minItems: 1, maxItems: 6, items: { type: "string", maxLength: 100 } },
+              visualStory: { type: "string", maxLength: 260 },
+              mustShow: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 60 } },
+              mustAvoid: { type: "array", maxItems: 8, items: { type: "string", maxLength: 60 } },
+            },
+          },
+          diagramIntent: {
+            type: "object",
+            required: ["family", "subject", "signatureVisuals", "motionCues"],
+            additionalProperties: false,
+            properties: {
+              family: {
+                type: "string",
+                enum: ["graph-flow", "spatial-cutaway", "field-range", "build-up", "cycle", "comparison", "timeline"],
+              },
+              subject: { type: "string", maxLength: 100 },
+              perspective: {
+                type: "string",
+                enum: ["top-down", "side-elevation", "cross-section", "orbit", "abstract"],
+              },
+              signatureVisuals: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 60 } },
+              motionCues: { type: "array", maxItems: 8, items: { type: "string", maxLength: 80 } },
+              avoid: { type: "array", maxItems: 8, items: { type: "string", maxLength: 60 } },
+            },
+          },
+          diagramLayout: { type: "string", enum: ["pipeline", "client-server", "hub-spoke", "stack"] },
+          blocks: {
+            type: "array",
+            minItems: 2,
+            maxItems: 5,
+            items: {
+              type: "object",
+              required: ["heading", "description"],
+              additionalProperties: false,
+              properties: {
+                heading: { type: "string", maxLength: 60 },
+                description: { type: "string", maxLength: 150 },
+                icon: { type: "string", enum: [...ICONS] },
+              },
+            },
+          },
+          graph: {
+            type: "object",
+            required: ["nodes", "edges"],
+            additionalProperties: false,
+            properties: {
+              nodes: {
+                type: "array",
+                minItems: 1,
+                maxItems: 8,
+                items: {
+                  type: "object",
+                  required: ["id", "label"],
+                  additionalProperties: false,
+                  properties: {
+                    id: { type: "string", maxLength: 40 },
+                    label: { type: "string", maxLength: 50 },
+                    icon: { type: "string", enum: [...ICONS] },
+                    kind: { type: "string", maxLength: 30 },
+                    layoutRole: {
+                      type: "string",
+                      enum: ["client", "server", "shared", "hub", "spoke", "source", "step", "sink"],
+                    },
+                    color: { type: "string", description: "Optional color token or CSS color." },
+                  },
+                },
+              },
+              edges: {
+                type: "array",
+                maxItems: 12,
+                items: {
+                  type: "object",
+                  required: ["from", "to"],
+                  additionalProperties: false,
+                  properties: {
+                    from: { type: "string" },
+                    to: { type: "string" },
+                    label: { type: "string", maxLength: 40 },
+                    animated: { type: "boolean" },
+                    packetLabel: { type: "string", maxLength: 20 },
+                    packetColor: { type: "string" },
+                  },
+                },
+              },
+            },
+          },
+          visualPrimitives: {
+            type: "array",
+            maxItems: 12,
+            items: {
+              type: "object",
+              required: ["id", "type", "label"],
+              additionalProperties: false,
+              properties: {
+                id: { type: "string", maxLength: 40 },
+                type: { type: "string", maxLength: 60 },
+                label: { type: "string", maxLength: 70 },
+                description: { type: "string", maxLength: 160 },
+                renderAs: { type: "string", maxLength: 40 },
+                shapeHint: { type: "string", maxLength: 40 },
+                materialHint: { type: "string", maxLength: 40 },
+                role: { type: "string", maxLength: 40 },
+                placementHint: { type: "string", maxLength: 40 },
+                motion: { type: "string", maxLength: 80 },
+                styleHint: { type: "string", maxLength: 40 },
+                dependsOn: { type: "array", maxItems: 8, items: { type: "string", maxLength: 40 } },
+                drawingRole: {
+                  type: "string",
+                  enum: ["mass", "container", "layer", "support", "path", "flow", "ring", "pin", "panel", "label", "background"],
+                },
+              },
+            },
+          },
+          primitiveRelationships: {
+            type: "array",
+            maxItems: 12,
+            items: {
+              type: "object",
+              required: ["from", "to", "relation"],
+              additionalProperties: false,
+              properties: {
+                from: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 40 } },
+                to: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 40 } },
+                relation: { type: "string", maxLength: 90 },
+                visualMetaphor: { type: "string", maxLength: 120 },
+                motion: { type: "string", maxLength: 100 },
+                timingRole: {
+                  type: "string",
+                  enum: ["setup", "reveal-mechanism", "highlight-result", "loop", "background"],
+                },
+              },
+            },
+          },
+          storyboard: {
+            type: "object",
+            required: ["style", "stages"],
+            additionalProperties: false,
+            properties: {
+              style: { type: "string", enum: ["line-drawing"] },
+              continuityKey: { type: "string", maxLength: 60 },
+              stages: {
+                type: "array",
+                minItems: 1,
+                maxItems: 8,
+                items: {
+                  type: "object",
+                  required: ["label", "operation", "primitiveIds"],
+                  additionalProperties: false,
+                  properties: {
+                    label: { type: "string", maxLength: 60 },
+                    operation: { type: "string", enum: ["reveal", "grow", "connect", "fill", "pulse", "trace", "move"] },
+                    primitiveIds: { type: "array", minItems: 1, maxItems: 8, items: { type: "string", maxLength: 40 } },
+                  },
+                },
+              },
+            },
+          },
+          entryAnimation: {
+            type: "string",
+            enum: ["slide-up", "slide-down", "slide-left", "slide-right", "fade-only", "scale-up", "bounce-in"],
+          },
+          blockStyle: { type: "string", enum: ["stacked", "cards", "timeline", "numbered"] },
+          emphasizeIndex: { type: "integer", minimum: -1, maximum: 4 },
+          transition: { type: "string", enum: ["none", "fade", "slide-left", "slide-right", "zoom-in", "zoom-out"] },
+          sceneWeight: { type: "number", minimum: 0 },
+          actEasings: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              heading: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
+              content: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
+              flow: { type: "string", enum: ["linear", "easeIn", "easeOut", "easeInOut", "bounce"] },
+            },
+          },
+          colorOverrides: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              accent1: { type: "string" },
+              accent2: { type: "string" },
+              surface: { type: "string" },
+            },
+          },
         },
       },
     },
@@ -219,127 +394,111 @@ const LLM_RESPONSE_ENVELOPE_SCHEMA: Record<string, unknown> = {
   required: ["projectName", "summary", "brief"],
   additionalProperties: false,
   properties: {
-    projectName: { type: "string", maxLength: 60, description: "Short, human-readable project name shown in the session list." },
-    summary: { type: "string", maxLength: 200, description: "1–2 sentence summary of the video, shown in the chat UI." },
+    projectName: { type: "string", maxLength: 60 },
+    summary: { type: "string", maxLength: 200 },
     brief: VIDEO_BRIEF_JSON_SCHEMA,
   },
 };
 
 export { LLM_RESPONSE_ENVELOPE_SCHEMA };
 
-// ── buildSystemPrompt ──────────────────────────────────────────────────────────
+function suggestedSceneCount(duration: SupportedDuration): number {
+  return Math.max(1, Math.round(duration / 5));
+}
 
-/**
- * Build the system prompt for a fresh video generation request.
- * Kept compact (~2,500 tokens) to stay within OpenRouter budget.
- */
 export function buildSystemPrompt(duration: SupportedDuration): string {
-  const kw = TWO_COLUMN_KEYWORDS.join(", ");
+  const sceneCount = suggestedSceneCount(duration);
   const requestSeed = Math.floor(Math.random() * 1000000);
-  const topLine = "Output a single JSON object with three top-level keys: projectName, summary, and brief. No markdown, prose, or code fences.";
-  const outputFormatRules = "- Output ONLY the JSON object with keys: projectName (string, max 60 chars — a short title for this project), summary (string, max 200 chars — a 1–2 sentence description shown to the user in the chat), brief (the VideoBrief object described below).";
-
   return `
 You are a video-brief writer for an animated infographic generator.
-${topLine}
-You never compute coordinates, timing, or animations — a deterministic pipeline handles those.
+Output a single JSON object with exactly three top-level keys: projectName, summary, and brief.
+No markdown, prose, or code fences.
+
+The AI writes a VideoBrief. A deterministic pipeline computes coordinates, timing, transitions, particles, and all frame rendering.
 
 VIDEO DURATION: ${duration}s
+SUGGESTED SCENE COUNT: about ${sceneCount} scene${sceneCount === 1 ? "" : "s"} (roughly 1 scene per 5 seconds). This is a capacity hint; the default two-content-scene structure below overrides it for normal explainers.
 REQUEST_SEED: ${requestSeed}
 
-━━━ RESPONSE ENVELOPE ━━━
-Your JSON output MUST have exactly three top-level keys:
-  projectName — string, max 60 chars. A short, catchy title for this project (e.g. "Client–Server Request Flow").
-  summary     — string, max 200 chars. A 1–2 sentence description of the video, shown to the user in the chat UI.
-  brief       — the VideoBrief object (schema below).
+RESPONSE ENVELOPE:
+  projectName - short human-readable project name, max 60 chars.
+  summary - 1-2 sentence summary for the chat UI, max 200 chars.
+  brief - the VideoBrief object.
 
-━━━ LAYOUT SELECTION ━━━
-layout="two-column" if prompt contains: ${kw}
-layout="single-column" for explainers, how-it-works, steps, history.
+VIDEO-LEVEL FIELDS:
+  title, subtitle?, closingLine?, palette, style, particleIntensity?, titleSize?, titleAlign?, closingStyle?, decorations?, scenes.
+  Palette and style are global for coherence.
 
-━━━ FIELD GUIDE ━━━
+SCENE FIELDS:
+  heading - scene title, smaller and more specific than the global title.
+  diagramScript - developer-only visual story: summary, beats, visualStory, mustShow, mustAvoid?.
+  diagramIntent - family, subject, perspective?, signatureVisuals, motionCues, avoid?.
+  diagramLayout - "pipeline" | "client-server" | "hub-spoke" | "stack".
+  blocks - 2-5 concise supporting blocks: { heading, description, icon? }.
+  graph - required and primary for graph-flow scenes; optional supporting structure otherwise.
+  visualPrimitives - required for non-graph scenes; freeform prompt-shaped diagram objects.
+  primitiveRelationships - required for non-graph scenes; first-class relationships between primitives.
+  storyboard - required for non-graph scenes; line-drawing stages that reference visualPrimitives by id.
+  entryAnimation - scene content reveal style.
+  blockStyle - "stacked" | "cards" | "timeline" | "numbered".
+  emphasizeIndex - 0-based block/node emphasis, or -1 for none.
+  transition - "none" | "fade" | "slide-left" | "slide-right" | "zoom-in" | "zoom-out".
+  sceneWeight - optional relative duration weight.
+  actEasings - optional { heading, content, flow } easing overrides.
+  colorOverrides - optional scene accent/surface overrides.
 
-REQUIRED: layout, title, palette, style
+VARY YOUR SCENES:
+  Use different diagramLayout, entryAnimation, blockStyle, and transition choices across adjacent scenes.
+  Never repeat the same combination on adjacent scenes.
+  Each scene should add new information, not restate the same blocks.
+  Physical, scientific, civic, medical, historical, and built-world scenes should usually be primitive-first, not graph-flow.
+  Software/system scenes should use graph-flow when nodes and edges are the clearest explanation.
 
-TWO-COLUMN (when layout=two-column):
-  leftHeader, rightHeader  — stack labels (e.g. "CLIENT", "SERVER")
-  leftRows, rightRows      — 2–4 layer labels each
-  flow                     — true for animated request/response arc
-  requestLabel, responseLabel — arc labels (e.g. "GET /api", "200 OK")
-  requestBody              — optional body text
-  processingSteps          — up to 3 labels inside right rows
-  annotations              — up to 3 gap callouts (e.g. "TLS 1.3")
-  flowStyle                — "arc"(HTTP/REST) | "straight"(TCP) | "zigzag"(async)
+${DIAGRAM_GUIDE}
 
-SINGLE-COLUMN (when layout=single-column):
-  blocks          — 2–5 items: { heading, description, icon? }
-  blockStyle      — "stacked" | "cards" | "timeline" | "numbered"
-  visualElements  — MANDATORY array of dynamic shapes/lines/icons to render on the right half of the canvas inside a 700x600 coordinate box. You must ALWAYS construct a visual representation or diagram related to the prompt (e.g., stacking blocks for a skyscraper, a branching line/circle for a tree, search engine indexing flow) to avoid an empty canvas.
-                    Each element is an object with:
-                      type: "rect" | "circle" | "line" | "icon" (required)
-                      blockIndex: 0-4 (optional, triggers entry when that content block enters)
-                      color: "accent1" | "accent2" | "muted" | "text" | "surface" (optional)
-                      fillType: "solid" | "outline" | "dashed" (optional)
-                      entry: "fade" | "slide-up" | "slide-down" | "scale-up" | "grow-y" | "grow-x" | "draw" (optional)
-                      label: optional centered overlay text label (max 40 chars)
-                      For "rect": x, y (relative 0-700, 0-600), width, height, radius (optional)
-                      For "circle": x, y, radius
-                      For "line": x1, y1 (start 0-700, 0-600), x2, y2 (end 0-700, 0-600)
-                      For "icon": x, y, iconName (see icons list below)
+${PROCESS_TIMELINE_GUIDE}
 
-COMMON: title(max80), subtitle, closingLine(max100)
+${DEFAULT_VIDEO_STRUCTURE_GUIDE}
 
-━━━ CREATIVE FIELDS ━━━
+${FIRST_PASS_QUALITY_GATE}
 
-MANDATORY — include ALL of these on every brief, no exceptions:
-  entryAnimation  — "slide-up" | "slide-down" | "slide-left" | "slide-right" | "fade-only" | "scale-up" | "bounce-in"
-                    Pick the one that fits the mood. Never always use slide-up.
-  variant         — "standard" | "diagonal" | "asymmetric"  [two-column only]
-  emphasizeLeft   — 0-based index of most important left row (-1 = none)
-  emphasizeRight  — 0-based index of most important right row (-1 = none)
-  titleSize       — "small"(56px) | "medium"(72px) | "large"(88px,default) | "hero"(108px)
-  particleIntensity — 0(none) | 1(default) | 2(heavy) | 3(extreme)
-  closingStyle    — "fade-up" | "fade-center" | "none"
+ICONS:
+  ${ICONS.join(" ")}
+  Prefer concrete domain icons when the topic is physical or built-world:
+  building/foundation/beam/floor/elevator/wall/wrench/water.
 
-OPTIONAL — use when they add meaning:
-  leftIcons / rightIcons / blockIcons — icon name per row/block
-  ICONS: browser server database cloud lock globe gear code api mobile router shield cpu cache app
-  decorations     — { cornerBrackets, scanLines, pulseRings, gapDivider, decoBaseline } booleans
-                    brutalist → most false; neon-glow → all true
-  titleAlign      — "left" | "center"
-  actWeights      — [w1,w2,w3,w4,w5] relative act durations
-  actEasings      — { title, stacks, flow, closing } each: "linear"|"easeIn"|"easeOut"|"easeInOut"|"bounce"
-  colorOverrides  — { accent1, accent2, surface } CSS color strings
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ${PALETTE_CATALOG}
 
 ${STYLE_CATALOG}
 
 ${COMPATIBILITY_HINTS}
 
-${DIAGRAM_GUIDE}
-
-━━━ CONSTRAINTS ━━━
-${outputFormatRules}
-- two-column: include leftRows/rightRows/headers. Omit blocks.
-- single-column: include blocks. Omit leftRows/rightRows/flow. If the prompt describes a physical or structural building process, always design visualElements (e.g. stacking rectangles for a building or a hierarchy of circles/lines) to provide visual support on the right.
-- Only use palette/style names from the catalogs.
-- Never output timing numbers.
-- MANDATORY creative fields (entryAnimation, variant, emphasizeLeft, emphasizeRight, titleSize, particleIntensity, closingStyle) MUST appear in every output.
+CONSTRAINTS:
+  - Output only the JSON envelope.
+  - For normal explainer prompts, return exactly two content scenes: Phase 1 setup/context and one main diagram animation before the conclusion.
+  - Do not add title or conclusion scenes; use brief.title, subtitle, and closingLine for bookends.
+  - Do not output coordinates, absolute timing numbers, or renderer event objects.
+  - For graph-flow scenes, every edge.from/edge.to must reference a node id in the same scene.
+  - For non-graph scenes, every primitiveRelationship from/to id must reference a visualPrimitive id in the same scene.
+  - For non-graph scenes, include at least 3 prompt-specific visualPrimitives and at least 2 primitiveRelationships.
+  - For non-graph scenes, include storyboard with style "line-drawing" and stages that reference visualPrimitive ids.
+  - diagramScript.mustShow items must appear in visualPrimitives or primitiveRelationships.
+  - Do not put coordinates, raw SVG, canvas commands, or renderer event objects in storyboard or primitives.
+  - Use layoutRole to clarify placement when a strategy has semantic positions.
+  - Stay within the layout-specific content budgets from the diagram guide.
+  - Use animated edges when motion helps explain flow.
+  - Use at most 4 animated edges in a scene.
+  - Do not force software metaphors onto physical, historical, medical, or civic topics.
+  - For real-world processes, keep labels and stage order domain-accurate.
+  - Keep text concise; the renderer wraps labels but cramped text makes weaker videos.
+  - Schema reference: ${JSON.stringify(LLM_RESPONSE_ENVELOPE_SCHEMA)}
 `.trim();
 }
 
-// ── buildModifyPrompt ─────────────────────────────────────────────────────────
-
-/**
- * Build the user-turn prompt for a modify request.
- */
 export function buildModifyPrompt(
   currentBrief: VideoBrief,
   instruction: string,
 ): string {
-  const returnRule = "Return a JSON object with three top-level keys: projectName (preserve the existing name or update it if the instruction asks), summary (1–2 sentence description of the updated video), and brief (the updated VideoBrief). Preserve all brief fields the instruction does not affect. Do NOT change the layout unless explicitly asked. Output ONLY the JSON object.";
   return `
 CURRENT VIDEO BRIEF (JSON):
 \`\`\`json
@@ -349,6 +508,34 @@ ${JSON.stringify(currentBrief, null, 2)}
 USER MODIFICATION INSTRUCTION:
 "${instruction}"
 
-${returnRule}
+Return a JSON object with three top-level keys: projectName, summary, and brief.
+Preserve all scenes and fields the instruction does not affect.
+Do not collapse scenes into a legacy layout.
+Output only the JSON object.
+`.trim();
+}
+
+export function buildPrimitiveRetryPrompt(
+  originalUserPrompt: string,
+  diagnosticFeedback: string,
+): string {
+  return `
+ORIGINAL USER REQUEST:
+"${originalUserPrompt}"
+
+THE PREVIOUS JSON BRIEF HAD A HARD STRUCTURAL FAILURE:
+${diagnosticFeedback}
+
+${PROCESS_TIMELINE_GUIDE}
+
+${DEFAULT_VIDEO_STRUCTURE_GUIDE}
+
+${FIRST_PASS_QUALITY_GATE}
+
+Return a corrected JSON object with exactly three top-level keys: projectName, summary, and brief.
+Keep graph-flow only for software/system scenes where nodes and edges are genuinely the right abstraction.
+For non-graph scenes, preserve the diagramScript and make visualPrimitives and primitiveRelationships specific to the user's prompt.
+For non-graph scenes, include storyboard stages that reference visualPrimitive ids and use drawingRole on primitives when possible.
+Output only the JSON object.
 `.trim();
 }

@@ -71,7 +71,10 @@ export const BaseTimelineEventSchema = z.object({
   translateX: AnimatedValueSchema.optional(),
   translateY: AnimatedValueSchema.optional(),
   scale: AnimatedValueSchema.optional(),
+  scaleX: AnimatedValueSchema.optional(),
+  scaleY: AnimatedValueSchema.optional(),
   rotate: AnimatedValueSchema.optional(),
+  drawProgress: AnimatedValueSchema.optional(),
   shadow: ShadowSchema.optional(),
   path: PathAnimationSchema.optional(),
 });
@@ -112,6 +115,15 @@ export const TextPropertiesSchema = z.object({
   align: z
     .enum(["left", "right", "center", "start", "end"])
     .optional(),
+  verticalAlign: z.enum(["top", "middle", "bottom"]).optional(),
+  backdrop: z.object({
+    fill: z.string(),
+    stroke: z.string().optional(),
+    strokeWidth: z.number().optional(),
+    paddingX: z.number().optional(),
+    paddingY: z.number().optional(),
+    radius: z.number().optional(),
+  }).optional(),
 });
 
 export const TextEventSchema = BaseTimelineEventSchema.merge(
@@ -165,6 +177,63 @@ const LinePropertiesSchema = z.object({
   arrowStart: z.boolean().optional(),
   arrowEnd: z.boolean().optional(),
   arrowSize: z.number().optional(),
+  startPadding: z.number().optional(),
+  endPadding: z.number().optional(),
+});
+
+const IconPropertiesSchema = z.object({
+  shapeType: z.literal("icon"),
+  iconName: z.enum([
+    "browser",
+    "server",
+    "database",
+    "cloud",
+    "lock",
+    "globe",
+    "gear",
+    "code",
+    "api",
+    "mobile",
+    "router",
+    "shield",
+    "cpu",
+    "cache",
+    "app",
+  ]),
+  cx: z.number(),
+  cy: z.number(),
+  size: z.number().positive(),
+  color: z.string(),
+  stroke: z.string().optional(),
+  strokeWidth: z.number().optional(),
+});
+
+const BadgePropertiesSchema = z.object({
+  shapeType: z.literal("badge"),
+  cx: z.number(),
+  cy: z.number(),
+  text: z.string(),
+  fontSize: z.number().optional(),
+  paddingX: z.number().optional(),
+  paddingY: z.number().optional(),
+  fill: z.string(),
+  textColor: z.string(),
+  stroke: z.string().optional(),
+  strokeWidth: z.number().optional(),
+});
+
+const ProgressPropertiesSchema = z.object({
+  shapeType: z.literal("progress"),
+  x: z.number(),
+  y: z.number(),
+  width: z.number().positive(),
+  height: z.number().positive(),
+  radius: z.number().optional(),
+  trackColor: z.string(),
+  fillColor: z.string(),
+  fillFraction: z.number().optional(),
+  stroke: z.string().optional(),
+  strokeWidth: z.number().optional(),
 });
 
 /**
@@ -177,6 +246,9 @@ export const ShapePropertiesSchema = z.discriminatedUnion("shapeType", [
   CirclePropertiesSchema,
   TrianglePropertiesSchema,
   LinePropertiesSchema,
+  IconPropertiesSchema,
+  BadgePropertiesSchema,
+  ProgressPropertiesSchema,
 ]);
 
 export const ShapeEventSchema = BaseTimelineEventSchema.extend({

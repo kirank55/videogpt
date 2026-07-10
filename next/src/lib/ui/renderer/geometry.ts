@@ -16,6 +16,8 @@ import type {
 
 export type Bounds = { left: number; top: number; right: number; bottom: number };
 
+type TextLikeEvent = Extract<TimelineEvent, { type: "text" }>;
+
 // ── AnimatedValue helpers ─────────────────────────────────────────────────────
 
 /** Type guard for the multi-keyframe variant of an AnimatedValue. */
@@ -85,8 +87,38 @@ function scaleBox(bounds: Bounds, scale: number, cx: number, cy: number): Bounds
     left: cx + (bounds.left - cx) * scale,
     top: cy + (bounds.top - cy) * scale,
     right: cx + (bounds.right - cx) * scale,
-    bottom: cx + (bounds.bottom - cy) * scale,
+    bottom: cy + (bounds.bottom - cy) * scale,
   };
+}
+
+function estimateTextLineCount(text: string, fontSize: number, maxWidth: number): number {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 1;
+
+  const charWidth = fontSize * 0.58;
+  let lines = 1;
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length * charWidth <= maxWidth || !current) {
+      current = candidate;
+    } else {
+      lines += 1;
+      current = word;
+    }
+  }
+  return lines;
+}
+
+function getTextHeight(event: TextLikeEvent): number {
+  const lineHeight = event.lineHeight ?? event.fontSize * 1.15;
+  return estimateTextLineCount(event.text, event.fontSize, event.maxWidth) * lineHeight;
+}
+
+function getTextTop(event: TextLikeEvent, y: number, height: number): number {
+  if (event.verticalAlign === "middle") return y - height / 2;
+  if (event.verticalAlign === "bottom") return y - height;
+  return y;
 }
 
 /** Static (un-animated) bounding box of an event, or null for background/particle. */
@@ -105,8 +137,9 @@ export function getStaticEventBounds(event: TimelineEvent): Bounds | null {
         left = event.x - event.maxWidth;
         right = event.x;
       }
-      const top = event.y;
-      const bottom = event.y + event.fontSize * 3;
+      const height = getTextHeight(event);
+      const top = getTextTop(event, event.y, height);
+      const bottom = top + height;
       return { left, top, right, bottom };
     }
     case "shape": {
@@ -126,6 +159,28 @@ export function getStaticEventBounds(event: TimelineEvent): Bounds | null {
             right: Math.max(event.x1, event.x2),
             bottom: Math.max(event.y1, event.y2),
           };
+        case "icon":
+          return {
+            left: event.cx - event.size / 2,
+            top: event.cy - event.size / 2,
+            right: event.cx + event.size / 2,
+            bottom: event.cy + event.size / 2,
+          };
+        case "badge": {
+          const fontSize = event.fontSize ?? 20;
+          const padX = event.paddingX ?? 18;
+          const padY = event.paddingY ?? 8;
+          const width = event.text.length * fontSize * 0.58 + padX * 2;
+          const height = fontSize + padY * 2;
+          return {
+            left: event.cx - width / 2,
+            top: event.cy - height / 2,
+            right: event.cx + width / 2,
+            bottom: event.cy + height / 2,
+          };
+        }
+        case "progress":
+          return { left: event.x, top: event.y, right: event.x + event.width, bottom: event.y + event.height };
       }
       break;
     }
@@ -156,8 +211,10 @@ export function getEventBounds(event: TimelineEvent): Bounds | null {
         left = event.x - event.maxWidth + txBounds.min;
         right = event.x + txBounds.max;
       }
-      const top = event.y + tyBounds.min;
-      const bottom = event.y + event.fontSize * 3 + tyBounds.max;
+      const height = getTextHeight(event);
+      const baseTop = getTextTop(event, event.y, height);
+      const top = baseTop + tyBounds.min;
+      const bottom = baseTop + height + tyBounds.max;
       return scaleBox({ left, top, right, bottom }, maxScale, event.x, event.y);
     }
     case "shape": {
@@ -194,6 +251,33 @@ export function getEventBounds(event: TimelineEvent): Bounds | null {
             right: Math.max(event.x1, event.x2) + txBounds.max,
             bottom: Math.max(event.y1, event.y2) + tyBounds.max,
           };
+        case "icon": {
+          const left = event.cx - event.size / 2 + txBounds.min;
+          const top = event.cy - event.size / 2 + tyBounds.min;
+          const right = event.cx + event.size / 2 + txBounds.max;
+          const bottom = event.cy + event.size / 2 + tyBounds.max;
+          return scaleBox({ left, top, right, bottom }, maxScale, event.cx, event.cy);
+        }
+        case "badge": {
+          const fontSize = event.fontSize ?? 20;
+          const padX = event.paddingX ?? 18;
+          const padY = event.paddingY ?? 8;
+          const width = event.text.length * fontSize * 0.58 + padX * 2;
+          const height = fontSize + padY * 2;
+          const left = event.cx - width / 2 + txBounds.min;
+          const top = event.cy - height / 2 + tyBounds.min;
+          const right = event.cx + width / 2 + txBounds.max;
+          const bottom = event.cy + height / 2 + tyBounds.max;
+          return scaleBox({ left, top, right, bottom }, maxScale, event.cx, event.cy);
+        }
+        case "progress": {
+          const left = event.x + txBounds.min;
+          const top = event.y + tyBounds.min;
+          const right = event.x + event.width + txBounds.max;
+          const bottom = event.y + event.height + tyBounds.max;
+          const c = getShapeCenter(event);
+          return scaleBox({ left, top, right, bottom }, maxScale, c.x, c.y);
+        }
       }
       break;
     }

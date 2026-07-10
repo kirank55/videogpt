@@ -27,6 +27,14 @@ Root cause for all three: there is no composable content unit, no real layout en
 | 11 | Animated flow | Edges with `animated: true` carry a Packet traveling along the edge path |
 | 12 | Text placement | Real layout pass in the expander using a precomputed Inter font-metrics table |
 | 13 | Backward compat | No migration; old persisted projects are discarded |
+| 14 | Layout planning boundary | Dedicated `SceneLayoutPlan` module; the expander translates plans to `TimelineEvent`s |
+| 15 | Node placement hints | Add optional `layoutRole` to nodes; validator drops invalid roles and expander infers only when missing |
+| 16 | Crowded scenes | Expander does not split scenes; it fits/fallbacks in-place and reports dev-only diagnostics |
+| 17 | v1 content budgets | `pipeline` 5 nodes/5 blocks; `client-server` 6 nodes/4 blocks; `hub-spoke` 5 nodes/4 blocks; `stack` 5 nodes/5 blocks; max 4 animated edges |
+| 18 | Over-budget normalization | Preserve author order; trim extra blocks, decorative nodes, dangling/non-animated edges, then animated edges beyond 4 |
+| 19 | Collision model | Check the all-content hold state plus swept packet paths; ignore transition-only overlap except safe-margin/main-heading hits |
+| 20 | Collision resolution | Try ranked layout strategy variants with deterministic scoring before strategy fallback; avoid generic pixel nudging except inside text boxes |
+| 21 | Strategy fallback order | `pipeline` -> `stack`; `hub-spoke` -> `stack`; `client-server` falls back to `stack` only after role/label remedies fail; `stack` has no fallback |
 
 ---
 
@@ -43,7 +51,7 @@ Root cause for all three: there is no composable content unit, no real layout en
      - `diagramLayout`: `"pipeline" | "client-server" | "hub-spoke" | "stack"`
      - `blocks`: 2–5 `{ heading, description, icon? }` (content)
      - `graph`: `{ nodes: Node[], edges: Edge[] }` (replaces `visualElements`)
-       - `Node`: `{ id, label, icon?, kind?, color? }`
+       - `Node`: `{ id, label, icon?, kind?, layoutRole?, color? }`
        - `Edge`: `{ from, to, label?, animated?, packetLabel?, packetColor? }`
      - Per-scene creative (the variety knobs): `entryAnimation`, `blockStyle`, `emphasizeIndex`, `transition` (from `TRANSITION_PRESETS`), optional `actEasings`, optional `colorOverrides` (accent swap).
      - `sceneWeight`: optional number (time distribution).
@@ -60,23 +68,29 @@ Root cause for all three: there is no composable content unit, no real layout en
    - Per-scene `.catch` defaults for every creative field.
    - Drop all two-column normalization. Drop `actWeights` preprocessing.
    - Normalize `graph`: ensure node ids are unique, edges reference existing node ids, drop dangling edges.
+   - Enforce scene content budgets by trimming or normalizing excessive blocks/nodes; do not split one scene into multiple scenes. v1 budgets: `pipeline` max 5 nodes/5 blocks, `client-server` max 6 nodes/4 blocks, `hub-spoke` max 5 nodes/4 blocks, `stack` max 5 nodes/5 blocks, and max 4 animated edges for every layout.
+   - Use deterministic over-budget normalization: preserve author order as importance; trim extra blocks after the layout max; keep graph nodes in author order while prioritizing nodes referenced by animated edges over unreferenced decorative nodes; drop dangling edges; trim non-animated edges before animated edges; if animated edges exceed the max, keep the first 4 in author order.
 
 **Verify:** `npx tsc --noEmit` from `next/`. Update `__tests__/brief/validateBrief.test.ts` for the new shape.
 
 ---
 
-### Phase 2 — Graph layout engine (new module: `lib/agent/brief/graphLayout/`)
+### Phase 2 — Scene layout engine (new module: `lib/agent/brief/sceneLayout/`)
 
-**Goal:** turn `{ nodes, edges, diagramLayout }` into pixel coordinates on the full 1920x1080 canvas, placing both nodes and content blocks.
+**Goal:** turn one Scene plus canvas settings into a `SceneLayoutPlan` before any TimelineEvents are emitted. The plan owns named regions, graph placement, block placement, text boxes, collision checks, layout fallbacks, and developer-only diagnostics.
 
-1. **`graphLayout/index.ts`** — `layoutGraph(graph, blocks, strategy, canvas) → { nodes: LaidOutNode[], edges: LaidOutEdge[], blockBoxes: Rect[] }`.
-2. **`graphLayout/pipeline.ts`** — horizontal sequence: nodes evenly spaced left→right across the canvas width; blocks as captions below each node. Connectors between adjacent nodes.
-3. **`graphLayout/clientServer.ts`** — two node columns (left group, right group); edges between groups; blocks as legends under each column. This is what handles request/response cycles.
-4. **`graphLayout/hubSpoke.ts`** — central node + radial peripherals; blocks as a bottom legend row.
-5. **`graphLayout/stack.ts`** — nodes stacked vertically (current single-column style preserved); blocks on the left.
-6. **Edge path computation** — for each edge, compute the connector path (straight line with `startPadding`/`endPadding` to stop at node boundaries; reuse the existing `getRectIntersection`/`getCircleIntersection`/`subtractIntervals` clipping from `singleColumnLayout.ts` so connectors don't cross solid nodes).
-7. **Packet path** — for `animated` edges, compute a 2-point Catmull-Rom path from source-node center to target-node center (reuses the renderer's existing `PathAnimation`).
-8. **Reuse** the geometry helpers from `briefHelpers.ts` (W, H, rowH, etc.) where applicable; extract shared constants.
+1. **`sceneLayout/index.ts`** — `layoutScene(scene, canvas) -> SceneLayoutPlan`. `graphLayout` can remain as a strategy helper underneath this boundary, but callers should consume the scene-level plan rather than raw graph boxes.
+2. **Scene content budgets** — each strategy defines practical block/node limits: `pipeline` max 5 nodes/5 blocks, `client-server` max 6 nodes/4 blocks, `hub-spoke` max 5 nodes/4 blocks, `stack` max 5 nodes/5 blocks, and max 4 animated edges for every layout. Crowded scenes are handled by fit policy, label omission, or layout fallback inside the same Scene; diagnostics record the pressure. The layout module never creates extra Scenes.
+3. **Collision occupancy model** — check the Scene's shared hold moment where all meaningful content may be visible together. Static occupancy includes headings, nodes, blocks, labels, and edges. Animated Packets are checked as swept-path envelopes. Transition-only overlap between adjacent Scenes is ignored unless it hits safe margins or the main heading.
+4. **Layout strategy variants** — each strategy exposes a ranked set of deterministic variants such as roomy/compact, blocks-bottom/blocks-side, or labels-on/labels-off. The layout module scores variants for collisions, safe-margin violations, text-fit degradation, omitted labels, and semantic role violations, then chooses the best passing plan. Use generic pixel nudging only inside text boxes.
+5. **Strategy fallback order** — `pipeline` falls back to `stack` preserving node order. `hub-spoke` falls back to `stack` with the hub first, then spokes. `client-server` strongly prefers staying `client-server`; only fall back to `stack` when roles are missing/invalid or collisions remain after labels are dropped. `stack` has no strategy fallback in v1.
+6. **`graphLayout/pipeline.ts`** — horizontal sequence: nodes evenly spaced left→right across the canvas width; blocks as captions below each node. Connectors between adjacent nodes.
+7. **`graphLayout/clientServer.ts`** — two node columns (left group, right group); edges between groups; blocks as legends under each column. This is what handles request/response cycles.
+8. **`graphLayout/hubSpoke.ts`** — central node + radial peripherals; blocks as a bottom legend row.
+9. **`graphLayout/stack.ts`** — nodes stacked vertically (current single-column style preserved); blocks on the left.
+10. **Edge path computation** — for each edge, compute the connector path (straight line with `startPadding`/`endPadding` to stop at node boundaries; reuse the existing `getRectIntersection`/`getCircleIntersection`/`subtractIntervals` clipping from `singleColumnLayout.ts` so connectors don't cross solid nodes).
+11. **Packet path** — for `animated` edges, compute a 2-point Catmull-Rom path from source-node center to target-node center (reuses the renderer's existing `PathAnimation`).
+12. **Reuse** the geometry helpers from `briefHelpers.ts` (W, H, rowH, etc.) where applicable; extract shared constants.
 
 **Verify:** unit tests for each strategy with snapshot-style assertions on node positions (deterministic). `npx tsc --noEmit`.
 

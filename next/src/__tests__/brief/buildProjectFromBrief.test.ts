@@ -1,686 +1,709 @@
-import { describe, it, expect } from "vitest";
-import { buildProjectFromBrief } from "@/lib/agent/brief/buildProjectFromBrief";
+import { describe, expect, it } from "vitest";
+import {
+  buildProjectFromBrief,
+  buildProjectFromBriefWithDiagnostics,
+  splitDurationAcrossScenes,
+} from "@/lib/agent/brief/buildProjectFromBrief";
+import { layoutGraph } from "@/lib/agent/brief/graphLayout";
+import { layoutScene } from "@/lib/agent/brief/sceneLayout";
 import { PALETTES } from "@/lib/others/catalog/palettes";
 import { STYLES } from "@/lib/others/catalog/styles";
-import type { VideoBrief, SupportedDuration } from "@/lib/agent/schemas/brief";
+import type { SupportedDuration, VideoBrief } from "@/lib/agent/schemas/brief";
 import type { ShapeEvent, TextEvent } from "@/lib/ui/renderer";
 
-// ── Fixtures ──────────────────────────────────────────────────────────────────
+type RectShapeEvent = Extract<ShapeEvent, { shapeType: "rect" }>;
 
-function twoColBrief(overrides: Partial<VideoBrief> = {}): VideoBrief {
+function graphMeta(subject: string, visuals: string[]) {
   return {
-    layout: "two-column",
-    title: "Client vs Server",
-    leftHeader: "Client",
-    rightHeader: "Server",
-    leftRows: ["Browser", "DNS"],
-    rightRows: ["Load Balancer", "API"],
-    flow: false,
-    palette: "midnight",
-    style: "modern",
-    ...overrides,
+    diagramScript: {
+      summary: `Show ${subject} as a graph-flow diagram.`,
+      beats: visuals,
+      visualStory: `${visuals.join(" -> ")} forms the visible system flow.`,
+      mustShow: visuals,
+    },
+    diagramIntent: {
+      family: "graph-flow" as const,
+      subject,
+      signatureVisuals: visuals,
+      motionCues: visuals.length > 1 ? [`${visuals[0]} to ${visuals.at(-1)}`] : [],
+    },
   };
 }
 
-function singleColBrief(overrides: Partial<VideoBrief> = {}): VideoBrief {
+function sceneBrief(overrides: Partial<VideoBrief> = {}): VideoBrief {
   return {
-    layout: "single-column",
-    title: "The Water Cycle",
-    blocks: [
-      { heading: "Evaporation", description: "Water rises." },
-      { heading: "Condensation", description: "Clouds form." },
-      { heading: "Precipitation", description: "Rain falls." },
+    title: "Client Server Flow",
+    subtitle: "From browser to data",
+    closingLine: "That is the round trip.",
+    palette: "midnight",
+    style: "modern",
+    particleIntensity: 1,
+    scenes: [
+      {
+        heading: "Request Leaves The Browser",
+        ...graphMeta("request leaving browser", ["Client", "Server"]),
+        diagramLayout: "client-server",
+        blocks: [
+          { heading: "Client", description: "The browser prepares a request.", icon: "browser" },
+          { heading: "Server", description: "The API receives and validates it.", icon: "server" },
+        ],
+        graph: {
+          nodes: [
+            { id: "client", label: "Client", icon: "browser" },
+            { id: "server", label: "Server", icon: "server" },
+          ],
+          edges: [
+            { from: "client", to: "server", label: "GET /api", animated: true, packetLabel: "GET" },
+          ],
+        },
+        entryAnimation: "slide-up",
+        blockStyle: "cards",
+        transition: "fade",
+        sceneWeight: 1,
+      },
+      {
+        heading: "Response Comes Back",
+        ...graphMeta("response returning to browser", ["Database", "API", "UI"]),
+        diagramLayout: "pipeline",
+        blocks: [
+          { heading: "Query", description: "The server reads the data.", icon: "database" },
+          { heading: "Serialize", description: "The response is shaped for the client.", icon: "code" },
+          { heading: "Render", description: "The browser updates the interface.", icon: "app" },
+        ],
+        graph: {
+          nodes: [
+            { id: "db", label: "Database", icon: "database" },
+            { id: "api", label: "API", icon: "api" },
+            { id: "ui", label: "UI", icon: "browser" },
+          ],
+          edges: [
+            { from: "db", to: "api", label: "rows", animated: true },
+            { from: "api", to: "ui", label: "json", animated: true },
+          ],
+        },
+        entryAnimation: "scale-up",
+        blockStyle: "timeline",
+        transition: "slide-left",
+        sceneWeight: 2,
+      },
     ],
-    palette: "midnight",
-    style: "modern",
     ...overrides,
   };
 }
 
-const DUR: SupportedDuration = 15;
-
-// ── Helper: get rect events from a project ────────────────────────────────────
-
-function getRects(project: ReturnType<typeof buildProjectFromBrief>) {
-  return project.events.filter(
-    (e): e is ShapeEvent & { shapeType: "rect" } =>
-      e.type === "shape" && e.shapeType === "rect",
-  );
+function skyscraperBrief(): VideoBrief {
+  return {
+    title: "How Skyscrapers Are Built",
+    subtitle: "From bedrock to skyline",
+    closingLine: "From foundation to skyline - engineering that touches the clouds.",
+    palette: "midnight",
+    style: "modern",
+    particleIntensity: 1,
+    titleSize: "large",
+    titleAlign: "center",
+    closingStyle: "fade-up",
+    scenes: [
+      {
+        heading: "1. Deep Foundations",
+        ...graphMeta("deep foundation sequence", ["Bedrock", "Concrete Mat", "Waterproofing"]),
+        diagramLayout: "stack",
+        blocks: [
+          { heading: "Bedrock Anchors", description: "Piles driven deep into bedrock support immense weight.", icon: "gear" },
+          { heading: "Concrete Mat", description: "A thick concrete slab distributes loads evenly.", icon: "server" },
+          { heading: "Waterproofing", description: "Membranes and drainage protect against groundwater.", icon: "shield" },
+        ],
+        graph: {
+          nodes: [
+            { id: "bedrock", label: "Bedrock", icon: "gear", layoutRole: "step" },
+            { id: "mat", label: "Concrete Mat", icon: "server", layoutRole: "step" },
+            { id: "waterproof", label: "Waterproofing", icon: "shield", layoutRole: "step" },
+          ],
+          edges: [
+            { from: "bedrock", to: "mat", animated: true },
+            { from: "mat", to: "waterproof", animated: true },
+          ],
+        },
+        entryAnimation: "slide-up",
+        blockStyle: "stacked",
+        emphasizeIndex: 0,
+        transition: "fade",
+      },
+      {
+        heading: "2. Steel Superstructure",
+        ...graphMeta("steel superstructure sequence", ["Steel Frame", "Floor Decks", "Core & Elevators"]),
+        diagramLayout: "pipeline",
+        blocks: [
+          { heading: "Steel Frame", description: "Columns and beams form the skeleton of the tower.", icon: "cpu" },
+          { heading: "Floor Decks", description: "Concrete slabs on metal decking create each floor.", icon: "app" },
+          { heading: "Core & Elevators", description: "Central core houses elevators, stairs, and utilities.", icon: "api" },
+        ],
+        graph: {
+          nodes: [
+            { id: "frame", label: "Steel Frame", icon: "cpu", layoutRole: "source" },
+            { id: "decks", label: "Floor Decks", icon: "app", layoutRole: "step" },
+            { id: "core", label: "Core & Elevators", icon: "api", layoutRole: "sink" },
+          ],
+          edges: [
+            { from: "frame", to: "decks", animated: true, label: "erect" },
+            { from: "decks", to: "core", animated: true, label: "install" },
+          ],
+        },
+        entryAnimation: "slide-left",
+        blockStyle: "numbered",
+        emphasizeIndex: -1,
+        transition: "slide-left",
+      },
+      {
+        heading: "3. Facade & Finishing",
+        ...graphMeta("facade finishing hub", ["Building Shell", "Curtain Wall", "MEP Systems", "Interior Fit-Out"]),
+        diagramLayout: "hub-spoke",
+        blocks: [
+          { heading: "Curtain Wall", description: "Glass panels are installed from top to bottom.", icon: "browser" },
+          { heading: "MEP Systems", description: "Mechanical, electrical, and plumbing networks.", icon: "gear" },
+          { heading: "Interior Fit-Out", description: "Walls, ceilings, and finishes complete each space.", icon: "code" },
+        ],
+        graph: {
+          nodes: [
+            { id: "building", label: "Building Shell", icon: "app", layoutRole: "hub" },
+            { id: "curtain", label: "Curtain Wall", icon: "browser", layoutRole: "spoke" },
+            { id: "mep", label: "MEP Systems", icon: "gear", layoutRole: "spoke" },
+            { id: "interior", label: "Interior Fit-Out", icon: "code", layoutRole: "spoke" },
+          ],
+          edges: [
+            { from: "building", to: "curtain", animated: true },
+            { from: "building", to: "mep", animated: true },
+            { from: "building", to: "interior", animated: true },
+          ],
+        },
+        entryAnimation: "fade-only",
+        blockStyle: "cards",
+        emphasizeIndex: 1,
+        transition: "fade",
+      },
+    ],
+  };
 }
 
-function getTextEvents(project: ReturnType<typeof buildProjectFromBrief>) {
-  return project.events.filter((e): e is TextEvent => e.type === "text");
+function generatedSkyscraperBrief(): VideoBrief {
+  return {
+    title: "How Skyscrapers Are Built",
+    subtitle: "From bedrock to skyline",
+    closingLine: "Engineering that reaches the sky.",
+    palette: "slate",
+    style: "modern",
+    particleIntensity: 0.5,
+    titleSize: "large",
+    titleAlign: "center",
+    closingStyle: "fade-up",
+    decorations: {
+      cornerBrackets: true,
+      scanLines: false,
+      pulseRings: false,
+      gapDivider: true,
+      decoBaseline: true,
+    },
+    scenes: [
+      {
+        heading: "Deep Foundations",
+        ...graphMeta("generated deep foundations", ["Bedrock", "Piles", "Concrete Mat"]),
+        diagramLayout: "stack",
+        blocks: [
+          { heading: "Bedrock Anchors", description: "Piles driven deep into stable rock to support immense weight.", icon: "foundation" },
+          { heading: "Concrete Mat", description: "Thick reinforced slab spreads load across the ground.", icon: "floor" },
+        ],
+        graph: {
+          nodes: [
+            { id: "bedrock", label: "Bedrock", icon: "foundation", layoutRole: "step" },
+            { id: "piles", label: "Piles", icon: "beam", layoutRole: "step" },
+            { id: "mat", label: "Concrete Mat", icon: "floor", layoutRole: "step" },
+          ],
+          edges: [
+            { from: "bedrock", to: "piles", animated: true, label: "driven in" },
+            { from: "piles", to: "mat", animated: true, label: "poured over" },
+          ],
+        },
+        entryAnimation: "slide-up",
+        blockStyle: "stacked",
+        emphasizeIndex: 0,
+        transition: "fade",
+      },
+      {
+        heading: "Steel Core & Floors",
+        ...graphMeta("generated steel core and floors", ["Columns & Beams", "Concrete Core", "Floor Slabs"]),
+        diagramLayout: "pipeline",
+        blocks: [
+          { heading: "Steel Frame", description: "Vertical columns and horizontal beams form the skeleton.", icon: "beam" },
+          { heading: "Concrete Core", description: "Central reinforced shaft resists wind and houses elevators.", icon: "wall" },
+          { heading: "Floor Slabs", description: "Precast concrete decks added level by level.", icon: "floor" },
+        ],
+        graph: {
+          nodes: [
+            { id: "columns", label: "Columns & Beams", icon: "beam", layoutRole: "source" },
+            { id: "core", label: "Concrete Core", icon: "wall", layoutRole: "step" },
+            { id: "floors", label: "Floor Slabs", icon: "floor", layoutRole: "sink" },
+          ],
+          edges: [
+            { from: "columns", to: "core", animated: true, label: "erected" },
+            { from: "core", to: "floors", animated: true, label: "poured" },
+          ],
+        },
+        entryAnimation: "scale-up",
+        blockStyle: "numbered",
+        emphasizeIndex: -1,
+        transition: "slide-left",
+      },
+      {
+        heading: "Facade & Finishing",
+        ...graphMeta("generated facade finishing", ["Skyscraper", "Curtain Wall", "Interior Systems"]),
+        diagramLayout: "hub-spoke",
+        blocks: [
+          { heading: "Glass Curtain Wall", description: "Lightweight panels enclose the building, allowing natural light.", icon: "building" },
+          { heading: "Interior Fit-Out", description: "MEP systems, elevators, and interior walls complete the space.", icon: "wrench" },
+        ],
+        graph: {
+          nodes: [
+            { id: "building", label: "Skyscraper", icon: "building", layoutRole: "hub" },
+            { id: "facade", label: "Curtain Wall", icon: "wall", layoutRole: "spoke" },
+            { id: "interior", label: "Interior Systems", icon: "wrench", layoutRole: "spoke" },
+          ],
+          edges: [
+            { from: "facade", to: "building", animated: true, label: "installed" },
+            { from: "interior", to: "building", animated: true, label: "fitted" },
+          ],
+        },
+        entryAnimation: "fade-only",
+        blockStyle: "cards",
+        emphasizeIndex: 0,
+        transition: "zoom-in",
+      },
+    ],
+  };
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+function storyboardSkyscraperBrief(): VideoBrief {
+  return {
+    title: "Skyscraper Storyboard",
+    subtitle: "Drawn from foundation to facade",
+    closingLine: "The tower is complete.",
+    palette: "slate",
+    style: "modern",
+    particleIntensity: 0,
+    titleSize: "large",
+    titleAlign: "center",
+    closingStyle: "fade-up",
+    scenes: [
+      {
+        heading: "Tower Drawing",
+        diagramScript: {
+          summary: "Draw a skyscraper as it grows.",
+          beats: ["Foundation", "Core", "Floors", "Windows"],
+          visualStory: "The same tower drawing gains foundation, core, floors, and windows.",
+          mustShow: ["foundation", "core", "floors", "windows"],
+        },
+        diagramIntent: {
+          family: "build-up",
+          subject: "skyscraper drawing",
+          signatureVisuals: ["foundation", "core", "floors", "windows"],
+          motionCues: ["draw upward"],
+        },
+        diagramLayout: "stack",
+        blocks: [
+          { heading: "Foundation", description: "The base is drawn first.", icon: "foundation" },
+          { heading: "Core", description: "The vertical core rises.", icon: "wall" },
+          { heading: "Windows", description: "Facade panels appear.", icon: "building" },
+        ],
+        graph: {
+          nodes: [
+            { id: "foundation", label: "Foundation" },
+            { id: "core", label: "Core" },
+            { id: "windows", label: "Windows" },
+          ],
+          edges: [],
+        },
+        visualPrimitives: [
+          { id: "foundation", type: "foundation mat", label: "Foundation", drawingRole: "layer" },
+          { id: "core", type: "concrete core", label: "Core", drawingRole: "support" },
+          { id: "tower", type: "tower mass", label: "Tower Body", drawingRole: "mass" },
+          { id: "windows", type: "window panels", label: "Windows", drawingRole: "panel" },
+        ],
+        primitiveRelationships: [
+          { from: ["foundation"], to: ["core"], relation: "supports" },
+          { from: ["core"], to: ["tower"], relation: "stiffens" },
+        ],
+        storyboard: {
+          style: "line-drawing",
+          continuityKey: "tower",
+          stages: [
+            { label: "Foundation", operation: "reveal", primitiveIds: ["foundation"] },
+            { label: "Core rises", operation: "grow", primitiveIds: ["core"] },
+            { label: "Floors stack", operation: "grow", primitiveIds: ["tower"] },
+            { label: "Windows", operation: "fill", primitiveIds: ["windows"] },
+          ],
+        },
+        entryAnimation: "slide-up",
+        blockStyle: "cards",
+        emphasizeIndex: -1,
+        transition: "fade",
+      },
+    ],
+  };
+}
+
+function primitiveBriefWithoutStoryboard(): VideoBrief {
+  return {
+    ...storyboardSkyscraperBrief(),
+    scenes: [
+      {
+        ...storyboardSkyscraperBrief().scenes[0],
+        storyboard: undefined,
+      },
+    ],
+  };
+}
+
+function twoSceneStoryboardBrief(): VideoBrief {
+  const scene = storyboardSkyscraperBrief().scenes[0];
+  return {
+    ...storyboardSkyscraperBrief(),
+    scenes: [
+      {
+        ...scene,
+        heading: "Phase 1: Foundation Context",
+        blockStyle: "cards",
+      },
+      {
+        ...scene,
+        heading: "Main Drawing Animation",
+      },
+    ],
+  };
+}
+
+function textEvents(project: ReturnType<typeof buildProjectFromBrief>) {
+  return project.events.filter((event): event is TextEvent => event.type === "text");
+}
+
+function shapeEvents(project: ReturnType<typeof buildProjectFromBrief>) {
+  return project.events.filter((event): event is ShapeEvent => event.type === "shape");
+}
+
+type IconShapeEvent = Extract<ShapeEvent, { shapeType: "icon" }>;
+
+describe("splitDurationAcrossScenes", () => {
+  it("splits duration evenly when weights are absent", () => {
+    expect(splitDurationAcrossScenes(20, [undefined, undefined, undefined, undefined])).toEqual([
+      { start: 0, end: 5, duration: 5 },
+      { start: 5, end: 10, duration: 5 },
+      { start: 10, end: 15, duration: 5 },
+      { start: 15, end: 20, duration: 5 },
+    ]);
+  });
+
+  it("normalizes scene weights", () => {
+    const slices = splitDurationAcrossScenes(15, [1, 2]);
+    expect(slices[0].duration).toBeCloseTo(5, 2);
+    expect(slices[1].duration).toBeCloseTo(10, 2);
+    expect(slices[1].end).toBe(15);
+  });
+});
+
+describe("layoutGraph", () => {
+  const graph = sceneBrief().scenes[1].graph;
+  const blocks = sceneBrief().scenes[1].blocks;
+
+  it("pipeline lays nodes left-to-right", () => {
+    const layout = layoutGraph(graph, blocks, "pipeline", { width: 1920, height: 1080 });
+    expect(layout.nodes[0].cx).toBeLessThan(layout.nodes[1].cx);
+    expect(layout.nodes[1].cx).toBeLessThan(layout.nodes[2].cx);
+  });
+
+  it("client-server puts groups on opposite sides", () => {
+    const layout = layoutGraph(graph, blocks, "client-server", { width: 1920, height: 1080 });
+    expect(layout.nodes[0].cx).toBeLessThan(960);
+    expect(layout.nodes[2].cx).toBeGreaterThan(960);
+  });
+
+  it("hub-spoke keeps the first node in the center", () => {
+    const layout = layoutGraph(graph, blocks, "hub-spoke", { width: 1920, height: 1080 });
+    expect(layout.nodes[0].cx).toBe(960);
+    expect(layout.nodes[0].cy).toBe(530);
+  });
+
+  it("stack lays nodes vertically", () => {
+    const layout = layoutGraph(graph, blocks, "stack", { width: 1920, height: 1080 });
+    expect(layout.nodes[0].cy).toBeLessThan(layout.nodes[1].cy);
+    expect(layout.nodes[1].cy).toBeLessThan(layout.nodes[2].cy);
+  });
+});
+
+describe("layoutScene", () => {
+  it("uses layoutRole to place client-server nodes semantically", () => {
+    const scene = {
+      ...sceneBrief().scenes[0],
+      graph: {
+        nodes: [
+          { id: "server", label: "Server", icon: "server" as const, layoutRole: "server" as const },
+          { id: "client", label: "Client", icon: "browser" as const, layoutRole: "client" as const },
+        ],
+        edges: [{ from: "client", to: "server", animated: true }],
+      },
+    };
+
+    const plan = layoutScene(scene, { width: 1920, height: 1080 });
+    const client = plan.nodes.find((node) => node.id === "client");
+    const server = plan.nodes.find((node) => node.id === "server");
+
+    expect(client?.cx).toBeLessThan(960);
+    expect(server?.cx).toBeGreaterThan(960);
+    expect(plan.diagnostics.attempts.length).toBeGreaterThan(0);
+  });
+
+  it("returns dev-only layout diagnostics outside the renderable project", () => {
+    const result = buildProjectFromBriefWithDiagnostics(sceneBrief(), 15);
+
+    expect(result.diagnostics.layout).toHaveLength(2);
+    expect(result.diagnostics.layout[0].requestedStrategy).toBe("client-server");
+    expect(result.project).not.toHaveProperty("diagnostics");
+  });
+});
 
 describe("buildProjectFromBrief", () => {
-  // ── 1. Two-Column: rect count, labels, connectors, particles ──────────────
+  const DUR: SupportedDuration = 15;
 
-  it("two-column brief produces left and right rects for each row", () => {
-    const brief = twoColBrief();
-    const project = buildProjectFromBrief(brief, DUR);
-    const rects = getRects(project);
-    // 2 left + 2 right = 4 stack rects
-    const leftRects = rects.filter((r) => r.id.startsWith("left-rect"));
-    const rightRects = rects.filter((r) => r.id.startsWith("right-rect"));
-    expect(leftRects).toHaveLength(2);
-    expect(rightRects).toHaveLength(2);
+  it("produces a flat timeline with global background, title, scenes, and closing", () => {
+    const project = buildProjectFromBrief(sceneBrief(), DUR);
+    const ids = project.events.map((event) => event.id);
+
+    expect(project.duration).toBe(DUR);
+    expect(ids).toContain("bg");
+    expect(ids).toContain("title");
+    expect(ids).toContain("scene-0-heading");
+    expect(ids).toContain("scene-1-heading");
+    expect(ids).toContain("closing-line");
   });
 
-  it("produces label text events for each row", () => {
-    const project = buildProjectFromBrief(twoColBrief(), DUR);
-    const labels = getTextEvents(project).filter(
-      (e) => e.id.startsWith("left-label") || e.id.startsWith("right-label"),
+  it("brackets scenes between separate title and closing beats", () => {
+    const project = buildProjectFromBrief(skyscraperBrief(), DUR);
+    const title = textEvents(project).find((event) => event.id === "title");
+    const subtitle = textEvents(project).find((event) => event.id === "subtitle");
+    const firstSceneHeading = textEvents(project).find((event) => event.id === "scene-0-heading");
+    const closing = textEvents(project).find((event) => event.id === "closing-line");
+    const sceneEvents = project.events.filter((event) => event.id.startsWith("scene-"));
+
+    expect(title).toBeDefined();
+    expect(subtitle).toBeDefined();
+    expect(firstSceneHeading).toBeDefined();
+    expect(closing).toBeDefined();
+    expect(title!.end).toBeLessThanOrEqual(firstSceneHeading!.start);
+    expect(subtitle!.end).toBeLessThanOrEqual(firstSceneHeading!.start);
+    expect(Math.max(...sceneEvents.map((event) => event.end))).toBeLessThanOrEqual(closing!.start);
+  });
+
+  it("centers title-only intro compositions vertically", () => {
+    const project = buildProjectFromBrief(generatedSkyscraperBrief(), DUR);
+    const title = textEvents(project).find((event) => event.id === "title");
+    const subtitle = textEvents(project).find((event) => event.id === "subtitle");
+
+    expect(title).toBeDefined();
+    expect(subtitle).toBeDefined();
+    expect(title!.y).toBeGreaterThan(360);
+    expect(title!.y).toBeLessThan(500);
+    expect(subtitle!.y).toBeGreaterThan(title!.y);
+  });
+
+  it("keeps numbered block icons clear of the ordinal labels", () => {
+    const project = buildProjectFromBrief(generatedSkyscraperBrief(), DUR);
+    const numbers = textEvents(project).filter((event) => event.id.includes("scene-1-block-num"));
+    const icons = shapeEvents(project).filter((event): event is IconShapeEvent =>
+      event.shapeType === "icon" && event.id.includes("scene-1-block-icon")
     );
-    expect(labels).toHaveLength(4); // 2 left + 2 right
-  });
 
-  it("produces connector lines between stacked rows (n-1 per stack)", () => {
-    const brief = twoColBrief({
-      leftRows: ["A", "B", "C"],  // 3 rows → 2 connectors
-      rightRows: ["X", "Y"],      // 2 rows → 1 connector
-    });
-    const project = buildProjectFromBrief(brief, DUR);
-    const leftConns = project.events.filter((e) => e.id.startsWith("left-conn"));
-    const rightConns = project.events.filter((e) => e.id.startsWith("right-conn"));
-    expect(leftConns).toHaveLength(2);
-    expect(rightConns).toHaveLength(1);
-  });
-
-  it("produces ambient particles for styles with particleDensity > 0", () => {
-    const project = buildProjectFromBrief(
-      twoColBrief({ style: "modern" }), // modern has density 40
-      DUR,
-    );
-    const particles = project.events.filter((e) => e.id === "ambient-particles");
-    expect(particles).toHaveLength(1);
-  });
-
-  // ── 2. Single-Column: block count and Y positions ─────────────────────────
-
-  it("single-column produces heading+description for each block", () => {
-    const project = buildProjectFromBrief(singleColBrief(), DUR);
-    const headings = getTextEvents(project).filter((e) =>
-      e.id.startsWith("block-heading"),
-    );
-    const descs = getTextEvents(project).filter((e) =>
-      e.id.startsWith("block-desc"),
-    );
-    expect(headings).toHaveLength(3);
-    expect(descs).toHaveLength(3);
-  });
-
-  it("single-column block headings have increasing Y positions", () => {
-    const project = buildProjectFromBrief(singleColBrief(), DUR);
-    const headings = getTextEvents(project)
-      .filter((e) => e.id.startsWith("block-heading"))
-      .sort((a, b) => a.id.localeCompare(b.id));
-    for (let i = 1; i < headings.length; i++) {
-      expect(headings[i].y).toBeGreaterThan(headings[i - 1].y);
+    expect(numbers).toHaveLength(3);
+    expect(icons).toHaveLength(3);
+    for (const number of numbers) {
+      const icon = icons.find((candidate) =>
+        candidate.id.endsWith(number.id.at(-1) ?? "")
+      );
+      expect(icon).toBeDefined();
+      expect(icon!.cx).toBeGreaterThan(number.x + number.maxWidth + 16);
     }
   });
 
-  it("single-column has a closing-line text event", () => {
-    const project = buildProjectFromBrief(singleColBrief(), DUR);
-    const closing = getTextEvents(project).find((e) => e.id === "closing-line");
-    expect(closing).toBeDefined();
+  it("does not shadow every un-emphasized diagram rectangle", () => {
+    const project = buildProjectFromBrief(generatedSkyscraperBrief(), DUR);
+    const steelNodes = shapeEvents(project).filter((event) =>
+      event.shapeType === "rect" && event.id.startsWith("scene-1-node-")
+    );
+
+    expect(steelNodes).toHaveLength(3);
+    expect(steelNodes.every((event) => event.shadow === undefined)).toBe(true);
   });
 
-  // ── 3. Variable row counts: non-overlapping rects ─────────────────────────
+  it("keeps concise construction card descriptions and edge labels visible", () => {
+    const result = buildProjectFromBriefWithDiagnostics(skyscraperBrief(), DUR);
+    const finalScene = result.diagnostics.layout.find((diagnostic) =>
+      diagnostic.sceneHeading === "3. Facade & Finishing"
+    );
+    const steelScene = result.diagnostics.layout.find((diagnostic) =>
+      diagnostic.sceneHeading === "2. Steel Superstructure"
+    );
 
-  it.each([[2], [3], [4]] as const)(
-    "%i-row left stack rects do not overlap vertically",
-    (count) => {
-      const rows = Array.from({ length: count }, (_, i) => `Row ${i + 1}`);
-      const project = buildProjectFromBrief(twoColBrief({ leftRows: rows }), DUR);
-      const leftRects = getRects(project)
-        .filter((r) => r.id.startsWith("left-rect"))
-        .sort((a, b) => a.y - b.y);
+    expect(finalScene?.messages.filter((message) => message.code === "text-fit")).toEqual([]);
+    expect(steelScene?.chosenVariant).toBe("roomy-labels-on");
+    expect(steelScene?.attempts.find((attempt) => attempt.variant === "roomy-labels-on")?.collisions).toBe(0);
+  });
 
-      for (let i = 1; i < leftRects.length; i++) {
-        const above = leftRects[i - 1];
-        const below = leftRects[i];
-        // Above rect bottom must be <= below rect top
-        expect(above.y + above.height).toBeLessThanOrEqual(below.y + 1); // +1 for gap tolerance
-      }
-    },
-  );
+  it("does not keep generic tech icons for construction labels", () => {
+    const project = buildProjectFromBrief(skyscraperBrief(), DUR);
+    const icons = shapeEvents(project).filter((event) => event.shapeType === "icon");
+    const iconById = new Map(icons.map((event) => [event.id, event.iconName]));
 
-  // ── 4. flow: true/false ───────────────────────────────────────────────────
+    expect(iconById.get("scene-1-block-icon-0")).not.toBe("cpu");
+    expect(iconById.get("scene-1-block-icon-1")).not.toBe("app");
+    expect(iconById.get("scene-1-block-icon-2")).not.toBe("api");
+    expect(iconById.get("scene-2-block-icon-0")).not.toBe("browser");
+    expect(iconById.get("scene-2-block-icon-2")).not.toBe("code");
+  });
 
-  it("flow:true adds req-packet, req-burst, processing-glow events", () => {
-    const brief = twoColBrief({
-      flow: true,
-      requestLabel: "REQUEST",
-      responseLabel: "RESPONSE",
-      processingSteps: ["Parse", "Validate"],
+  it("emits block heading and description text for every scene block", () => {
+    const project = buildProjectFromBrief(sceneBrief(), DUR);
+    const headings = textEvents(project).filter((event) => event.id.includes("block-heading"));
+    const descs = textEvents(project).filter((event) => event.id.includes("block-desc"));
+
+    expect(headings).toHaveLength(5);
+    expect(descs).toHaveLength(5);
+  });
+
+  it("emits node rectangles, edge lines, and animated packets", () => {
+    const project = buildProjectFromBrief(sceneBrief(), DUR);
+    const shapes = shapeEvents(project);
+
+    expect(shapes.some((event) => event.id === "scene-1-node-db")).toBe(true);
+    expect(shapes.some((event) => event.id === "scene-1-edge-0" && event.shapeType === "line")).toBe(true);
+    expect(shapes.some((event) => event.id === "scene-1-packet-0" && event.shapeType === "circle")).toBe(true);
+  });
+
+  it("uses storyboard drawing instead of generic cards and node rectangles for non-graph scenes", () => {
+    const result = buildProjectFromBriefWithDiagnostics(storyboardSkyscraperBrief(), DUR);
+    const shapes = shapeEvents(result.project);
+    const storyboardRects = shapes.filter((event): event is RectShapeEvent =>
+      event.shapeType === "rect" && event.id.includes("scene-0-storyboard-primitive")
+    );
+    const drawingCenterX = storyboardRects.reduce((sum, event) =>
+      sum + event.x + event.width / 2, 0
+    ) / storyboardRects.length;
+
+    expect(result.diagnostics.storyboard[0]).toMatchObject({
+      used: true,
+      stageCount: 4,
+      layoutFamily: "build-up",
     });
-    const project = buildProjectFromBrief(brief, DUR);
-    const ids = project.events.map((e) => e.id);
-    expect(ids).toContain("req-packet");
-    expect(ids).toContain("req-burst");
-    expect(ids).toContain("processing-glow");
+    expect(result.diagnostics.storyboard[0].boundsCoverage).toBeGreaterThan(0.3);
+    expect(shapes.some((event) => event.id.includes("scene-0-storyboard-primitive"))).toBe(true);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-node-"))).toBe(false);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-block-card"))).toBe(false);
+    expect(drawingCenterX).toBeGreaterThan(760);
+    expect(drawingCenterX).toBeLessThan(1160);
   });
 
-  it("flow:false omits req-packet, req-burst, processing-glow events", () => {
-    const project = buildProjectFromBrief(twoColBrief({ flow: false }), DUR);
-    const ids = project.events.map((e) => e.id);
-    expect(ids).not.toContain("req-packet");
-    expect(ids).not.toContain("req-burst");
-    expect(ids).not.toContain("processing-glow");
+  it("skips setup storyboard drawing but keeps relevant stack context diagrams", () => {
+    const result = buildProjectFromBriefWithDiagnostics(twoSceneStoryboardBrief(), DUR);
+    const shapes = shapeEvents(result.project);
+    const text = textEvents(result.project);
+    const title = text.find((event) => event.id === "title");
+    const firstHeading = text.find((event) => event.id === "scene-0-heading");
+    const closing = text.find((event) => event.id === "closing-line");
+
+    expect(result.diagnostics.storyboard[0]).toMatchObject({
+      used: false,
+      fallbackReason: "setup scene uses compact context rendering",
+      stageCount: 4,
+    });
+    expect(result.diagnostics.storyboard[1]).toMatchObject({
+      used: true,
+      layoutFamily: "build-up",
+    });
+    expect(shapes.some((event) => event.id.includes("scene-0-storyboard-primitive"))).toBe(false);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-node-"))).toBe(true);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-edge-"))).toBe(true);
+    expect(shapes.some((event) => event.id.startsWith("scene-0-block-card"))).toBe(true);
+    expect(text.some((event) => event.id.startsWith("scene-0-block-heading"))).toBe(true);
+    expect(shapes.some((event) => event.id.includes("scene-1-storyboard-primitive"))).toBe(true);
+    expect(title?.text).toBe("Skyscraper Storyboard");
+    expect(closing?.text).toBe("The tower is complete.");
+    expect(title!.end).toBeLessThanOrEqual(firstHeading!.start);
+    expect(firstHeading!.end).toBeLessThanOrEqual(closing!.start);
   });
 
-  // ── 5. Every expanded project is structurally sound ──────────────────────
+  it("falls back to existing scene rendering when a non-graph storyboard is missing", () => {
+    const result = buildProjectFromBriefWithDiagnostics(primitiveBriefWithoutStoryboard(), DUR);
+    const shapes = shapeEvents(result.project);
 
-  it.each([5, 10, 15, 20] as SupportedDuration[])(
-    "two-column flow:false %ds project has background + events",
-    (dur) => {
-      const project = buildProjectFromBrief(twoColBrief({ flow: false }), dur);
-      expect(project.events.length).toBeGreaterThan(0);
-      expect(project.events.some((e) => e.type === "background")).toBe(true);
-    },
-  );
-
-  it.each([5, 10, 15, 20] as SupportedDuration[])(
-    "two-column flow:true %ds project has background + events",
-    (dur) => {
-      const project = buildProjectFromBrief(twoColBrief({ flow: true, requestLabel: "REQ", responseLabel: "RES", processingSteps: ["Step 1"] }), dur);
-      expect(project.events.length).toBeGreaterThan(0);
-      expect(project.events.some((e) => e.type === "background")).toBe(true);
-    },
-  );
-
-  it.each([5, 10, 15, 20] as SupportedDuration[])(
-    "single-column %ds project has background + events",
-    (dur) => {
-      const project = buildProjectFromBrief(singleColBrief(), dur);
-      expect(project.events.length).toBeGreaterThan(0);
-      expect(project.events.some((e) => e.type === "background")).toBe(true);
-    },
-  );
-
-  // ── 6. Different palettes produce different colors ────────────────────────
-
-  it("different palettes produce different background gradient colors", () => {
-    const pMidnight = buildProjectFromBrief(twoColBrief({ palette: "midnight" }), DUR);
-    const pNeon = buildProjectFromBrief(twoColBrief({ palette: "neon" }), DUR);
-    const bgMidnight = pMidnight.events.find((e) => e.type === "background");
-    const bgNeon = pNeon.events.find((e) => e.type === "background");
-    expect(bgMidnight).not.toEqual(bgNeon);
+    expect(result.diagnostics.storyboard[0]).toMatchObject({
+      used: false,
+      fallbackReason: "scene has no storyboard stages",
+    });
+    expect(shapes.some((event) => event.id.startsWith("scene-0-node-"))).toBe(true);
   });
 
-  it("all named palettes produce distinct background gradients", () => {
-    const paletteKeys = Object.keys(PALETTES);
+  it("uses scene weights to give later scenes more time", () => {
+    const project = buildProjectFromBrief(sceneBrief(), DUR);
+    const scene0Heading = textEvents(project).find((event) => event.id === "scene-0-heading");
+    const scene1Heading = textEvents(project).find((event) => event.id === "scene-1-heading");
+
+    expect(scene0Heading).toBeDefined();
+    expect(scene1Heading).toBeDefined();
+    expect(scene0Heading!.end - scene0Heading!.start).toBeLessThan(
+      scene1Heading!.end - scene1Heading!.start,
+    );
+  });
+
+  it("different palettes produce different background gradients", () => {
+    const midnight = buildProjectFromBrief(sceneBrief({ palette: "midnight" }), DUR);
+    const neon = buildProjectFromBrief(sceneBrief({ palette: "neon" }), DUR);
+    const midnightBg = midnight.events.find((event) => event.type === "background");
+    const neonBg = neon.events.find((event) => event.type === "background");
+
+    expect(midnightBg).not.toEqual(neonBg);
+  });
+
+  it("all named palettes produce distinct background starts", () => {
     const froms = new Set<string>();
-    for (const key of paletteKeys) {
-      const project = buildProjectFromBrief(twoColBrief({ palette: key }), DUR);
-      const bg = project.events.find((e) => e.type === "background");
+    for (const palette of Object.keys(PALETTES)) {
+      const project = buildProjectFromBrief(sceneBrief({ palette }), DUR);
+      const bg = project.events.find((event) => event.type === "background");
       if (bg?.type === "background" && bg.background.kind === "gradient") {
         froms.add(bg.background.from);
       }
     }
-    // At least as many distinct colors as palettes (all have unique bgFrom)
-    expect(froms.size).toBe(paletteKeys.length);
+    expect(froms.size).toBe(Object.keys(PALETTES).length);
   });
 
-  // ── 7. Different styles produce different radii / easing ─────────────────
-
-  it("brutalist style produces radius:0 on stack rects", () => {
-    const project = buildProjectFromBrief(twoColBrief({ style: "brutalist" }), DUR);
-    const rects = getRects(project).filter((r) => r.id.startsWith("left-rect"));
-    expect(rects.length).toBeGreaterThan(0);
-    for (const r of rects) {
-      expect(r.radius).toBe(0);
-    }
+  it("minimal style omits ambient particles", () => {
+    const project = buildProjectFromBrief(sceneBrief({ style: "minimal" }), DUR);
+    expect(project.events.find((event) => event.id === "ambient-particles")).toBeUndefined();
   });
 
-  it("modern style produces non-zero radius on stack rects", () => {
-    const project = buildProjectFromBrief(twoColBrief({ style: "modern" }), DUR);
-    const rects = getRects(project).filter((r) => r.id.startsWith("left-rect"));
-    for (const r of rects) {
-      expect((r.radius ?? 0)).toBeGreaterThan(0);
-    }
-  });
-
-  it("neon-glow style produces ambient particles with high count", () => {
-    const neonDensity = STYLES["neon-glow"].particleDensity;
-    const project = buildProjectFromBrief(
-      twoColBrief({ style: "neon-glow", particleIntensity: 1 }),
-      DUR,
-    );
-    const ambient = project.events.find((e) => e.id === "ambient-particles");
+  it("neon-glow style uses its particle density", () => {
+    const project = buildProjectFromBrief(sceneBrief({ style: "neon-glow", particleIntensity: 1 }), DUR);
+    const ambient = project.events.find((event) => event.id === "ambient-particles");
     expect(ambient).toBeDefined();
     if (ambient?.type === "particle") {
-      expect(ambient.count).toBe(neonDensity);
+      expect(ambient.count).toBe(STYLES["neon-glow"].particleDensity);
     }
-  });
-
-  it("minimal style produces no ambient particles", () => {
-    const project = buildProjectFromBrief(twoColBrief({ style: "minimal" }), DUR);
-    const ambient = project.events.find((e) => e.id === "ambient-particles");
-    expect(ambient).toBeUndefined();
-  });
-
-  // ── 8. Output structure ───────────────────────────────────────────────────
-
-  it("always includes a background event", () => {
-    const project = buildProjectFromBrief(singleColBrief(), DUR);
-    const bg = project.events.find((e) => e.type === "background");
-    expect(bg).toBeDefined();
   });
 
   it.each([5, 10, 15, 20] as SupportedDuration[])(
-    "project duration matches the requested duration",
-    (dur) => {
-      const project = buildProjectFromBrief(singleColBrief(), dur);
-      expect(project.duration).toBe(dur);
+    "%ds project has events inside the requested duration",
+    (duration) => {
+      const project = buildProjectFromBrief(sceneBrief(), duration);
+      expect(project.duration).toBe(duration);
+      expect(project.events.length).toBeGreaterThan(0);
+      for (const event of project.events) {
+        expect(event.start).toBeGreaterThanOrEqual(0);
+        expect(event.end).toBeLessThanOrEqual(duration);
+        expect(event.end).toBeGreaterThan(event.start);
+      }
     },
   );
-
-  it("project name matches brief title", () => {
-    const brief = singleColBrief({ title: "My Custom Title" });
-    const project = buildProjectFromBrief(brief, DUR);
-    expect(project.name).toBe("My Custom Title");
-  });
-
-  // ── 9. Single-Column visualElements ───────────────────────────────────────
-
-  it("correctly handles visualElements and adjusts text column layout", () => {
-    const brief = singleColBrief({
-      visualElements: [
-        {
-          type: "rect",
-          blockIndex: 1,
-          x: 50,
-          y: 60,
-          width: 200,
-          height: 100,
-          color: "accent2",
-          fillType: "outline",
-          label: "Level 1",
-          entry: "slide-up"
-        },
-        {
-          type: "circle",
-          blockIndex: 2,
-          x: 150,
-          y: 200,
-          radius: 40,
-          color: "accent1",
-          fillType: "solid"
-        },
-        {
-          type: "line",
-          blockIndex: 0,
-          x1: 10,
-          y1: 20,
-          x2: 40,
-          y2: 50,
-          color: "muted",
-          fillType: "dashed"
-        }
-      ]
-    });
-
-    const project = buildProjectFromBrief(brief, DUR);
-
-    // Verify title and subtitle max width are constrained to 750 (shifted left)
-    const titleEvent = project.events.find((e) => e.id === "title");
-    expect(titleEvent).toBeDefined();
-    if (titleEvent?.type === "text") {
-      expect(titleEvent.maxWidth).toBe(750);
-    }
-
-    // Verify visual element shape events are generated
-    const rectShape = project.events.find((e) => e.id === "vis-shape-0");
-    const circleShape = project.events.find((e) => e.id === "vis-shape-1");
-    const lineShape = project.events.find((e) => e.id === "vis-shape-2");
-
-    expect(rectShape).toBeDefined();
-    expect(circleShape).toBeDefined();
-    expect(lineShape).toBeDefined();
-
-    // Verify absolute coordinate offset application (relative to diagram box center x=1060, y=320)
-    if (rectShape && rectShape.type === "shape" && rectShape.shapeType === "rect") {
-      expect(rectShape.x).toBe(1060 + 50);
-      expect(rectShape.y).toBe(320 + 60);
-      expect(rectShape.width).toBe(200);
-      expect(rectShape.height).toBe(100);
-      expect(rectShape.stroke).toBeDefined(); // outline should populate stroke
-    }
-
-    if (circleShape && circleShape.type === "shape" && circleShape.shapeType === "circle") {
-      expect(circleShape.x).toBe(1060 + 150);
-      expect(circleShape.y).toBe(320 + 200);
-      expect(circleShape.radius).toBe(40);
-    }
-
-    if (lineShape && lineShape.type === "shape" && lineShape.shapeType === "line") {
-      expect(lineShape.x1).toBe(1060 + 10);
-      expect(lineShape.y1).toBe(320 + 20);
-      expect(lineShape.x2).toBe(1060 + 40);
-      expect(lineShape.y2).toBe(320 + 50);
-      expect(lineShape.lineDash).toEqual([6, 6]); // dashed fillType should populate lineDash
-    }
-
-    // Verify visual element label text event is generated
-    const labelEvent = project.events.find((e) => e.id === "vis-label-0");
-    expect(labelEvent).toBeDefined();
-    if (labelEvent?.type === "text") {
-      expect(labelEvent.text).toBe("Level 1");
-      expect(labelEvent.align).toBe("center");
-      // rect center X = 1060 + 50 + 100 = 1210
-      expect(labelEvent.x).toBe(1210);
-    }
-  });
-
-  it("handles grow-x, grow-y, and draw visualElement entry animations", () => {
-    const brief = singleColBrief({
-      visualElements: [
-        {
-          type: "rect",
-          blockIndex: 0,
-          x: 10, y: 10, width: 100, height: 100,
-          entry: "grow-y"
-        },
-        {
-          type: "rect",
-          blockIndex: 1,
-          x: 20, y: 20, width: 100, height: 100,
-          entry: "grow-x"
-        },
-        {
-          type: "line",
-          blockIndex: 2,
-          x1: 200, y1: 200, x2: 300, y2: 300,
-          entry: "draw"
-        }
-      ]
-    });
-
-    const project = buildProjectFromBrief(brief, DUR);
-
-    const growYRect = project.events.find((e) => e.id === "vis-shape-0");
-    const growXRect = project.events.find((e) => e.id === "vis-shape-1");
-    const drawLine = project.events.find((e) => e.id === "vis-shape-2");
-
-    expect(growYRect).toBeDefined();
-    expect(growYRect?.scaleY).toBeDefined();
-    expect(growYRect?.scaleX).toBeUndefined();
-
-    expect(growXRect).toBeDefined();
-    expect(growXRect?.scaleX).toBeDefined();
-    expect(growXRect?.scaleY).toBeUndefined();
-
-    expect(drawLine).toBeDefined();
-    expect(drawLine?.drawProgress).toBeDefined();
-  });
-
-  it("verifies shape label verticalAlign and color logic", () => {
-    const brief = singleColBrief({
-      visualElements: [
-        {
-          type: "circle",
-          blockIndex: 0,
-          x: 100, y: 100, radius: 25,
-          color: "accent1",
-          fillType: "solid",
-          label: "SAT-1"
-        },
-        {
-          type: "circle",
-          blockIndex: 0,
-          x: 200, y: 100, radius: 25,
-          color: "accent1",
-          fillType: "solid",
-          label: "SAT-2",
-          labelBackdrop: true
-        },
-        {
-          type: "circle",
-          blockIndex: 0,
-          x: 300, y: 100, radius: 40,
-          color: "accent1",
-          fillType: "outline",
-          label: "Sphere 1"
-        }
-      ]
-    });
-    const project = buildProjectFromBrief(brief, DUR);
-    const label1 = project.events.find((e) => e.id === "vis-label-0") as TextEvent;
-    const label2 = project.events.find((e) => e.id === "vis-label-1") as TextEvent;
-    const label3 = project.events.find((e) => e.id === "vis-label-2") as TextEvent;
-
-    expect(label1).toBeDefined();
-    expect(label1.verticalAlign).toBe("middle");
-    expect(label1.backdrop).toBeUndefined();
-    expect(label1.color).toBe(PALETTES.midnight.surface);
-    expect(label1.y).toBe(320 + 100); // Centered at shapeY
-
-    expect(label2).toBeDefined();
-    expect(label2.verticalAlign).toBe("middle");
-    expect(label2.backdrop).toBeDefined();
-    expect(label2.color).toBe(PALETTES.midnight.text);
-    expect(label2.y).toBe(320 + 100); // Centered at shapeY
-
-    expect(label3).toBeDefined();
-    expect(label3.verticalAlign).toBe("middle");
-    expect(label3.backdrop).toBeDefined(); // Defaults to true for outline circles
-    expect(label3.color).toBe(PALETTES.midnight.text);
-    expect(label3.y).toBe(320 + 100 - 40); // Offset to shapeY - radius
-  });
-
-  it("verifies title and subtitle center-alignment in single-column layout", () => {
-    const brief = singleColBrief({
-      titleAlign: "center",
-      subtitle: "Trilateration in action",
-    });
-    const project = buildProjectFromBrief(brief, DUR);
-    const title = project.events.find((e) => e.id === "title") as TextEvent;
-    const subtitle = project.events.find((e) => e.id === "subtitle") as TextEvent;
-
-    expect(title).toBeDefined();
-    expect(title.align).toBe("center");
-    expect(title.x).toBe(1920 / 2); // since hasVisuals is false, titleX = W / 2
-
-    expect(subtitle).toBeDefined();
-    expect(subtitle.align).toBe("center");
-    expect(subtitle.x).toBe(1920 / 2);
-
-    // Now test with visuals: center should be screen center (1920 / 2 = 960) under the updated layout centering rules
-    const briefWithVisuals = singleColBrief({
-      titleAlign: "center",
-      subtitle: "Trilateration in action",
-      visualElements: [{ type: "circle", x: 10, y: 10 }],
-    });
-    const projectWithVisuals = buildProjectFromBrief(briefWithVisuals, DUR);
-    const titleWithVisuals = projectWithVisuals.events.find((e) => e.id === "title") as TextEvent;
-    const subtitleWithVisuals = projectWithVisuals.events.find((e) => e.id === "subtitle") as TextEvent;
-
-    expect(titleWithVisuals.align).toBe("center");
-    expect(titleWithVisuals.x).toBe(1920 / 2);
-
-    expect(subtitleWithVisuals.align).toBe("center");
-    expect(subtitleWithVisuals.x).toBe(1920 / 2);
-  });
-
-  it("verifies title and subtitle exit transition keyframes in single-column layout", () => {
-    const brief = singleColBrief({
-      subtitle: "Trilateration in action",
-    });
-    const project = buildProjectFromBrief(brief, DUR);
-    const title = project.events.find((e) => e.id === "title") as TextEvent;
-    const subtitle = project.events.find((e) => e.id === "subtitle") as TextEvent;
-
-    expect(title).toBeDefined();
-    expect(title.opacity).toBeDefined();
-    expect(typeof title.opacity).toBe("object");
-    expect("keyframes" in title.opacity!).toBe(true);
-
-    const titleOpacityKfs = (title.opacity as any).keyframes;
-    expect(titleOpacityKfs).toHaveLength(4);
-    // Exit starts at act2.start and ends at titleEnd
-    const act2Start = titleOpacityKfs[2].time;
-    const titleEnd = titleOpacityKfs[3].time;
-
-    expect(titleOpacityKfs[2].value).toBe(1);
-    expect(titleOpacityKfs[3].value).toBe(0);
-    expect(titleOpacityKfs[3].time).toBe(title.end);
-
-    expect(title.translateY).toBeDefined();
-    const titleTransKfs = (title.translateY as any).keyframes;
-    expect(titleTransKfs[2].value).toBe(0);
-    expect(titleTransKfs[3].value).toBe(-30);
-    expect(titleTransKfs[3].time).toBe(title.end);
-
-    expect(subtitle).toBeDefined();
-    expect(subtitle.end).toBe(title.end); // Should match titleEnd
-    expect(subtitle.opacity).toBeDefined();
-    const subOpacityKfs = (subtitle.opacity as any).keyframes;
-    expect(subOpacityKfs).toHaveLength(4);
-    expect(subOpacityKfs[2].value).toBe(1);
-    expect(subOpacityKfs[3].value).toBe(0);
-    expect(subOpacityKfs[3].time).toBe(title.end);
-
-    expect(subtitle.translateY).toBeDefined();
-    const subTransKfs = (subtitle.translateY as any).keyframes;
-    expect(subTransKfs[2].value).toBe(0);
-    expect(subTransKfs[3].value).toBe(-30);
-  });
-
-  it("verifies diagram shape label padding and dynamic font-size scaling", () => {
-    const brief = singleColBrief({
-      visualElements: [
-        {
-          type: "rect",
-          blockIndex: 0,
-          x: 100, y: 100,
-          width: 120, height: 50,
-          label: "Triangulate", // Very long label for a 120px wide rect
-          fillType: "solid",
-        },
-        {
-          type: "circle",
-          blockIndex: 0,
-          x: 200, y: 100,
-          radius: 20,
-          label: "TooLongLabelForCircle", // Very long label for 20px radius solid circle
-          fillType: "solid",
-        },
-        {
-          type: "line",
-          blockIndex: 0,
-          x1: 100, y1: 100, x2: 200, y2: 200,
-          label: "LineLabel",
-          fillType: "dashed",
-        }
-      ]
-    });
-
-    const project = buildProjectFromBrief(brief, DUR);
-    const labelRect = project.events.find((e) => e.id === "vis-label-0") as TextEvent;
-    const labelCircle = project.events.find((e) => e.id === "vis-label-1") as TextEvent;
-    const labelLine = project.events.find((e) => e.id === "vis-label-2") as TextEvent;
-
-    expect(labelRect).toBeDefined();
-    // Font size should scale down from 22 to prevent border overlap
-    expect(labelRect.fontSize).toBeLessThan(22);
-    expect(labelRect.fontSize).toBeGreaterThanOrEqual(14);
-
-    expect(labelCircle).toBeDefined();
-    // Solid circle label should scale down from 22
-    expect(labelCircle.fontSize).toBeLessThan(22);
-    expect(labelCircle.fontSize).toBeGreaterThanOrEqual(14);
-
-    expect(labelLine).toBeDefined();
-    // Line label uses backdrop with increased padding
-    expect(labelLine.backdrop).toBeDefined();
-    expect(labelLine.backdrop?.paddingX).toBe(14);
-    expect(labelLine.backdrop?.paddingY).toBe(6);
-  });
-});
-
-// ── Numbered block style: number watermark vs icon collision ──────────────────
-
-describe("numbered block layout", () => {
-  it("places the icon clear of the big number watermark (no overlap)", () => {
-    const brief: VideoBrief = {
-      layout: "single-column",
-      title: "How Are Skyscrapers Built?",
-      subtitle: "From foundation to spire",
-      blocks: [
-        { heading: "Foundation", description: "Deep excavation.", icon: "gear" },
-        { heading: "Core & Steel", description: "Central core.", icon: "server" },
-        { heading: "Floors & Facade", description: "Slabs and glass.", icon: "app" },
-        { heading: "Finishing", description: "MEP and spire.", icon: "gear" },
-      ],
-      palette: "ember",
-      style: "modern",
-      blockStyle: "numbered",
-      blockIcons: ["gear", "server", "app", "gear"],
-    } as unknown as VideoBrief;
-
-    const project = buildProjectFromBrief(brief, DUR);
-
-    for (let i = 0; i < 4; i++) {
-      const num  = project.events.find((e) => e.id === `block-num-${i}`) as TextEvent;
-      const icon = project.events.find(
-        (e): e is ShapeEvent & { shapeType: "icon" } =>
-          e.type === "shape" && e.shapeType === "icon" && e.id === `block-icon-${i}`,
-      );
-
-      expect(num).toBeDefined();
-      expect(icon).toBeDefined();
-      expect(num.text).toBe(String(i + 1).padStart(2, "0"));
-
-      // The big number's slot right edge vs the icon's left edge. Bold 60px
-      // digits overflow the 60px slot, so the icon must sit clear of it.
-      const numRight  = num.x + num.maxWidth;
-      const iconLeftEdge = icon.cx - icon.size / 2;
-      expect(iconLeftEdge - numRight).toBeGreaterThanOrEqual(30);
-    }
-  });
-});
-
-// ── Cards block style: icon must sit inside the card with padding ─────────────
-
-describe("cards block layout", () => {
-  it("insets the icon from the card's left edge (no poke-through)", () => {
-    const brief: VideoBrief = {
-      layout: "single-column",
-      title: "How Skyscrapers Are Built",
-      blocks: [
-        { heading: "Foundation & Piling", description: "Deep foundations.", icon: "shield" },
-        { heading: "Steel Framework", description: "Vertical steel skeleton.", icon: "gear" },
-        { heading: "Floor Construction", description: "Concrete slabs.", icon: "app" },
-        { heading: "Facade & Interior", description: "Glass curtain walls.", icon: "browser" },
-      ],
-      palette: "slate",
-      style: "modern",
-      blockStyle: "cards",
-      blockIcons: ["shield", "gear", "app", "browser"],
-    } as unknown as VideoBrief;
-
-    const project = buildProjectFromBrief(brief, DUR);
-
-    for (let i = 0; i < 4; i++) {
-      const card = project.events.find(
-        (e): e is ShapeEvent & { shapeType: "rect" } =>
-          e.type === "shape" && e.shapeType === "rect" && e.id === `card-bg-${i}`,
-      );
-      const icon = project.events.find(
-        (e): e is ShapeEvent & { shapeType: "icon" } =>
-          e.type === "shape" && e.shapeType === "icon" && e.id === `block-icon-${i}`,
-      );
-
-      expect(card).toBeDefined();
-      expect(icon).toBeDefined();
-
-      // The icon's left edge must sit inside the card with padding (the heading
-      // already has ~20px top inset; the icon should match on the left).
-      const iconLeftEdge = icon.cx - icon.size / 2;
-      expect(iconLeftEdge - card.x).toBeGreaterThanOrEqual(15);
-    }
-  });
 });

@@ -12,32 +12,83 @@
 
 import { buildProjectFromBrief } from "../lib/agent/brief/buildProjectFromBrief";
 
+function graphMeta(subject: string, visuals: string[]) {
+  return {
+    diagramScript: {
+      summary: `Show ${subject} as a graph-flow diagram.`,
+      beats: visuals,
+      visualStory: `${visuals.join(" -> ")} forms the visible system flow.`,
+      mustShow: visuals,
+    },
+    diagramIntent: {
+      family: "graph-flow" as const,
+      subject,
+      signatureVisuals: visuals,
+      motionCues: visuals.length > 1 ? [`${visuals[0]} to ${visuals.at(-1)}`] : [],
+    },
+  };
+}
+
 const bigDemoProject = buildProjectFromBrief({
-  layout: "two-column" as const,
   title: "Client-Server System Layout",
   subtitle: "Web Request Flow Sequence",
   palette: "midnight",
   style: "modern",
-  leftHeader: "CLIENT",
-  rightHeader: "SERVER",
-  leftRows: ["User Browser", "DOM State", "Fetch Client"],
-  rightRows: ["Load Balancer", "API Router", "SQL Store"],
-  flow: true,
-  requestLabel: "POST /auth",
-  responseLabel: "201 Created",
-  processingSteps: ["Hash Password", "INSERT INTO users"],
   closingLine: "Dynamic Web Sequence Analysis Done.",
+  scenes: [
+    {
+      heading: "Request Crossing The Boundary",
+      ...graphMeta("client-server request flow", ["Browser", "API Router", "SQL Store"]),
+      diagramLayout: "client-server",
+      blocks: [
+        { heading: "Client", description: "Browser state prepares an authenticated request.", icon: "browser" },
+        { heading: "Server", description: "API services validate, hash, and persist the payload.", icon: "server" },
+        { heading: "Database", description: "The SQL store confirms the write.", icon: "database" },
+      ],
+      graph: {
+        nodes: [
+          { id: "browser", label: "Browser", icon: "browser" },
+          { id: "api", label: "API Router", icon: "api" },
+          { id: "db", label: "SQL Store", icon: "database" },
+        ],
+        edges: [
+          { from: "browser", to: "api", label: "POST /auth", animated: true, packetLabel: "POST" },
+          { from: "api", to: "db", label: "INSERT", animated: true },
+          { from: "db", to: "browser", label: "201 Created", animated: true, packetLabel: "201" },
+        ],
+      },
+      entryAnimation: "slide-up",
+      blockStyle: "cards",
+      transition: "fade",
+    },
+  ],
 }, 15);
 
 const demoProject = buildProjectFromBrief({
-  layout: "single-column" as const,
   title: "Simple Architecture Overview",
-  blocks: [
-    { heading: "Web Layer", description: "Vibrant and interactive client views" },
-    { heading: "Service Layer", description: "Microservices orchestration and caching" },
-  ],
   palette: "midnight",
   style: "modern",
+  scenes: [
+    {
+      heading: "Two Layer Overview",
+      ...graphMeta("two layer architecture", ["Web Layer", "Service Layer"]),
+      diagramLayout: "stack",
+      blocks: [
+        { heading: "Web Layer", description: "Vibrant and interactive client views", icon: "browser" },
+        { heading: "Service Layer", description: "Microservices orchestration and caching", icon: "server" },
+      ],
+      graph: {
+        nodes: [
+          { id: "web", label: "Web Layer", icon: "browser" },
+          { id: "service", label: "Service Layer", icon: "server" },
+        ],
+        edges: [{ from: "web", to: "service", label: "calls", animated: true }],
+      },
+      entryAnimation: "slide-up",
+      blockStyle: "cards",
+      transition: "fade",
+    },
+  ],
 }, 10);
 import type {
   AnimatedValue,
@@ -201,9 +252,24 @@ function checkTextFitsInRect(
     issues2.push(warn(`maxWidth (${textEvent.maxWidth}) extends to x:${textRight}, rect ends at x:${parent.x + parent.width} — text may overflow`));
   }
 
+  if (textEvent.id.includes("block-heading") || textEvent.id.includes("block-desc")) {
+    const textBox = staticBBox(textEvent);
+    if (!textBox) return issues2;
+
+    if (textBox.y1 < parent.y || textBox.y2 > parent.y + parent.height) {
+      issues2.push(err(
+        `stacked block text y:${Math.round(textBox.y1)}-${Math.round(textBox.y2)} escapes parent rect y:${parent.y}-${parent.y + parent.height} -> [${parent.id}]`,
+      ));
+    } else {
+      issues2.push(ok(`stacked block text stays inside [${parent.id}]`));
+    }
+    return issues2;
+  }
+
   // Vertical centering quality
   const rectCenterY = parent.y + parent.height / 2;
-  const textCenterY = textEvent.y + textEvent.fontSize / 2;
+  const textBox = staticBBox(textEvent);
+  const textCenterY = textBox ? (textBox.y1 + textBox.y2) / 2 : textEvent.y + textEvent.fontSize / 2;
   const centerOffset = Math.abs(rectCenterY - textCenterY);
   if (centerOffset <= 10) {
     issues2.push(ok(`vertically centered (offset: ${Math.round(centerOffset)}px)`));
