@@ -78,6 +78,23 @@ export default function DevPresetGalleryPage() {
             (modern, brutalist, sketch, neon-glow, minimal). Uses a single LLM call;
             variants are produced by re-expanding the brief with each style key.
           </p>
+          <div className="grid gap-2 border-t border-border/50 pt-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              ["Title", "/dev/generate/title"],
+              ["Phase 1", "/dev/generate/phase-1"],
+              ["Main Diagram", "/dev/generate/main-diagram"],
+              ["Conclusion", "/dev/generate/conclusion"],
+            ].map(([label, href]) => (
+              <button
+                key={href}
+                type="button"
+                onClick={() => router.push(href)}
+                className="cursor-pointer rounded-xl border border-border bg-surface px-4 py-3 text-left text-sm font-semibold text-foreground transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-primary active:scale-[0.98]"
+              >
+                {label} →
+              </button>
+            ))}
+          </div>
           {error && (
             <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-700 dark:text-rose-400">
               {error}

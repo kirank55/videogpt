@@ -965,18 +965,14 @@ function addClosingEvents(
   }
 }
 
-export function buildProjectFromBriefWithDiagnostics(
-  rawBrief: VideoBrief,
-  duration: SupportedDuration,
-): BriefExpansionResult {
-  const brief = hydrateBrief(rawBrief);
-  const basePalette = PALETTES[brief.palette] ?? PALETTES[DEFAULT_PALETTE];
-  const style = STYLES[brief.style] ?? STYLES[DEFAULT_STYLE];
-  const events: TimelineEvent[] = [];
-  const layoutDiagnostics: SceneLayoutDiagnostics[] = [];
-  const storyboardDiagnostics: StoryboardDrawingDiagnostics[] = [];
-
-  const background: TimelineEvent = {
+function addBackdropEvents(
+  events: TimelineEvent[],
+  brief: VideoBrief,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  duration: number,
+) {
+  events.push({
     id: "bg",
     type: "background",
     start: 0,
@@ -984,12 +980,11 @@ export function buildProjectFromBriefWithDiagnostics(
     layer: 0,
     background: {
       kind: "gradient",
-      from: basePalette.bgFrom,
-      to: basePalette.bgTo,
-      angle: basePalette.bgAngle,
+      from: palette.bgFrom,
+      to: palette.bgTo,
+      angle: palette.bgAngle,
     },
-  };
-  events.push(background);
+  });
 
   const ambientCount = scaleParticles(style.particleDensity, brief.particleIntensity);
   if (ambientCount > 0) {
@@ -1005,11 +1000,25 @@ export function buildProjectFromBriefWithDiagnostics(
       spread: { x: W / 2 - 80, y: H / 2 - 80 },
       drift: { x: 6, y: -2 },
       particleRadius: { min: 2, max: 6 },
-      color: basePalette.glow,
+      color: palette.glow,
       particleOpacity: { min: 0.2, max: 0.6 },
       opacity: { from: 0, to: 1, easing: style.easing },
     });
   }
+}
+
+export function buildProjectFromBriefWithDiagnostics(
+  rawBrief: VideoBrief,
+  duration: SupportedDuration,
+): BriefExpansionResult {
+  const brief = hydrateBrief(rawBrief);
+  const basePalette = PALETTES[brief.palette] ?? PALETTES[DEFAULT_PALETTE];
+  const style = STYLES[brief.style] ?? STYLES[DEFAULT_STYLE];
+  const events: TimelineEvent[] = [];
+  const layoutDiagnostics: SceneLayoutDiagnostics[] = [];
+  const storyboardDiagnostics: StoryboardDrawingDiagnostics[] = [];
+
+  addBackdropEvents(events, brief, basePalette, style, duration);
 
   const hasClosing = (brief.closingStyle ?? "fade-up") !== "none";
   const timing = bookendTiming(duration, brief.scenes.length, hasClosing);
@@ -1090,4 +1099,171 @@ export function buildProjectFromBrief(
   duration: SupportedDuration,
 ): VideoProject {
   return buildProjectFromBriefWithDiagnostics(rawBrief, duration).project;
+}
+
+export type BriefProjectSection =
+  | { kind: "title" }
+  | { kind: "scene"; sourceIndex: number; eventIndex: number; sceneCount: number }
+  | { kind: "closing" };
+
+function addSectionBackdrop(
+  events: TimelineEvent[],
+  brief: VideoBrief,
+  palette: PaletteSpec,
+  style: StyleSpec,
+  duration: SupportedDuration,
+) {
+  addBackdropEvents(events, brief, palette, style, duration);
+
+  if (brief.decorations?.cornerBrackets) {
+    const bracketLines = [
+      [90, 90, 180, 90], [90, 90, 90, 180],
+      [W - 90, 90, W - 180, 90], [W - 90, 90, W - 90, 180],
+      [90, H - 90, 180, H - 90], [90, H - 90, 90, H - 180],
+      [W - 90, H - 90, W - 180, H - 90], [W - 90, H - 90, W - 90, H - 180],
+    ];
+    bracketLines.forEach(([x1, y1, x2, y2], index) => {
+      events.push({
+        id: `decoration-corner-${index}`,
+        type: "shape",
+        shapeType: "line",
+        start: 0,
+        end: duration,
+        layer: 2,
+        x1,
+        y1,
+        x2,
+        y2,
+        stroke: withAlpha(palette.accent1, 0.45),
+        lineWidth: Math.max(1.5, style.strokeWeight),
+        opacity: { from: 0, to: 0.8, easing: style.easing },
+      });
+    });
+  }
+
+  if (brief.decorations?.scanLines) {
+    for (let index = 0; index < 7; index += 1) {
+      const y = 150 + index * 130;
+      events.push({
+        id: `decoration-scan-line-${index}`,
+        type: "shape",
+        shapeType: "line",
+        start: 0,
+        end: duration,
+        layer: 1,
+        x1: 80,
+        y1: y,
+        x2: W - 80,
+        y2: y,
+        stroke: withAlpha(palette.accent1, 0.12),
+        lineWidth: 1,
+      });
+    }
+  }
+
+  if (brief.decorations?.pulseRings) {
+    [240, 390].forEach((radius, index) => {
+      events.push({
+        id: `decoration-pulse-ring-${index}`,
+        type: "shape",
+        shapeType: "circle",
+        start: 0,
+        end: duration,
+        layer: 1,
+        x: W / 2,
+        y: H / 2,
+        radius,
+        fill: withAlpha(palette.surface, 0.05),
+        stroke: withAlpha(palette.accent2, 0.18),
+        strokeWidth: Math.max(1, style.strokeWeight),
+        opacity: { from: 0.15, to: 0.6, easing: "easeInOut" },
+      });
+    });
+  }
+
+  if (brief.decorations?.gapDivider) {
+    events.push({
+      id: "decoration-gap-divider",
+      type: "shape",
+      shapeType: "line",
+      start: 0,
+      end: duration,
+      layer: 2,
+      x1: W / 2,
+      y1: 150,
+      x2: W / 2,
+      y2: H - 150,
+      stroke: withAlpha(palette.muted, 0.22),
+      lineWidth: 1,
+      lineDash: [10, 12],
+    });
+  }
+
+  if (brief.decorations?.decoBaseline) {
+    events.push({
+      id: "decoration-baseline",
+      type: "shape",
+      shapeType: "line",
+      start: 0,
+      end: duration,
+      layer: 2,
+      x1: 110,
+      y1: 964,
+      x2: W - 110,
+      y2: 964,
+      stroke: withAlpha(palette.accent1Glow, 0.28),
+      lineWidth: Math.max(1.5, style.strokeWeight),
+      lineDash: style.lineDash ?? [14, 10],
+    });
+  }
+}
+
+/**
+ * Renders one section from an already-valid VideoBrief across a standalone
+ * project duration. The caller chooses the section; this module remains
+ * responsible only for deterministic Brief-to-VideoProject expansion.
+ */
+export function buildProjectFromBriefSection(
+  rawBrief: VideoBrief,
+  duration: SupportedDuration,
+  section: BriefProjectSection,
+): VideoProject {
+  const brief = hydrateBrief(rawBrief);
+  const palette = PALETTES[brief.palette] ?? PALETTES[DEFAULT_PALETTE];
+  const style = STYLES[brief.style] ?? STYLES[DEFAULT_STYLE];
+  const events: TimelineEvent[] = [];
+  addSectionBackdrop(events, brief, palette, style, duration);
+
+  if (section.kind === "title") {
+    events.push(...headingEvent(brief, palette, style, duration));
+  } else if (section.kind === "closing") {
+    addClosingEvents(events, brief, palette, style, duration, duration);
+  } else {
+    const scene = brief.scenes[section.sourceIndex];
+    if (scene) {
+      addSceneEvents(
+        events,
+        { ...scene, transition: "none" },
+        { start: 0, end: duration, duration },
+        palette,
+        style,
+        section.eventIndex,
+        section.sceneCount,
+        duration,
+        [],
+        [],
+      );
+    }
+  }
+
+  return {
+    id: `brief-section-${seededHash(JSON.stringify({ brief, duration, section })).toString(16)}`,
+    name: brief.title,
+    width: W,
+    height: H,
+    duration,
+    events: events
+      .filter((event) => event.end > event.start)
+      .sort((a, b) => (a.start - b.start) || (a.layer - b.layer)),
+  };
 }
