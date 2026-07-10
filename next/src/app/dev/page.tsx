@@ -7,6 +7,10 @@ import { useStore } from "@/lib/ui/store";
 import { TopBar } from "@/components/layout/TopBar";
 import { renderProjectFrame, type VideoProject } from "@/lib/ui/renderer";
 import type { ChatMessage, Session } from "@/types/generate";
+import {
+  loadDevGeneratedProjects,
+  type DevGeneratedProject,
+} from "@/lib/ui/devGeneratedProjects";
 
 // ── Thumbnail Canvas ──────────────────────────────────────────────────────────
 function ProjectThumbnail({ project }: { project?: VideoProject }) {
@@ -77,6 +81,7 @@ type DevCardItem = {
   project: VideoProject;
   sessionId?: string;
   messageId?: string;
+  devPartId?: string;
   isTemp?: boolean;
 };
 
@@ -134,7 +139,9 @@ function DevVideoCard({
               <span>•</span>
               <span>{item.project.duration}s</span>
             </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">{item.updatedAt}</p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {item.updatedAt}
+            </p>
           </div>
         </div>
 
@@ -143,7 +150,12 @@ function DevVideoCard({
           {/* Play */}
           <ActionButton
             icon={
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="w-3.5 h-3.5"
+              >
                 <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.841z" />
               </svg>
             }
@@ -155,12 +167,21 @@ function DevVideoCard({
             }}
           />
 
-          {/* Diagnostics — only for sessions that have IDs */}
+          {/* Diagnostics for workspace sessions and saved part generations. */}
           {onDiagnostics && (
             <ActionButton
               icon={
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                  <path fillRule="evenodd" d="M2 3.5A1.5 1.5 0 013.5 2h13A1.5 1.5 0 0118 3.5v13a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 012 16.5v-13zM6.5 6a.5.5 0 000 1h7a.5.5 0 000-1h-7zm0 3a.5.5 0 000 1h7a.5.5 0 000-1h-7zm0 3a.5.5 0 000 1h4a.5.5 0 000-1h-4z" clipRule="evenodd" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="w-3.5 h-3.5"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M2 3.5A1.5 1.5 0 013.5 2h13A1.5 1.5 0 0118 3.5v13a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 012 16.5v-13zM6.5 6a.5.5 0 000 1h7a.5.5 0 000-1h-7zm0 3a.5.5 0 000 1h7a.5.5 0 000-1h-7zm0 3a.5.5 0 000 1h4a.5.5 0 000-1h-4z"
+                    clipRule="evenodd"
+                  />
                 </svg>
               }
               label="Diagnostics"
@@ -250,7 +271,9 @@ function PlayModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-white truncate max-w-lg">{item.name}</h2>
+          <h2 className="text-base font-bold text-white truncate max-w-lg">
+            {item.name}
+          </h2>
           <div className="flex items-center gap-2">
             {onDiagnostics && (
               <button
@@ -289,11 +312,21 @@ function PlayModal({
             className="w-8 h-8 flex items-center justify-center rounded-full bg-zinc-800 hover:bg-zinc-700 text-white transition cursor-pointer shrink-0"
           >
             {isPlaying ? (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="w-4 h-4"
+              >
                 <path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zM12.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75a.75.75 0 00-.75-.75h-1.5z" />
               </svg>
             ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                className="w-4 h-4"
+              >
                 <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.841z" />
               </svg>
             )}
@@ -342,6 +375,7 @@ function DevDashboardContent() {
   const sessions = useStore((s) => s.sessions);
 
   const [tempProjects, setTempProjects] = useState<VideoProject[]>([]);
+  const [partProjects, setPartProjects] = useState<DevGeneratedProject[]>([]);
   const [activeItem, setActiveItem] = useState<DevCardItem | null>(null);
 
   // Load CLI / temp projects from window globals
@@ -362,6 +396,7 @@ function DevDashboardContent() {
       }
       setTimeout(() => {
         setTempProjects(unique);
+        setPartProjects(loadDevGeneratedProjects());
       }, 0);
     }
   }, []);
@@ -369,7 +404,7 @@ function DevDashboardContent() {
   // Build card items from store sessions
   const sessionItems: DevCardItem[] = sessions.flatMap((session: Session) => {
     const assistantMessages = session.messages.filter(
-      (m: ChatMessage) => m.role === "assistant" && m.project
+      (m: ChatMessage) => m.role === "assistant" && m.project,
     );
     if (assistantMessages.length === 0) return [];
     // Use the latest assistant message with a project
@@ -396,18 +431,30 @@ function DevDashboardContent() {
     isTemp: true,
   }));
 
+  const partItems: DevCardItem[] = partProjects.map((item) => ({
+    id: item.id,
+    name: item.project.name || `${item.part} generated video`,
+    updatedAt: `${item.part} - ${new Date(item.createdAt).toLocaleString()}`,
+    project: item.project,
+    devPartId: item.id,
+  }));
+
   const handleDiagnostics = (item: DevCardItem) => {
+    if (item.devPartId) {
+      router.push(`/dev/advance?partId=${encodeURIComponent(item.devPartId)}`);
+      return;
+    }
     if (item.sessionId && item.messageId) {
       router.push(
-        `/dev/advance?sessionId=${item.sessionId}&messageId=${item.messageId}`
+        `/dev/advance?sessionId=${item.sessionId}&messageId=${item.messageId}`,
       );
     }
   };
 
-  const totalCount = sessionItems.length + tempItems.length;
+  const totalCount = sessionItems.length + tempItems.length + partItems.length;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
+    <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
       {/* Load CLI temp project data if present */}
       <Script src="/temp-project-data.js" strategy="beforeInteractive" />
 
@@ -436,10 +483,21 @@ function DevDashboardContent() {
 
         <main className="mt-6 flex-1">
           {totalCount === 0 ? (
-            <section className="card flex min-h-[400px] flex-col items-center justify-center p-8 text-center bg-surface-raised border border-border/80">
+            <section className="card flex min-h-100 flex-col items-center justify-center p-8 text-center bg-surface-raised border border-border/80">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/5 text-muted-foreground/80 mb-5">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth="2"
+                  stroke="currentColor"
+                  className="w-5 h-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
                 </svg>
               </div>
               <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground/60">
@@ -449,7 +507,8 @@ function DevDashboardContent() {
                 Nothing to diagnose yet
               </h2>
               <p className="mt-2.5 max-w-sm text-xs text-muted-foreground leading-relaxed">
-                Generate some videos from the workspace and they will appear here with diagnostic tools.
+                Generate some videos from the workspace and they will appear
+                here with diagnostic tools.
               </p>
               <button
                 type="button"
@@ -461,10 +520,32 @@ function DevDashboardContent() {
             </section>
           ) : (
             <div className="space-y-10">
+              {partItems.length > 0 && (
+                <div>
+                  <SectionHeader
+                    title="Part Generations"
+                    count={partItems.length}
+                  />
+                  <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+                    {partItems.map((item) => (
+                      <DevVideoCard
+                        key={item.id}
+                        item={item}
+                        onPlay={() => setActiveItem(item)}
+                        onDiagnostics={() => handleDiagnostics(item)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Session Videos */}
               {sessionItems.length > 0 && (
                 <div>
-                  <SectionHeader title="Workspace Videos" count={sessionItems.length} />
+                  <SectionHeader
+                    title="Workspace Videos"
+                    count={sessionItems.length}
+                  />
                   <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                     {sessionItems.map((item) => (
                       <DevVideoCard
@@ -481,7 +562,10 @@ function DevDashboardContent() {
               {/* CLI / Temp Videos */}
               {tempItems.length > 0 && (
                 <div>
-                  <SectionHeader title="CLI Generated" count={tempItems.length} />
+                  <SectionHeader
+                    title="CLI Generated"
+                    count={tempItems.length}
+                  />
                   <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                     {tempItems.map((item) => (
                       <DevVideoCard
@@ -504,7 +588,7 @@ function DevDashboardContent() {
           item={activeItem}
           onClose={() => setActiveItem(null)}
           onDiagnostics={
-            activeItem.sessionId && activeItem.messageId
+            activeItem.devPartId || (activeItem.sessionId && activeItem.messageId)
               ? () => handleDiagnostics(activeItem)
               : undefined
           }

@@ -6,6 +6,10 @@ import { useStore } from "@/lib/ui/store";
 import { TopBar } from "@/components/layout/TopBar";
 import { renderProjectFrame, type VideoProject } from "@/lib/ui/renderer";
 import { visibleEvents } from "@/lib/ui/renderer/visibleEvents";
+import {
+  loadDevGeneratedProjects,
+  type DevGeneratedProject,
+} from "@/lib/ui/devGeneratedProjects";
 
 type DiagnosticEdge = {
   animated?: boolean;
@@ -314,9 +318,11 @@ function AdvanceWorkspace() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get("sessionId");
   const messageId = searchParams.get("messageId");
+  const partId = searchParams.get("partId");
 
   const sessions = useStore((s) => s.sessions);
   const activeSessionId = useStore((s) => s.activeSessionId);
+  const [partRecord, setPartRecord] = useState<DevGeneratedProject | null>(null);
 
   // Determine target session and message
   const targetSessionId = sessionId || activeSessionId;
@@ -325,8 +331,9 @@ function AdvanceWorkspace() {
     ? session?.messages.find((m) => m.id === messageId)
     : session?.messages[session.messages.length - 1]; // fallback to latest assistant msg
 
-  const project = message?.project;
-  const brief = message?.brief;
+  const project = partId ? partRecord?.project : message?.project;
+  const brief = (partId ? partRecord?.content : message?.brief) as DiagnosticBrief | undefined;
+  const rawAuthoredData = partId ? partRecord?.content : message?.rawBrief;
 
   // State
   const [activeTab, setActiveTab] = useState<"metadata" | "raw" | "brief" | "project" | "explanation">("metadata");
@@ -335,12 +342,25 @@ function AdvanceWorkspace() {
 
   const focusCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Redirect if missing critical details
   useEffect(() => {
-    if (!targetSessionId || !messageId) {
+    if (!partId) return;
+    const timer = window.setTimeout(() => {
+      const stored = loadDevGeneratedProjects().find((item) => item.id === partId);
+      if (stored) {
+        setPartRecord(stored);
+      } else {
+        router.replace("/dev");
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [partId, router]);
+
+  // Redirect if missing critical workspace-session details.
+  useEffect(() => {
+    if (!partId && (!targetSessionId || !messageId)) {
       router.replace("/dev");
     }
-  }, [targetSessionId, messageId, router]);
+  }, [partId, targetSessionId, messageId, router]);
 
   // Sync rendering on main focus canvas
   useEffect(() => {
@@ -352,7 +372,8 @@ function AdvanceWorkspace() {
     renderProjectFrame(ctx, project, selectedTime);
   }, [project, selectedTime]);
 
-  if (!session || !message || !project) {
+  const hasWorkspaceSource = !partId && Boolean(session && message);
+  if ((!partRecord && !hasWorkspaceSource) || !project) {
     return (
       <div className="flex h-screen flex-col items-center justify-center p-6 text-center">
         <p className="text-sm text-muted-foreground animate-pulse">Loading diagnostics data...</p>
@@ -380,7 +401,7 @@ function AdvanceWorkspace() {
   };
 
   const getCodeContent = () => {
-    if (activeTab === "raw") return JSON.stringify(message.rawBrief || { error: "No raw AI response cached for this historical session. Try generating or modifying a project in the workspace to view real-time raw response outputs." }, null, 2);
+    if (activeTab === "raw") return JSON.stringify(rawAuthoredData || { error: "No raw AI response was stored for this generation." }, null, 2);
     if (activeTab === "brief") return JSON.stringify(brief || { error: "No Brief generated for this frame version" }, null, 2);
     if (activeTab === "project") return JSON.stringify(project, null, 2);
     return "";
@@ -451,6 +472,18 @@ function AdvanceWorkspace() {
                   </h3>
                   <table className="w-full text-xs text-left text-muted-foreground">
                     <tbody>
+                      {partRecord && (
+                        <>
+                          <tr className="border-b border-border/40 py-2">
+                            <td className="font-semibold text-foreground py-2.5 w-1/3">Source</td>
+                            <td className="capitalize">Part Generation · {partRecord.part}</td>
+                          </tr>
+                          <tr className="border-b border-border/40 py-2">
+                            <td className="font-semibold text-foreground py-2.5">Prompt</td>
+                            <td>{partRecord.prompt}</td>
+                          </tr>
+                        </>
+                      )}
                       <tr className="border-b border-border/40 py-2">
                         <td className="font-semibold text-foreground py-2.5 w-1/3">Project Name</td>
                         <td>{project.name}</td>

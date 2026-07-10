@@ -10,6 +10,7 @@ import type {
   GenerateVideoPartResponse,
   VideoPartKind,
 } from "@/lib/agent/videoParts/schemas";
+import { saveDevGeneratedProject } from "@/lib/ui/devGeneratedProjects";
 
 type VideoPartGeneratePageProps = {
   part: VideoPartKind;
@@ -46,7 +47,14 @@ export function VideoPartGeneratePage({
       if (!response.ok) {
         throw new Error("error" in data && data.error ? data.error : `HTTP ${response.status}`);
       }
-      setResult(data as GenerateVideoPartResponse);
+      const generated = data as GenerateVideoPartResponse;
+      saveDevGeneratedProject({
+        part,
+        prompt: submittedPrompt,
+        project: generated.project,
+        content: generated.content,
+      });
+      setResult(generated);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : String(requestError));
     } finally {
