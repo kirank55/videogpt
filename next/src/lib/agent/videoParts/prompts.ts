@@ -6,7 +6,7 @@ import {
 
 const roleGuides: Record<VideoPartKind, string> = {
   title: "Write a concise, compelling video title and an optional explanatory subtitle. Generate no scene content.",
-  "phase-1": "Write only the compact setup/context scene: starting state, actors, materials, inputs, or problem. Use concrete blocks and a small graph; do not explain the full mechanism.",
+  summary: "Write only a compact visual summary: introduce the topic, key actors, materials, inputs, or starting context. Use concrete blocks and a small graph; leave the full mechanism to the main diagram.",
   "main-diagram": `Write only the main visual explanation. Choose diagramFamily "graph-flow" for software/system topics and return only its blocks and graph. For physical, scientific, civic, or process topics choose a non-graph diagramFamily and author its readable diagramScript, diagramIntent, prompt-specific visualPrimitives, primitiveRelationships, and line-drawing storyboard. Never mix the two variants.`,
   conclusion: "Write one concise closing line that resolves the explanation. Generate no title or scene content.",
 };

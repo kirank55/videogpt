@@ -30,7 +30,7 @@ const DEFAULT_DEPENDENCIES: VideoPartPipelineDependencies = {
 
 const MAX_TOKENS: Record<VideoPartKind, number> = {
   title: 512,
-  "phase-1": 2400,
+  summary: 2400,
   "main-diagram": 8192,
   conclusion: 384,
 };

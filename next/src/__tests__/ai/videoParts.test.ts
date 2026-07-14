@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ConclusionPartContentSchema,
   MainDiagramPartContentSchema,
-  PhaseOnePartContentSchema,
+  SummaryPartContentSchema,
   TitlePartContentSchema,
 } from "@/lib/agent/videoParts/schemas";
 import { resolveVideoPartTheme } from "@/lib/agent/videoParts/theme";
@@ -18,8 +18,8 @@ import {
 const prompt = "Explain how sunlight becomes electricity in a solar panel";
 const theme = resolveVideoPartTheme(prompt);
 
-const phaseOneContent = {
-  heading: "Phase 1: Capture sunlight",
+const summaryContent = {
+  heading: "Summary: Capturing sunlight",
   diagramLayout: "pipeline" as const,
   blocks: [
     { heading: "Sunlight", description: "Photons arrive at the panel." },
@@ -57,7 +57,7 @@ const mainDiagramContent = {
 
 const artifacts = [
   { part: "title" as const, content: { title: "Solar Power", subtitle: "From light to electricity" } },
-  { part: "phase-1" as const, content: phaseOneContent },
+  { part: "summary" as const, content: summaryContent },
   { part: "main-diagram" as const, content: mainDiagramContent },
   { part: "conclusion" as const, content: { closingLine: "Sunlight becomes useful electrical power." } },
 ];
@@ -89,8 +89,8 @@ describe("video part contracts", () => {
   });
 
   it("rejects setup graphs whose edges reference missing nodes", () => {
-    expect(() => PhaseOnePartContentSchema.parse({
-      heading: "Phase 1: Capture sunlight",
+    expect(() => SummaryPartContentSchema.parse({
+      heading: "Summary: Capturing sunlight",
       diagramLayout: "pipeline",
       blocks: [
         { heading: "Sunlight", description: "Photons reach the panel." },
@@ -137,7 +137,7 @@ describe("video part contracts", () => {
   it("asks the model for only the selected part contract", () => {
     const prompts = [
       buildVideoPartSystemPrompt("title", 5),
-      buildVideoPartSystemPrompt("phase-1", 5),
+      buildVideoPartSystemPrompt("summary", 5),
       buildVideoPartSystemPrompt("main-diagram", 10),
       buildVideoPartSystemPrompt("conclusion", 10),
     ];
@@ -173,8 +173,8 @@ describe("video part contracts", () => {
       forbiddenPrefixes: ["scene-", "closing-line"],
     },
     {
-      part: "phase-1" as const,
-      content: phaseOneContent,
+      part: "summary" as const,
+      content: summaryContent,
       requiredId: "scene-0-heading",
       forbiddenPrefixes: ["title", "scene-1-", "closing-line"],
     },

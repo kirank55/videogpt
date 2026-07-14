@@ -79,7 +79,7 @@ function briefAndSection(
         }),
         section: { kind: "title" },
       };
-    case "phase-1":
+    case "summary":
       return {
         brief: validateBrief({
           ...shared,

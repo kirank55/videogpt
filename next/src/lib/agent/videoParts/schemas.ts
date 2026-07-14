@@ -15,7 +15,7 @@ import type { VideoProject } from "@/lib/ui/renderer";
 
 export const VideoPartKindSchema = z.enum([
   "title",
-  "phase-1",
+  "summary",
   "main-diagram",
   "conclusion",
 ]);
@@ -54,13 +54,13 @@ export const TitlePartContentSchema = z.object({
 }).strict();
 export type TitlePartContent = z.infer<typeof TitlePartContentSchema>;
 
-export const PhaseOnePartContentSchema = z.object({
+export const SummaryPartContentSchema = z.object({
   heading: z.string().min(1).max(70),
   diagramLayout: DiagramLayoutSchema,
   blocks: z.array(StrictBlockSchema).min(2).max(5),
   graph: StrictGraphSchema,
 }).strict();
-export type PhaseOnePartContent = z.infer<typeof PhaseOnePartContentSchema>;
+export type SummaryPartContent = z.infer<typeof SummaryPartContentSchema>;
 
 const StrictVisualPrimitiveSchema = VisualPrimitiveSchema.strict();
 const StrictPrimitiveRelationshipSchema = PrimitiveRelationshipSchema.strict();
@@ -143,7 +143,7 @@ export type GenerateVideoPartRequest = z.infer<typeof GenerateVideoPartRequestSc
 
 export type AuthoredVideoPart =
   | { part: "title"; content: TitlePartContent }
-  | { part: "phase-1"; content: PhaseOnePartContent }
+  | { part: "summary"; content: SummaryPartContent }
   | { part: "main-diagram"; content: MainDiagramPartContent }
   | { part: "conclusion"; content: ConclusionPartContent };
 
@@ -152,7 +152,7 @@ export type GenerateVideoPartResponse = GeneratedVideoPart;
 
 const VIDEO_PART_CONTENT_SCHEMAS = {
   title: TitlePartContentSchema,
-  "phase-1": PhaseOnePartContentSchema,
+  summary: SummaryPartContentSchema,
   "main-diagram": MainDiagramPartContentSchema,
   conclusion: ConclusionPartContentSchema,
 } as const;
@@ -165,8 +165,8 @@ export function parseAuthoredVideoPart(part: VideoPartKind, raw: unknown): Autho
   switch (part) {
     case "title":
       return { part, content: TitlePartContentSchema.parse(raw) };
-    case "phase-1":
-      return { part, content: PhaseOnePartContentSchema.parse(raw) };
+    case "summary":
+      return { part, content: SummaryPartContentSchema.parse(raw) };
     case "main-diagram":
       return { part, content: MainDiagramPartContentSchema.parse(raw) };
     case "conclusion":

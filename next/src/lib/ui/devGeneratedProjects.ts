@@ -14,14 +14,24 @@ export type DevGeneratedProject = {
   content?: unknown;
 };
 
-function isDevGeneratedProject(value: unknown): value is DevGeneratedProject {
-  if (!value || typeof value !== "object") return false;
-  const item = value as Partial<DevGeneratedProject>;
-  return typeof item.id === "string"
-    && typeof item.part === "string"
+function normalizeDevGeneratedProject(value: unknown): DevGeneratedProject | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const item = value as Record<string, unknown>;
+  const part = item.part === "phase-1" ? "summary" : item.part;
+  const validPart = part === "title"
+    || part === "summary"
+    || part === "main-diagram"
+    || part === "conclusion";
+  const valid = typeof item.id === "string"
+    && validPart
     && typeof item.prompt === "string"
     && typeof item.createdAt === "string"
-    && Boolean(item.project?.id);
+    && typeof item.project === "object"
+    && item.project !== null
+    && "id" in item.project
+    && Boolean(item.project.id);
+  if (!valid) return undefined;
+  return { ...item, part } as DevGeneratedProject;
 }
 
 export function loadDevGeneratedProjects(): DevGeneratedProject[] {
@@ -30,7 +40,10 @@ export function loadDevGeneratedProjects(): DevGeneratedProject[] {
   try {
     const parsed: unknown = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]");
     return Array.isArray(parsed)
-      ? parsed.filter(isDevGeneratedProject)
+      ? parsed.flatMap((item) => {
+          const normalized = normalizeDevGeneratedProject(item);
+          return normalized ? [normalized] : [];
+        })
       : [];
   } catch {
     return [];

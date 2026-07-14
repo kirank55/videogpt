@@ -81,7 +81,7 @@ export default function DevPresetGalleryPage() {
           <div className="grid gap-2 border-t border-border/50 pt-4 sm:grid-cols-2 xl:grid-cols-4">
             {[
               ["Title", "/dev/generate/title"],
-              ["Phase 1", "/dev/generate/phase-1"],
+              ["Summary", "/dev/generate/summary"],
               ["Main Diagram", "/dev/generate/main-diagram"],
               ["Conclusion", "/dev/generate/conclusion"],
             ].map(([label, href]) => (
@@ -172,7 +172,7 @@ function PlayerLoadingSlot() {
           One LLM call, five re-expansions
         </p>
       </div>
-      <div className="aspect-video flex flex-col items-center justify-center bg-black/15 dark:bg-black/35 rounded-2xl m-4 min-h-[300px] gap-4 p-6 text-center border border-dashed border-border/40">
+      <div className="aspect-video flex flex-col items-center justify-center bg-black/15 dark:bg-black/35 rounded-2xl m-4 min-h-75 gap-4 p-6 text-center border border-dashed border-border/40">
         <div className="size-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
         <p className="text-sm font-bold text-foreground">
           Calling OpenRouter...
