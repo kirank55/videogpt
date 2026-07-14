@@ -62,7 +62,19 @@ export function saveDevGeneratedProject(
   const next = [saved, ...existing].slice(0, MAX_PROJECTS);
 
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    const candidates = [...next];
+    while (candidates.length > 0) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(candidates));
+        break;
+      } catch (storageError) {
+        const quotaExceeded = storageError instanceof DOMException
+          ? storageError.name === "QuotaExceededError"
+          : storageError instanceof Error && storageError.name === "QuotaExceededError";
+        if (!quotaExceeded || candidates.length === 1) break;
+        candidates.pop();
+      }
+    }
   }
 
   return saved;

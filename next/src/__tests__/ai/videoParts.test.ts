@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   ConclusionPartContentSchema,
+  GraphSummaryPartContentSchema,
   MainDiagramPartContentSchema,
+  PrimitiveSummaryPartContentSchema,
   SummaryPartContentSchema,
   TitlePartContentSchema,
 } from "@/lib/agent/videoParts/schemas";
@@ -19,6 +21,7 @@ const prompt = "Explain how sunlight becomes electricity in a solar panel";
 const theme = resolveVideoPartTheme(prompt);
 
 const summaryContent = {
+  diagramFamily: "graph-flow" as const,
   heading: "Summary: Capturing sunlight",
   diagramLayout: "pipeline" as const,
   blocks: [
@@ -31,6 +34,39 @@ const summaryContent = {
       { id: "cell", label: "Solar cell" },
     ],
     edges: [{ from: "sun", to: "cell", animated: true }],
+  },
+};
+
+const damSummaryContent = {
+  diagramFamily: "build-up" as const,
+  heading: "Dam Construction Overview",
+  blocks: [
+    { heading: "Prepare the site", description: "Survey and excavate down to stable bedrock." },
+    { heading: "Build and seal", description: "Raise the dam body around a watertight core." },
+  ],
+  visualPrimitives: [
+    { id: "bedrock", type: "terrain-layer", label: "Bedrock", drawingRole: "layer" as const },
+    { id: "excavation", type: "foundation-cut", label: "Excavation", drawingRole: "container" as const },
+    { id: "foundation", type: "concrete-foundation", label: "Foundation", drawingRole: "support" as const },
+    { id: "dam-body", type: "concrete-dam", label: "Dam body", drawingRole: "mass" as const },
+    { id: "seal-core", type: "watertight-core", label: "Sealing core", drawingRole: "support" as const },
+    { id: "reservoir", type: "retained-water", label: "Reservoir", drawingRole: "flow" as const },
+  ],
+  primitiveRelationships: [
+    { from: ["excavation"], to: ["bedrock"], relation: "exposes", motion: "excavate downward" },
+    { from: ["bedrock"], to: ["foundation"], relation: "supports", motion: "place the foundation" },
+    { from: ["foundation"], to: ["dam-body"], relation: "anchors", motion: "grow upward" },
+    { from: ["seal-core"], to: ["dam-body"], relation: "seals", motion: "fill the center" },
+    { from: ["dam-body"], to: ["reservoir"], relation: "retains", motion: "fill with water" },
+  ],
+  storyboard: {
+    style: "line-drawing" as const,
+    stages: [
+      { label: "Excavate to stable bedrock", operation: "move" as const, primitiveIds: ["bedrock", "excavation"] },
+      { label: "Lay the foundation", operation: "grow" as const, primitiveIds: ["foundation"] },
+      { label: "Raise and seal the dam", operation: "grow" as const, primitiveIds: ["dam-body", "seal-core"] },
+      { label: "Fill the reservoir", operation: "fill" as const, primitiveIds: ["reservoir"] },
+    ],
   },
 };
 
@@ -101,6 +137,77 @@ describe("video part contracts", () => {
         edges: [{ from: "sun", to: "missing" }],
       },
     })).toThrow();
+    expect(() => GraphSummaryPartContentSchema.parse({
+      ...summaryContent,
+      graph: {
+        nodes: [
+          { id: "duplicate", label: "First" },
+          { id: "duplicate", label: "Second" },
+        ],
+        edges: [],
+      },
+    })).toThrow();
+  });
+
+  it("keeps graph and primitive summary contracts mutually exclusive", () => {
+    expect(GraphSummaryPartContentSchema.parse(summaryContent)).toEqual(summaryContent);
+    expect(PrimitiveSummaryPartContentSchema.parse(damSummaryContent)).toEqual(damSummaryContent);
+    expect(SummaryPartContentSchema.parse(damSummaryContent)).toEqual(damSummaryContent);
+    expect(() => SummaryPartContentSchema.parse({
+      ...summaryContent,
+      visualPrimitives: damSummaryContent.visualPrimitives,
+    })).toThrow();
+    expect(() => SummaryPartContentSchema.parse({
+      ...damSummaryContent,
+      diagramLayout: "stack",
+      graph: summaryContent.graph,
+    })).toThrow();
+  });
+
+  it("keeps summary authorship compact while leaving main diagrams detailed", () => {
+    expect(() => GraphSummaryPartContentSchema.parse({
+      ...summaryContent,
+      blocks: [
+        ...summaryContent.blocks,
+        { heading: "Third", description: "Allowed final summary block." },
+        { heading: "Fourth", description: "Too detailed for a summary." },
+      ],
+    })).toThrow();
+    expect(() => PrimitiveSummaryPartContentSchema.parse({
+      ...damSummaryContent,
+      storyboard: {
+        ...damSummaryContent.storyboard,
+        stages: [
+          ...damSummaryContent.storyboard.stages,
+          { label: "Extra detail", operation: "pulse", primitiveIds: ["dam-body"] },
+        ],
+      },
+    })).toThrow();
+    expect(() => MainDiagramPartContentSchema.parse(mainDiagramContent)).not.toThrow();
+  });
+
+  it("rejects summary storyboards whose relationships or stages reference missing primitives", () => {
+    expect(() => PrimitiveSummaryPartContentSchema.parse({
+      ...damSummaryContent,
+      primitiveRelationships: [
+        ...damSummaryContent.primitiveRelationships,
+        { from: ["missing"], to: ["dam-body"], relation: "supports" },
+      ],
+    })).toThrow();
+    expect(() => PrimitiveSummaryPartContentSchema.parse({
+      ...damSummaryContent,
+      visualPrimitives: [
+        ...damSummaryContent.visualPrimitives,
+        { id: "foundation", type: "duplicate", label: "Duplicate foundation" },
+      ],
+    })).toThrow();
+    expect(() => PrimitiveSummaryPartContentSchema.parse({
+      ...damSummaryContent,
+      storyboard: {
+        ...damSummaryContent.storyboard,
+        stages: [{ label: "Draw unknown", operation: "reveal", primitiveIds: ["missing"] }],
+      },
+    })).toThrow();
   });
 
   it("rejects main storyboard stages that reference missing primitives", () => {
@@ -154,6 +261,18 @@ describe("video part contracts", () => {
     });
   });
 
+  it("asks for topic-shaped summary motion instead of generic construction graphs", () => {
+    const summaryPrompt = buildVideoPartSystemPrompt("summary", 10);
+
+    expect(summaryPrompt).toContain("A dam construction summary");
+    expect(summaryPrompt).toContain("build-up or spatial-cutaway");
+    expect(summaryPrompt).toContain("Software request routing");
+    expect(summaryPrompt).toContain("Do not use connected boxes merely because steps are chronological");
+    expect(summaryPrompt).toContain("simple, clean, and precise visual overview");
+    expect(summaryPrompt).toContain("The Main Diagram will explain the detailed mechanism");
+    expect(summaryPrompt).toContain("only 2-4 storyboard stages");
+  });
+
   it("keeps graph and primitive main-diagram contracts mutually exclusive", () => {
     expect(() => MainDiagramPartContentSchema.parse({
       ...mainDiagramContent,
@@ -203,12 +322,54 @@ describe("video part contracts", () => {
   });
 
   it.each([5, 10, 15, 20] as const)("keeps every standalone part inside a %ss duration", (duration) => {
-    artifacts.forEach((artifact) => {
+    [...artifacts, { part: "summary" as const, content: damSummaryContent }].forEach((artifact) => {
       const project = buildStandaloneVideoPartProject(artifact, duration, theme);
       expect(project.duration).toBe(duration);
       expect(project.events.every((event) => event.start >= 0 && event.end <= duration)).toBe(true);
       expect(() => VideoProjectSchema.parse(project)).not.toThrow();
     });
+  });
+
+  it("retains compact graph rendering when graph flow fits the summary", () => {
+    const project = buildStandaloneVideoPartProject(
+      { part: "summary", content: summaryContent },
+      10,
+      theme,
+    );
+    const ids = project.events.map((event) => event.id);
+
+    expect(ids.some((id) => id.startsWith("scene-0-block-"))).toBe(true);
+    expect(ids).toContain("scene-0-node-sun");
+    expect(ids).toContain("scene-0-edge-0");
+    expect(ids).toContain("scene-0-packet-0");
+    expect(ids.some((id) => id.startsWith("scene-0-storyboard-"))).toBe(false);
+  });
+
+  it("renders a dam summary as a compact storyboard without graph packets", () => {
+    const project = buildStandaloneVideoPartProject(
+      { part: "summary", content: damSummaryContent },
+      10,
+      theme,
+    );
+    const ids = project.events.map((event) => event.id);
+
+    expect(ids.some((id) => id.startsWith("scene-0-block-"))).toBe(true);
+    expect(ids.some((id) => id.startsWith("scene-0-storyboard-"))).toBe(true);
+    expect(ids.some((id) => id.startsWith("scene-0-storyboard-stage-caption-"))).toBe(true);
+    expect(ids.some((id) => id.startsWith("scene-0-storyboard-primitive-foundation"))).toBe(true);
+    expect(ids.some((id) => id.startsWith("scene-0-storyboard-primitive-seal-core"))).toBe(true);
+    expect(ids.some((id) => id.startsWith("scene-0-storyboard-primitive-reservoir"))).toBe(true);
+    expect(ids.some((id) => id.startsWith("scene-0-node-"))).toBe(false);
+    expect(ids.some((id) => id.startsWith("scene-0-edge-"))).toBe(false);
+    expect(ids.some((id) => id.startsWith("scene-0-packet-"))).toBe(false);
+    const captionStarts = project.events
+      .filter((event) => event.id.startsWith("scene-0-storyboard-stage-caption-"))
+      .map((event) => event.start);
+    expect(captionStarts).toHaveLength(4);
+    captionStarts.slice(1).forEach((start, index) => {
+      expect(start).toBeGreaterThan(captionStarts[index]);
+    });
+    expect(() => VideoProjectSchema.parse(project)).not.toThrow();
   });
 
   it("creates deterministic project ids and renders configured decorations", () => {
@@ -247,6 +408,100 @@ describe("video part contracts", () => {
     expect(result.part).toBe("title");
     expect(result.content).toEqual({ title: "Solar Power", subtitle: "From light to electricity" });
     expect(result.project.events.some((event) => event.id === "title")).toBe(true);
+  });
+
+  it("repairs truncated provider JSON instead of failing before schema validation", async () => {
+    const truncatedContent = `{
+      "diagramFamily": "spatial-cutaway",
+      "heading": "Dam Construction Overview",
+      "blocks": [{ "heading": "Site Preparation", "description": "Excavate terrain"`;
+    const parseError = Object.assign(
+      new Error(`OpenRouter content is not valid JSON: ${truncatedContent}`),
+      {
+        name: "OpenRouterJsonParseError",
+        content: truncatedContent,
+        finishReason: "length",
+      },
+    );
+    const userPrompts: string[] = [];
+    const modelOptions: Array<{
+      maxTokens?: number;
+      temperature?: number;
+      reasoning?: { enabled: boolean };
+    } | undefined> = [];
+    let calls = 0;
+
+    const result = await generateVideoPart(
+      { part: "summary", prompt: "How are dams built?", duration: 10 },
+      {
+        callModel: async (_systemPrompt, userPrompt, options) => {
+          userPrompts.push(userPrompt);
+          modelOptions.push(options);
+          calls += 1;
+          if (calls === 1) throw parseError;
+          return damSummaryContent;
+        },
+      },
+    );
+
+    expect(calls).toBe(2);
+    expect(userPrompts[1]).toContain("PREVIOUS TRUNCATED OR MALFORMED OUTPUT");
+    expect(userPrompts[1]).toContain(truncatedContent);
+    expect(modelOptions[0]).toMatchObject({
+      maxTokens: 4096,
+      temperature: 0.65,
+      reasoning: { enabled: false },
+    });
+    expect(modelOptions[1]).toMatchObject({
+      maxTokens: 4096,
+      temperature: 0.2,
+      reasoning: { enabled: false },
+    });
+    expect(result.part).toBe("summary");
+    expect(result.content).toEqual(damSummaryContent);
+  });
+
+  it("retries when the provider exhausts its budget before emitting JSON content", async () => {
+    const lengthError = Object.assign(
+      new Error("OpenRouter returned empty content (finish_reason=length)."),
+      {
+        name: "OpenRouterLengthError",
+        finishReason: "length",
+      },
+    );
+    const userPrompts: string[] = [];
+    let calls = 0;
+
+    const result = await generateVideoPart(
+      { part: "summary", prompt: "How are dams built?", duration: 10 },
+      {
+        callModel: async (_systemPrompt, userPrompt) => {
+          userPrompts.push(userPrompt);
+          calls += 1;
+          if (calls === 1) throw lengthError;
+          return damSummaryContent;
+        },
+      },
+    );
+
+    expect(calls).toBe(2);
+    expect(userPrompts[1]).toContain("finish_reason=length");
+    expect(result.part).toBe("summary");
+  });
+
+  it("does not retry provider failures unrelated to JSON parsing", async () => {
+    let calls = 0;
+
+    await expect(generateVideoPart(
+      { part: "summary", prompt: "How are dams built?", duration: 10 },
+      {
+        callModel: async () => {
+          calls += 1;
+          throw new Error("OpenRouter HTTP 503 Service Unavailable");
+        },
+      },
+    )).rejects.toThrow("OpenRouter HTTP 503 Service Unavailable");
+    expect(calls).toBe(1);
   });
 
   it("fails after the single repair attempt is also invalid", async () => {

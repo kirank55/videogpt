@@ -61,6 +61,14 @@ export type BriefExpansionResult = {
   diagnostics: BriefExpansionDiagnostics;
 };
 
+export const SCENE_PRESENTATIONS = ["compact-context", "compact-storyboard"] as const;
+export type ScenePresentation = (typeof SCENE_PRESENTATIONS)[number];
+
+export type BriefExpansionOptions = {
+  /** Renderer-owned overrides; these are never accepted from AI-authored VideoBrief JSON. */
+  scenePresentations?: ReadonlyArray<ScenePresentation | undefined>;
+};
+
 const ENTRY_ANIMATIONS: EntryAnimation[] = [
   "slide-up",
   "slide-down",
@@ -783,6 +791,7 @@ function addSceneEvents(
   duration: number,
   diagnostics: SceneLayoutDiagnostics[],
   storyboardDiagnostics: StoryboardDrawingDiagnostics[],
+  presentationOverride?: ScenePresentation,
 ) {
   const palette = resolveColors(basePalette, scene.colorOverrides);
   const glow = gb(style);
@@ -792,8 +801,11 @@ function addSceneEvents(
   const headingStart = ce(slice.start + 0.08, duration);
   const headingEase = scene.actEasings?.heading ?? style.easing;
   const contentEase = scene.actEasings?.content ?? style.easing;
-  const isSetupScene = isSetupContextScene(sceneIndex, sceneCount);
-  const renderScene = isSetupScene ? setupContextScene(scene) : scene;
+  const presentation = presentationOverride
+    ?? (isSetupContextScene(sceneIndex, sceneCount) ? "compact-context" : "standard");
+  const isCompactContext = presentation === "compact-context";
+  const isCompactStoryboard = presentation === "compact-storyboard";
+  const renderScene = isCompactContext ? setupContextScene(scene) : scene;
   const plan = layoutScene(renderScene, { width: W, height: H });
   diagnostics.push(plan.diagnostics);
 
@@ -853,18 +865,26 @@ function addSceneEvents(
     });
   }
 
-  if (isSetupScene) {
+  if (isCompactContext) {
     storyboardDiagnostics.push(setupStoryboardDiagnostics(scene));
   } else {
     const storyboard = compileStoryboardScene(
       renderScene,
       slice,
-      storyboardRegionForScene(renderScene, plan.regions.diagramRegion),
+      isCompactStoryboard
+        ? plan.regions.diagramRegion
+        : storyboardRegionForScene(renderScene, plan.regions.diagramRegion),
       palette,
       style,
       sceneIndex,
     );
     storyboardDiagnostics.push(storyboard.diagnostics);
+
+    if (isCompactStoryboard) {
+      addBlockEvents(events, renderScene, plan, palette, style, slice, contentStart, sceneIndex);
+      if (storyboard.diagnostics.used) events.push(...storyboard.events);
+      return;
+    }
 
     if (storyboard.diagnostics.used) {
       events.push(...storyboard.events);
@@ -1010,6 +1030,7 @@ function addBackdropEvents(
 export function buildProjectFromBriefWithDiagnostics(
   rawBrief: VideoBrief,
   duration: SupportedDuration,
+  options: BriefExpansionOptions = {},
 ): BriefExpansionResult {
   const brief = hydrateBrief(rawBrief);
   const basePalette = PALETTES[brief.palette] ?? PALETTES[DEFAULT_PALETTE];
@@ -1050,6 +1071,7 @@ export function buildProjectFromBriefWithDiagnostics(
       duration,
       layoutDiagnostics,
       storyboardDiagnostics,
+      options.scenePresentations?.[index],
     );
   });
 
@@ -1097,13 +1119,20 @@ export function buildProjectFromBriefWithDiagnostics(
 export function buildProjectFromBrief(
   rawBrief: VideoBrief,
   duration: SupportedDuration,
+  options?: BriefExpansionOptions,
 ): VideoProject {
-  return buildProjectFromBriefWithDiagnostics(rawBrief, duration).project;
+  return buildProjectFromBriefWithDiagnostics(rawBrief, duration, options).project;
 }
 
 export type BriefProjectSection =
   | { kind: "title" }
-  | { kind: "scene"; sourceIndex: number; eventIndex: number; sceneCount: number }
+  | {
+      kind: "scene";
+      sourceIndex: number;
+      eventIndex: number;
+      sceneCount: number;
+      presentation?: ScenePresentation;
+    }
   | { kind: "closing" };
 
 function addSectionBackdrop(
@@ -1252,6 +1281,7 @@ export function buildProjectFromBriefSection(
         duration,
         [],
         [],
+        section.presentation,
       );
     }
   }

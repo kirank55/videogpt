@@ -32,6 +32,8 @@ export interface OpenRouterOptions {
   maxTokens?: number;
   /** temperature (default 0.7). */
   temperature?: number;
+  /** Optional unified OpenRouter reasoning control. */
+  reasoning?: { enabled: boolean };
   /** Fires with OpenRouter's token usage stats when the response includes them. */
   onUsage?: (usage: Usage) => void;
 }
@@ -42,6 +44,32 @@ export interface StreamingOpenRouterOptions extends OpenRouterOptions {
    * `delta` is the new text fragment; `accumulated` is everything so far.
    */
   onChunk?: (delta: string, accumulated: string) => void;
+}
+
+/** A successful provider response whose assistant content could not be parsed as JSON. */
+export class OpenRouterJsonParseError extends Error {
+  readonly content: string;
+  readonly finishReason?: string;
+
+  constructor(content: string, finishReason?: string) {
+    super(
+      `OpenRouter content is not valid JSON` +
+      `${finishReason ? ` (finish_reason=${finishReason})` : ""}: ${content.slice(0, 300)}`,
+    );
+    this.name = "OpenRouterJsonParseError";
+    this.content = content;
+    this.finishReason = finishReason;
+  }
+}
+
+/** The model consumed its output budget before emitting assistant content. */
+export class OpenRouterLengthError extends Error {
+  readonly finishReason = "length";
+
+  constructor() {
+    super("OpenRouter returned empty content (finish_reason=length).");
+    this.name = "OpenRouterLengthError";
+  }
 }
 
 /**
@@ -81,6 +109,7 @@ export async function callOpenRouter(
       ],
     };
     body.response_format = { type: "json_object" };
+    if (opts.reasoning) body.reasoning = opts.reasoning;
 
     const res = await fetch(OPENROUTER_API_URL, {
       method: "POST",
@@ -133,6 +162,7 @@ export async function callOpenRouter(
     const raw = choice.message?.content;
     if (!raw) {
       const reason = choice.finish_reason ?? "unknown";
+      if (reason === "length") throw new OpenRouterLengthError();
       throw new Error(
         `OpenRouter returned empty content (finish_reason=${reason}).`,
       );
@@ -143,9 +173,7 @@ export async function callOpenRouter(
     try {
       return JSON.parse(cleaned) as unknown;
     } catch {
-      throw new Error(
-        `OpenRouter content is not valid JSON: ${cleaned.slice(0, 300)}`,
-      );
+      throw new OpenRouterJsonParseError(cleaned, choice.finish_reason);
     }
   }
 
