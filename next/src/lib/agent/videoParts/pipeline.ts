@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { callOpenRouter } from "@/lib/agent/ai/openrouter";
+import { validateDirectTimelineContent } from "@/lib/agent/videoParts/directTimeline";
 import { buildStandaloneVideoPartProject } from "@/lib/agent/videoParts/project";
 import {
   parseAuthoredVideoPart,
@@ -35,7 +36,7 @@ const DEFAULT_DEPENDENCIES: VideoPartPipelineDependencies = {
 const MAX_TOKENS: Record<VideoPartKind, number> = {
   title: 512,
   summary: 4096,
-  "main-diagram": 8192,
+  "main-diagram": 16384,
   conclusion: 384,
 };
 
@@ -54,6 +55,14 @@ function validationMessage(error: unknown): string {
       .join("; ");
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+function serializeModelOutput(raw: unknown): string {
+  try {
+    return JSON.stringify(raw, null, 2) ?? String(raw);
+  } catch {
+    return String(raw);
+  }
 }
 
 type RepairableModelOutputFailure = Error & {
@@ -84,8 +93,24 @@ export async function generateVideoPart(
   const systemPrompt = buildVideoPartSystemPrompt(request.part, request.duration);
   const options = {
     maxTokens: MAX_TOKENS[request.part],
-    temperature: 0.65,
+    temperature: request.part === "main-diagram" ? 0.8 : 0.65,
     reasoning: { enabled: false },
+  };
+
+  const parseGeneratedPart = (raw: unknown): AuthoredVideoPart => {
+    if (request.part === "main-diagram") {
+      return {
+        part: request.part,
+        content: validateDirectTimelineContent(raw, request.duration),
+      };
+    }
+    return parseAuthoredVideoPart(request.part, raw);
+  };
+
+  const finalize = (artifact: AuthoredVideoPart): GeneratedVideoPart => {
+    const theme = resolveVideoPartTheme(request.prompt);
+    const project = buildStandaloneVideoPartProject(artifact, request.duration, theme);
+    return { ...artifact, project } as GeneratedVideoPart;
   };
 
   const repair = async (
@@ -113,7 +138,7 @@ export async function generateVideoPart(
     }
 
     try {
-      return parseAuthoredVideoPart(request.part, repaired);
+      return parseGeneratedPart(repaired);
     } catch (repairError) {
       throw new VideoPartGenerationError(
         `Generated ${request.part} data could not be validated after one repair attempt: ${validationMessage(repairError)}`,
@@ -128,19 +153,15 @@ export async function generateVideoPart(
   } catch (firstCallError) {
     if (!isRepairableModelOutputFailure(firstCallError)) throw firstCallError;
     const artifact = await repair(firstCallError, firstCallError.content);
-    const theme = resolveVideoPartTheme(request.prompt);
-    const project = buildStandaloneVideoPartProject(artifact, request.duration, theme);
-    return { ...artifact, project } as GeneratedVideoPart;
+    return finalize(artifact);
   }
 
   let artifact: AuthoredVideoPart;
   try {
-    artifact = parseAuthoredVideoPart(request.part, raw);
+    artifact = parseGeneratedPart(raw);
   } catch (firstError) {
-    artifact = await repair(firstError);
+    artifact = await repair(firstError, serializeModelOutput(raw));
   }
 
-  const theme = resolveVideoPartTheme(request.prompt);
-  const project = buildStandaloneVideoPartProject(artifact, request.duration, theme);
-  return { ...artifact, project } as GeneratedVideoPart;
+  return finalize(artifact);
 }

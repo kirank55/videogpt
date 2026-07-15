@@ -13,6 +13,10 @@ import { buildStandaloneVideoPartProject } from "@/lib/agent/videoParts/project"
 import { VideoProjectSchema } from "@/lib/others/schemas/timeline";
 import { generateVideoPart } from "@/lib/agent/videoParts/pipeline";
 import {
+  buildDirectTimelineProject,
+  validateDirectTimelineContent,
+} from "@/lib/agent/videoParts/directTimeline";
+import {
   POST as postGenerateVideoPart,
   handleGenerateVideoPartRequest,
 } from "@/app/api/dev/generate-part/route";
@@ -71,23 +75,121 @@ const damSummaryContent = {
 };
 
 const mainDiagramContent = {
-  diagramFamily: "graph-flow" as const,
+  mode: "direct-timeline" as const,
+  name: "Charge separation inside a solar cell",
+  visualIntent: "Reveal the electric field pushing electrons and holes in opposite directions.",
+  events: [
+    {
+      id: "main-bg",
+      type: "background" as const,
+      start: 0,
+      end: 10,
+      layer: 0,
+      background: { kind: "gradient" as const, from: "#07111f", to: "#122b46", angle: 135 },
+    },
+    {
+      id: "main-title",
+      type: "text" as const,
+      start: 0.1,
+      end: 10,
+      layer: 8,
+      text: "The junction's electric field separates charge",
+      x: 180,
+      y: 110,
+      maxWidth: 1500,
+      color: "#f8fafc",
+      fontSize: 48,
+      fontWeight: 800,
+      opacity: { from: 0, to: 1, easing: "easeOut" as const },
+    },
+    {
+      id: "p-layer",
+      type: "shape" as const,
+      shapeType: "rect" as const,
+      start: 0.4,
+      end: 10,
+      layer: 2,
+      x: 260,
+      y: 330,
+      width: 650,
+      height: 360,
+      radius: 28,
+      fill: "#7c3aed",
+      scaleX: { from: 0, to: 1, easing: "easeOut" as const },
+    },
+    {
+      id: "n-layer",
+      type: "shape" as const,
+      shapeType: "rect" as const,
+      start: 0.8,
+      end: 10,
+      layer: 2,
+      x: 1010,
+      y: 330,
+      width: 650,
+      height: 360,
+      radius: 28,
+      fill: "#0ea5e9",
+    },
+    {
+      id: "field-arrow",
+      type: "shape" as const,
+      shapeType: "line" as const,
+      start: 1.2,
+      end: 10,
+      layer: 4,
+      x1: 1180,
+      y1: 510,
+      x2: 740,
+      y2: 510,
+      stroke: "#facc15",
+      lineWidth: 12,
+      arrowEnd: true,
+      drawProgress: { from: 0, to: 1, easing: "easeInOut" as const },
+    },
+  ],
+};
+
+const legacyMainDiagramContent = {
+  diagramFamily: "graph-flow",
   heading: "Electric current begins to flow",
-  diagramLayout: "pipeline" as const,
+  diagramLayout: "pipeline",
   blocks: [
     { heading: "Electron release", description: "Absorbed light frees charge carriers." },
     { heading: "Usable current", description: "The circuit guides the moving charge." },
   ],
   graph: {
-    nodes: [
-      { id: "cell", label: "Solar cell" },
-      { id: "current", label: "Current" },
-      { id: "circuit", label: "Circuit" },
-    ],
-    edges: [
-      { from: "cell", to: "current", animated: true },
-      { from: "current", to: "circuit", animated: true },
-    ],
+    nodes: [{ id: "cell", label: "Solar cell" }],
+    edges: [],
+  },
+};
+
+const legacyPrimitiveMainDiagramContent = {
+  diagramFamily: "build-up",
+  heading: "Charge separation",
+  diagramScript: {
+    summary: "Show charge moving.",
+    beats: ["Release", "Separate"],
+    visualStory: "Electrons and holes move apart.",
+    mustShow: ["Electron", "Hole", "Junction"],
+  },
+  diagramIntent: {
+    subject: "Solar junction",
+    signatureVisuals: ["Electron", "Hole", "Junction"],
+    motionCues: ["Move apart"],
+  },
+  visualPrimitives: [
+    { id: "electron", type: "electron", label: "Electron" },
+    { id: "hole", type: "hole", label: "Hole" },
+    { id: "junction", type: "junction", label: "Junction" },
+  ],
+  primitiveRelationships: [
+    { from: ["junction"], to: ["electron"], relation: "pushes" },
+    { from: ["junction"], to: ["hole"], relation: "pushes" },
+  ],
+  storyboard: {
+    style: "line-drawing",
+    stages: [{ label: "Separate", operation: "move", primitiveIds: ["electron", "hole"] }],
   },
 };
 
@@ -164,7 +266,7 @@ describe("video part contracts", () => {
     })).toThrow();
   });
 
-  it("keeps summary authorship compact while leaving main diagrams detailed", () => {
+  it("keeps summary authorship compact while allowing detailed direct main timelines", () => {
     expect(() => GraphSummaryPartContentSchema.parse({
       ...summaryContent,
       blocks: [
@@ -210,35 +312,25 @@ describe("video part contracts", () => {
     })).toThrow();
   });
 
-  it("rejects main storyboard stages that reference missing primitives", () => {
-    expect(() => MainDiagramPartContentSchema.parse({
-      diagramFamily: "build-up",
-      heading: "Charge moves through the circuit",
-      diagramScript: {
-        summary: "Show charge moving.",
-        beats: ["Release", "Flow"],
-        visualStory: "Electrons travel through a wire.",
-        mustShow: ["Electron", "Wire", "Lamp"],
-      },
-      diagramIntent: {
-        subject: "Electric current",
-        signatureVisuals: ["Electron", "Wire", "Lamp"],
-        motionCues: ["Trace the current"],
-      },
-      visualPrimitives: [
-        { id: "electron", type: "electron", label: "Electron" },
-        { id: "wire", type: "wire", label: "Wire" },
-        { id: "lamp", type: "lamp", label: "Lamp" },
+  it("accepts every renderer event kind in a direct main timeline", () => {
+    const parsed = MainDiagramPartContentSchema.parse({
+      ...mainDiagramContent,
+      events: [
+        mainDiagramContent.events[0],
+        mainDiagramContent.events[1],
+        mainDiagramContent.events[2],
+        { id: "circle", type: "shape", shapeType: "circle", start: 1, end: 10, layer: 3, x: 500, y: 500, radius: 40, fill: "#fff" },
+        { id: "triangle", type: "shape", shapeType: "triangle", start: 1, end: 10, layer: 3, x: 600, y: 420, width: 80, height: 90, fill: "#fff" },
+        { id: "line", type: "shape", shapeType: "line", start: 1, end: 10, layer: 3, x1: 700, y1: 500, x2: 900, y2: 500, stroke: "#fff", lineWidth: 4 },
+        { id: "icon", type: "shape", shapeType: "icon", start: 1, end: 10, layer: 4, iconName: "cpu", cx: 1000, cy: 500, size: 80, color: "#fff" },
+        { id: "badge", type: "shape", shapeType: "badge", start: 1, end: 10, layer: 5, cx: 1150, cy: 500, text: "Charge", fill: "#111", textColor: "#fff" },
+        { id: "progress", type: "shape", shapeType: "progress", start: 1, end: 10, layer: 4, x: 1250, y: 490, width: 300, height: 20, trackColor: "#333", fillColor: "#fff" },
+        { id: "particles", type: "particle", start: 1, end: 10, layer: 2, count: 20, seed: 7, origin: { x: 960, y: 540 }, spread: { x: 120, y: 80 }, drift: { x: 40, y: -20 }, particleRadius: { min: 2, max: 5 }, color: "#fff" },
       ],
-      primitiveRelationships: [
-        { from: ["electron"], to: ["wire"], relation: "enters" },
-        { from: ["wire"], to: ["lamp"], relation: "powers" },
-      ],
-      storyboard: {
-        style: "line-drawing",
-        stages: [{ label: "Trace", operation: "trace", primitiveIds: ["missing"] }],
-      },
-    })).toThrow();
+    });
+
+    expect(parsed.mode).toBe("direct-timeline");
+    expect(parsed.events).toHaveLength(10);
   });
 
   it("asks the model for only the selected part contract", () => {
@@ -273,15 +365,23 @@ describe("video part contracts", () => {
     expect(summaryPrompt).toContain("only 2-4 storyboard stages");
   });
 
-  it("keeps graph and primitive main-diagram contracts mutually exclusive", () => {
-    expect(() => MainDiagramPartContentSchema.parse({
-      ...mainDiagramContent,
-      visualPrimitives: [
-        { id: "a", type: "cell", label: "A" },
-        { id: "b", type: "wire", label: "B" },
-        { id: "c", type: "lamp", label: "C" },
-      ],
-    })).toThrow();
+  it("asks the main model for a deeper direct timeline instead of another overview pipeline", () => {
+    const mainPrompt = buildVideoPartSystemPrompt("main-diagram", 10);
+
+    expect(mainPrompt).toContain("one underlying mechanism");
+    expect(mainPrompt).toContain("1920x1080");
+    expect(mainPrompt).toContain("absolute coordinates");
+    expect(mainPrompt).toContain("generic card rows");
+    expect(mainPrompt).toContain("left-to-right pipelines");
+    expect(mainPrompt).toContain("at least 24px");
+    expect(mainPrompt).toContain("0.7 opacity");
+    expect(mainPrompt).toContain("at least 8px away");
+    expect(mainPrompt).toContain('"direct-timeline"');
+  });
+
+  it("rejects the legacy graph and primitive main-diagram contracts", () => {
+    expect(() => MainDiagramPartContentSchema.parse(legacyMainDiagramContent)).toThrow();
+    expect(() => MainDiagramPartContentSchema.parse(legacyPrimitiveMainDiagramContent)).toThrow();
   });
 
   it.each([
@@ -300,8 +400,8 @@ describe("video part contracts", () => {
     {
       part: "main-diagram" as const,
       content: mainDiagramContent,
-      requiredId: "scene-1-heading",
-      forbiddenPrefixes: ["title", "scene-0-", "closing-line"],
+      requiredId: "main-title",
+      forbiddenPrefixes: ["title", "scene-", "closing-line"],
     },
     {
       part: "conclusion" as const,
@@ -321,8 +421,409 @@ describe("video part contracts", () => {
     expect(() => VideoProjectSchema.parse(project)).not.toThrow();
   });
 
+  it("passes validated main timeline events directly into a deterministic project", () => {
+    const content = validateDirectTimelineContent(mainDiagramContent, 10);
+    const first = buildDirectTimelineProject(content, 10);
+    const second = buildDirectTimelineProject(content, 10);
+
+    expect(first.id).toBe(second.id);
+    expect(first.name).toBe(mainDiagramContent.name);
+    expect(first.width).toBe(1920);
+    expect(first.height).toBe(1080);
+    expect(first.events).toEqual(mainDiagramContent.events);
+    expect(first.events.some((event) => event.id.startsWith("scene-"))).toBe(false);
+  });
+
+  it.each([
+    {
+      failure: "duplicate ids",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.map((event, index) => index === 1 ? { ...event, id: "main-bg" } : event),
+      },
+      message: "unique",
+    },
+    {
+      failure: "events beyond the requested duration",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.map((event, index) => index === 1 ? { ...event, end: 11 } : event),
+      },
+      message: "requested duration",
+    },
+    {
+      failure: "invisible geometry",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.map((event) => event.id === "p-layer" ? { ...event, x: 4000 } : event),
+      },
+      message: "canvas",
+    },
+    {
+      failure: "geometry translated entirely away from the canvas",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.map((event) => event.id === "p-layer"
+          ? { ...event, scaleX: undefined, translateX: { from: 4000, to: 4000, easing: "linear" } }
+          : event),
+      },
+      message: "canvas",
+    },
+    {
+      failure: "an unsupported event property",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.map((event) => event.id === "p-layer"
+          ? { ...event, bezierCurve: true }
+          : event),
+      },
+      message: "unsupported properties",
+    },
+    {
+      failure: "more than 80 events",
+      content: {
+        ...mainDiagramContent,
+        events: [
+          ...mainDiagramContent.events,
+          ...Array.from({ length: 76 }, (_, index) => ({
+            ...mainDiagramContent.events[2],
+            id: `extra-${index}`,
+          })),
+        ],
+      },
+      message: "80",
+    },
+    {
+      failure: "a missing full-duration background",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.filter((event) => event.type !== "background"),
+      },
+      message: "background",
+    },
+    {
+      failure: "a missing text label",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.filter((event) => event.type !== "text"),
+      },
+      message: "text",
+    },
+    {
+      failure: "an unreadably small and transparent text label",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.map((event) => event.type === "text"
+          ? { ...event, fontSize: 1, maxWidth: 1, color: "transparent", opacity: { from: 0, to: 0, easing: "linear" } }
+          : event),
+      },
+      message: "readable text",
+    },
+    {
+      failure: "fewer than three shapes",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.filter((event) => event.id !== "field-arrow"),
+      },
+      message: "three shape",
+    },
+    {
+      failure: "a static timeline",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.map((event) => {
+          const copy = { ...event, start: 0 } as Record<string, unknown>;
+          delete copy.opacity;
+          delete copy.scaleX;
+          delete copy.drawProgress;
+          return copy;
+        }),
+      },
+      message: "animation",
+    },
+    {
+      failure: "a timeline with only a no-op animation",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.map((event, index) => {
+          const copy = { ...event, start: 0 } as Record<string, unknown>;
+          delete copy.opacity;
+          delete copy.scaleX;
+          delete copy.drawProgress;
+          if (index === 1) {
+            copy.opacity = { from: 1, to: 1, easing: "linear" };
+          }
+          return copy;
+        }),
+      },
+      message: "animation",
+    },
+    {
+      failure: "a timeline animated only through a renderer-ignored text property",
+      content: {
+        ...mainDiagramContent,
+        events: mainDiagramContent.events.map((event) => {
+          const copy = { ...event, start: 0 } as Record<string, unknown>;
+          delete copy.opacity;
+          delete copy.scaleX;
+          delete copy.drawProgress;
+          if (event.type === "text") {
+            copy.drawProgress = { from: 0, to: 1, easing: "linear" };
+          }
+          return copy;
+        }),
+      },
+      message: "animation",
+    },
+  ])("rejects $failure", ({ content, message }) => {
+    expect(() => validateDirectTimelineContent(content, 10)).toThrow(message);
+  });
+
+  it("accepts off-canvas base geometry when its authored path visibly enters the canvas", () => {
+    const movingContent = {
+      ...mainDiagramContent,
+      events: mainDiagramContent.events.map((event) => event.id === "p-layer"
+        ? {
+            ...event,
+            x: 4000,
+            scaleX: undefined,
+            path: {
+              points: [{ x: 500, y: 500 }, { x: 900, y: 500 }],
+              easing: "linear" as const,
+            },
+          }
+        : event),
+    };
+
+    expect(() => validateDirectTimelineContent(movingContent, 10)).not.toThrow();
+  });
+
+  it("recognizes particle drift and stagger as visible animation", () => {
+    const staticEvents = mainDiagramContent.events.map((event) => {
+      const copy = { ...event, start: 0 } as Record<string, unknown>;
+      delete copy.opacity;
+      delete copy.scaleX;
+      delete copy.drawProgress;
+      return copy;
+    });
+    const particleContent = {
+      ...mainDiagramContent,
+      events: [
+        ...staticEvents,
+        {
+          id: "charge-particles",
+          type: "particle",
+          start: 0,
+          end: 10,
+          layer: 5,
+          count: 12,
+          seed: 42,
+          origin: { x: 960, y: 540 },
+          spread: { x: 120, y: 80 },
+          drift: { x: 50, y: 0 },
+          particleRadius: { min: 2, max: 5 },
+          color: "#facc15",
+        },
+      ],
+    };
+
+    expect(() => validateDirectTimelineContent(particleContent, 10)).not.toThrow();
+  });
+
+  it("rejects a small unprotected secondary label even when the title is readable", () => {
+    const content = {
+      ...mainDiagramContent,
+      events: [
+        ...mainDiagramContent.events,
+        {
+          id: "bedrock-label",
+          type: "text" as const,
+          start: 0,
+          end: 10,
+          layer: 8,
+          text: "BEDROCK",
+          x: 960,
+          y: 980,
+          maxWidth: 400,
+          color: "#8888aa",
+          fontSize: 20,
+          align: "center" as const,
+          verticalAlign: "middle" as const,
+        },
+      ],
+    };
+
+    expect(() => validateDirectTimelineContent(content, 10)).toThrow("bedrock-label");
+  });
+
+  it("rejects a secondary label whose backdrop is too transparent", () => {
+    const content = {
+      ...mainDiagramContent,
+      events: [
+        ...mainDiagramContent.events,
+        {
+          id: "floor-slab-label",
+          type: "text" as const,
+          start: 0,
+          end: 10,
+          layer: 8,
+          text: "FLOOR SLABS",
+          x: 400,
+          y: 340,
+          maxWidth: 240,
+          color: "#ffffff",
+          fontSize: 24,
+          fontWeight: 700,
+          align: "center" as const,
+          verticalAlign: "middle" as const,
+          backdrop: {
+            fill: "rgba(0,0,0,0.4)",
+            paddingX: 8,
+            paddingY: 5,
+            radius: 5,
+          },
+        },
+      ],
+    };
+
+    expect(() => validateDirectTimelineContent(content, 10)).toThrow("backdrop opacity");
+  });
+
+  it("rejects readable labels whose occupied areas overlap", () => {
+    const sharedLabel = {
+      type: "text" as const,
+      start: 1,
+      end: 10,
+      layer: 8,
+      x: 720,
+      y: 300,
+      maxWidth: 360,
+      color: "#ffffff",
+      fontSize: 24,
+      fontWeight: 700,
+      align: "center" as const,
+      verticalAlign: "middle" as const,
+      backdrop: {
+        fill: "rgba(0,0,0,0.85)",
+        paddingX: 12,
+        paddingY: 8,
+        radius: 6,
+      },
+    };
+    const content = {
+      ...mainDiagramContent,
+      events: [
+        ...mainDiagramContent.events,
+        { ...sharedLabel, id: "concrete-pouring", text: "Concrete pouring" },
+        { ...sharedLabel, id: "climbing-formwork", text: "Climbing formwork", y: 315 },
+      ],
+    };
+
+    expect(() => validateDirectTimelineContent(content, 10)).toThrow("overlaps");
+  });
+
+  it("rejects labels that collide only after authored motion", () => {
+    const movingContent = {
+      ...mainDiagramContent,
+      events: [
+        ...mainDiagramContent.events,
+        {
+          id: "moving-callout",
+          type: "text" as const,
+          start: 1,
+          end: 10,
+          layer: 8,
+          text: "Moving load",
+          x: 500,
+          y: 850,
+          maxWidth: 260,
+          color: "#ffffff",
+          fontSize: 24,
+          fontWeight: 700,
+          translateX: { from: 0, to: 500, easing: "linear" as const },
+          backdrop: { fill: "rgba(0,0,0,0.85)", paddingX: 12, paddingY: 8 },
+        },
+        {
+          id: "fixed-callout",
+          type: "text" as const,
+          start: 1,
+          end: 10,
+          layer: 8,
+          text: "Fixed support",
+          x: 1000,
+          y: 850,
+          maxWidth: 260,
+          color: "#ffffff",
+          fontSize: 24,
+          fontWeight: 700,
+          backdrop: { fill: "rgba(0,0,0,0.85)", paddingX: 12, paddingY: 8 },
+        },
+      ],
+    };
+
+    expect(() => validateDirectTimelineContent(movingContent, 10)).toThrow("moving-callout");
+  });
+
+  it("allows labels to reuse the same space at disjoint times", () => {
+    const sharedLabel = {
+      type: "text" as const,
+      layer: 8,
+      x: 720,
+      y: 820,
+      maxWidth: 300,
+      color: "#ffffff",
+      fontSize: 24,
+      fontWeight: 700,
+      backdrop: { fill: "rgba(0,0,0,0.85)", paddingX: 12, paddingY: 8 },
+    };
+    const sequentialContent = {
+      ...mainDiagramContent,
+      events: [
+        ...mainDiagramContent.events,
+        { ...sharedLabel, id: "stage-one", text: "Stage one", start: 1, end: 4 },
+        { ...sharedLabel, id: "stage-two", text: "Stage two", start: 4, end: 8 },
+      ],
+    };
+
+    expect(() => validateDirectTimelineContent(sequentialContent, 10)).not.toThrow();
+  });
+
+  it("allows minor label edge contact without rejecting the timeline", () => {
+    const label = {
+      type: "text" as const,
+      start: 1,
+      end: 10,
+      layer: 8,
+      x: 720,
+      maxWidth: 300,
+      color: "#ffffff",
+      fontSize: 24,
+      fontWeight: 700,
+      backdrop: { fill: "rgba(0,0,0,0.85)", paddingX: 12, paddingY: 8 },
+    };
+    const content = {
+      ...mainDiagramContent,
+      events: [
+        ...mainDiagramContent.events,
+        { ...label, id: "upper-label", text: "Upper label", y: 820 },
+        { ...label, id: "lower-label", text: "Lower label", y: 860 },
+      ],
+    };
+
+    expect(() => validateDirectTimelineContent(content, 10)).not.toThrow();
+  });
+
   it.each([5, 10, 15, 20] as const)("keeps every standalone part inside a %ss duration", (duration) => {
-    [...artifacts, { part: "summary" as const, content: damSummaryContent }].forEach((artifact) => {
+    const durationArtifacts = artifacts.map((artifact) => artifact.part === "main-diagram"
+      ? {
+          ...artifact,
+          content: {
+            ...artifact.content,
+            events: artifact.content.events.map((event) => ({ ...event, end: duration })),
+          },
+        }
+      : artifact);
+    [...durationArtifacts, { part: "summary" as const, content: damSummaryContent }].forEach((artifact) => {
       const project = buildStandaloneVideoPartProject(artifact, duration, theme);
       expect(project.duration).toBe(duration);
       expect(project.events.every((event) => event.start >= 0 && event.end <= duration)).toBe(true);
@@ -410,6 +911,90 @@ describe("video part contracts", () => {
     expect(result.project.events.some((event) => event.id === "title")).toBe(true);
   });
 
+  it("repairs a spatially invalid direct timeline before rendering it", async () => {
+    const invalid = {
+      ...mainDiagramContent,
+      events: mainDiagramContent.events.map((event) => event.id === "p-layer"
+        ? { ...event, x: 4000 }
+        : event),
+    };
+    const userPrompts: string[] = [];
+    const modelOptions: Array<{
+      maxTokens?: number;
+      temperature?: number;
+      reasoning?: { enabled: boolean };
+    } | undefined> = [];
+    let calls = 0;
+
+    const result = await generateVideoPart(
+      { part: "main-diagram", prompt, duration: 10 },
+      {
+        callModel: async (_systemPrompt, userPrompt, options) => {
+          userPrompts.push(userPrompt);
+          modelOptions.push(options);
+          calls += 1;
+          return calls === 1 ? invalid : mainDiagramContent;
+        },
+      },
+    );
+
+    expect(calls).toBe(2);
+    expect(userPrompts[1]).toContain("canvas");
+    expect(modelOptions[0]).toMatchObject({
+      maxTokens: 16384,
+      temperature: 0.8,
+      reasoning: { enabled: false },
+    });
+    expect(modelOptions[1]).toMatchObject({ temperature: 0.2 });
+    expect(result.part).toBe("main-diagram");
+    expect(result.project.events).toEqual(mainDiagramContent.events);
+  });
+
+  it("gives the repair model the rejected timeline when labels collide", async () => {
+    const collidingLabel = {
+      type: "text" as const,
+      start: 1,
+      end: 10,
+      layer: 8,
+      x: 720,
+      y: 300,
+      maxWidth: 320,
+      color: "#ffffff",
+      fontSize: 24,
+      fontWeight: 700,
+      backdrop: { fill: "rgba(0,0,0,0.85)", paddingX: 12, paddingY: 8 },
+    };
+    const invalid = {
+      ...mainDiagramContent,
+      events: [
+        ...mainDiagramContent.events,
+        { ...collidingLabel, id: "core_label", text: "Concrete core" },
+        { ...collidingLabel, id: "floor_label", text: "Floor slab", y: 312 },
+      ],
+    };
+    const userPrompts: string[] = [];
+    let calls = 0;
+
+    const result = await generateVideoPart(
+      { part: "main-diagram", prompt, duration: 10 },
+      {
+        callModel: async (_systemPrompt, userPrompt) => {
+          userPrompts.push(userPrompt);
+          calls += 1;
+          if (calls === 1) return invalid;
+          return userPrompt.includes('"id": "core_label"')
+            ? mainDiagramContent
+            : invalid;
+        },
+      },
+    );
+
+    expect(calls).toBe(2);
+    expect(userPrompts[1]).toContain('"id": "core_label"');
+    expect(userPrompts[1]).toContain('"id": "floor_label"');
+    expect(result.project.events).toEqual(mainDiagramContent.events);
+  });
+
   it("repairs truncated provider JSON instead of failing before schema validation", async () => {
     const truncatedContent = `{
       "diagramFamily": "spatial-cutaway",
@@ -445,7 +1030,7 @@ describe("video part contracts", () => {
     );
 
     expect(calls).toBe(2);
-    expect(userPrompts[1]).toContain("PREVIOUS TRUNCATED OR MALFORMED OUTPUT");
+    expect(userPrompts[1]).toContain("PREVIOUS INVALID, TRUNCATED, OR MALFORMED OUTPUT");
     expect(userPrompts[1]).toContain(truncatedContent);
     expect(modelOptions[0]).toMatchObject({
       maxTokens: 4096,

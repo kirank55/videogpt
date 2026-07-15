@@ -5,7 +5,7 @@ export default function DevMainDiagramGeneratePage() {
     <VideoPartGeneratePage
       part="main-diagram"
       title="Dev — Main Diagram Generator"
-      description="Generate and preview only the primary graph-flow or primitive-first visual explanation, without title, setup, or conclusion content."
+      description="Generate a deeper visual explanation as a direct LLM-authored canvas timeline. Coordinates, layers, colors, timing, and animation bypass the Brief Expander and diagram layout pipeline."
     />
   );
 }

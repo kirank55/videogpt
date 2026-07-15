@@ -1,9 +1,7 @@
 import { z } from "zod";
 import {
   BlockSchema,
-  DiagramIntentSchema,
   DiagramLayoutSchema,
-  DiagramScriptSchema,
   GraphEdgeSchema,
   GraphNodeSchema,
   PrimitiveRelationshipSchema,
@@ -11,6 +9,7 @@ import {
   SupportedDurationSchema,
   VisualPrimitiveSchema,
 } from "@/lib/agent/schemas/brief";
+import { TimelineEventSchema } from "@/lib/others/schemas/timeline";
 import type { VideoProject } from "@/lib/ui/renderer";
 
 export const VideoPartKindSchema = z.enum([
@@ -64,13 +63,6 @@ function validateGraphReferences(
   });
 }
 
-const StrictGraphSchema = z.object({
-  nodes: z.array(StrictGraphNodeSchema).min(1).max(8),
-  edges: z.array(StrictGraphEdgeSchema).max(12),
-}).strict().superRefine((graph, ctx) => {
-  validateGraphReferences(graph, ctx);
-});
-
 const StrictSummaryGraphSchema = z.object({
   nodes: z.array(StrictGraphNodeSchema).min(1).max(5),
   edges: z.array(StrictGraphEdgeSchema).max(5),
@@ -86,15 +78,6 @@ export type TitlePartContent = z.infer<typeof TitlePartContentSchema>;
 
 const StrictVisualPrimitiveSchema = VisualPrimitiveSchema.strict();
 const StrictPrimitiveRelationshipSchema = PrimitiveRelationshipSchema.strict();
-const StrictDiagramScriptSchema = DiagramScriptSchema.strict();
-const StrictPrimitiveDiagramIntentSchema = DiagramIntentSchema
-  .omit({ family: true })
-  .strict();
-const StrictStoryboardSchema = z.object({
-  style: z.literal("line-drawing"),
-  continuityKey: z.string().min(1).max(80).optional(),
-  stages: z.array(StoryboardStageSchema.strict()).min(1).max(8),
-}).strict();
 
 type PrimitiveReferenceContent = {
   visualPrimitives: Array<{ id: string }>;
@@ -176,37 +159,12 @@ export const SummaryPartContentSchema = z.discriminatedUnion("diagramFamily", [
 ]);
 export type SummaryPartContent = z.infer<typeof SummaryPartContentSchema>;
 
-const GraphMainDiagramPartContentSchema = z.object({
-  diagramFamily: z.literal("graph-flow"),
-  heading: z.string().min(1).max(70),
-  diagramLayout: DiagramLayoutSchema,
-  blocks: z.array(StrictBlockSchema).min(2).max(5),
-  graph: StrictGraphSchema,
+export const MainDiagramPartContentSchema = z.object({
+  mode: z.literal("direct-timeline"),
+  name: z.string().min(1).max(80),
+  visualIntent: z.string().min(1).max(400),
+  events: z.array(TimelineEventSchema).min(4).max(80),
 }).strict();
-
-const PrimitiveMainDiagramPartContentSchema = z.object({
-  diagramFamily: z.enum([
-    "spatial-cutaway",
-    "field-range",
-    "build-up",
-    "cycle",
-    "comparison",
-    "timeline",
-  ]),
-  heading: z.string().min(1).max(70),
-  diagramScript: StrictDiagramScriptSchema,
-  diagramIntent: StrictPrimitiveDiagramIntentSchema,
-  visualPrimitives: z.array(StrictVisualPrimitiveSchema).min(3).max(12),
-  primitiveRelationships: z.array(StrictPrimitiveRelationshipSchema).min(2).max(12),
-  storyboard: StrictStoryboardSchema,
-}).strict().superRefine((content, ctx) => {
-  validatePrimitiveReferences(content, ctx);
-});
-
-export const MainDiagramPartContentSchema = z.discriminatedUnion("diagramFamily", [
-  GraphMainDiagramPartContentSchema,
-  PrimitiveMainDiagramPartContentSchema,
-]);
 export type MainDiagramPartContent = z.infer<typeof MainDiagramPartContentSchema>;
 
 export const ConclusionPartContentSchema = z.object({

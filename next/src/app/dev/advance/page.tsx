@@ -10,6 +10,7 @@ import {
   loadDevGeneratedProjects,
   type DevGeneratedProject,
 } from "@/lib/ui/devGeneratedProjects";
+import { directTimelineDiagnostics } from "@/lib/ui/devProjectDiagnostics";
 
 type DiagnosticEdge = {
   animated?: boolean;
@@ -106,7 +107,72 @@ function FrameThumbnail({
 }
 
 // ── Interactive Rendering Explanation Component ────────────────────────────────
-function RenderingExplanation({ brief, project }: { brief: DiagnosticBrief | undefined; project: VideoProject | undefined }) {
+function RenderingExplanation({
+  brief,
+  project,
+  authoredContent,
+}: {
+  brief: DiagnosticBrief | undefined;
+  project: VideoProject | undefined;
+  authoredContent: unknown;
+}) {
+  const direct = directTimelineDiagnostics(authoredContent, project);
+  if (direct) {
+    return (
+      <div className="flex-1 space-y-6 overflow-y-auto pr-1 text-xs text-muted-foreground select-text">
+        <div className="space-y-2 rounded-xl border border-border/60 bg-foreground/1 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-bold text-foreground">Direct Timeline Renderer</span>
+            <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-400">
+              LLM Authored
+            </span>
+          </div>
+          <p className="text-[11px] leading-relaxed">
+            The LLM authored the visible coordinates, layers, colors, timing, and animation directly. The Brief Expander and diagram layout modules were bypassed.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Visual Intent</h4>
+          <div className="rounded-xl border border-border/60 bg-background/30 p-4">
+            <p className="font-semibold text-foreground">{direct.name}</p>
+            <p className="mt-1.5 text-[11px] leading-relaxed">{direct.visualIntent}</p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Authored Events</h4>
+          <div className="grid grid-cols-4 gap-2 font-mono text-[10px]">
+            {Object.entries(direct.eventTypeCounts).map(([type, count]) => (
+              <div key={type} className="rounded-lg border border-border/50 bg-background/40 p-3 text-center">
+                <div className="text-lg font-bold text-foreground">{count}</div>
+                <div className="mt-1 uppercase tracking-wider">{type}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Timeline and Layers</h4>
+          <div className="rounded-xl border border-border/60 bg-background/30 p-4 font-mono text-[11px]">
+            <div className="flex justify-between gap-4 border-b border-border/40 pb-2">
+              <span>Event count</span>
+              <span className="font-bold text-foreground">{direct.eventCount}</span>
+            </div>
+            <div className="flex justify-between gap-4 border-b border-border/40 py-2">
+              <span>Active range</span>
+              <span className="font-bold text-foreground">{direct.timelineStart.toFixed(1)}s – {direct.timelineEnd.toFixed(1)}s</span>
+            </div>
+            <div className="flex justify-between gap-4 pt-2">
+              <span>Used layers</span>
+              <span className="font-bold text-foreground">{direct.layers.join(", ")}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!brief || !project) {
     return (
       <div className="flex flex-col items-center justify-center h-full p-6 text-center text-muted-foreground italic text-xs">
@@ -334,6 +400,7 @@ function AdvanceWorkspace() {
   const project = partId ? partRecord?.project : message?.project;
   const brief = (partId ? partRecord?.content : message?.brief) as DiagnosticBrief | undefined;
   const rawAuthoredData = partId ? partRecord?.content : message?.rawBrief;
+  const directDiagnostics = directTimelineDiagnostics(rawAuthoredData, project);
 
   // State
   const [activeTab, setActiveTab] = useState<"metadata" | "raw" | "brief" | "project" | "explanation">("metadata");
@@ -402,7 +469,13 @@ function AdvanceWorkspace() {
 
   const getCodeContent = () => {
     if (activeTab === "raw") return JSON.stringify(rawAuthoredData || { error: "No raw AI response was stored for this generation." }, null, 2);
-    if (activeTab === "brief") return JSON.stringify(brief || { error: "No Brief generated for this frame version" }, null, 2);
+    if (activeTab === "brief") return JSON.stringify(
+      directDiagnostics
+        ? rawAuthoredData
+        : brief || { error: "No Brief generated for this frame version" },
+      null,
+      2,
+    );
     if (activeTab === "project") return JSON.stringify(project, null, 2);
     return "";
   };
@@ -444,7 +517,7 @@ function AdvanceWorkspace() {
                     : tab === "raw"
                     ? "Raw AI Response"
                     : tab === "brief"
-                    ? "AI Brief"
+                    ? directDiagnostics ? "Authored Events" : "AI Brief"
                     : tab === "project"
                     ? "Timeline JSON"
                     : "Rendering Flow"}
@@ -500,6 +573,18 @@ function AdvanceWorkspace() {
                         <td className="font-semibold text-foreground py-2.5">Total Timeline Events</td>
                         <td>{project.events.length} elements (layers)</td>
                       </tr>
+                      {directDiagnostics && (
+                        <>
+                          <tr className="border-b border-border/40 py-2">
+                            <td className="font-semibold text-foreground py-2.5">Source Mode</td>
+                            <td>Direct LLM-authored timeline</td>
+                          </tr>
+                          <tr className="border-b border-border/40 py-2">
+                            <td className="font-semibold text-foreground py-2.5">Visual Intent</td>
+                            <td>{directDiagnostics.visualIntent}</td>
+                          </tr>
+                        </>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -513,19 +598,19 @@ function AdvanceWorkspace() {
                       <tr className="border-b border-border/40 py-2">
                         <td className="font-semibold text-foreground py-2.5 w-1/3">Color Palette</td>
                         <td className="font-mono text-[11px] bg-background px-2 py-0.5 rounded border border-border/40 inline-block text-foreground font-bold">
-                          {brief?.palette || "Default (midnight)"}
+                          {directDiagnostics ? "LLM-authored per event" : brief?.palette || "Default (midnight)"}
                         </td>
                       </tr>
                       <tr className="border-b border-border/40 py-2">
                         <td className="font-semibold text-foreground py-2.5">Style Presets</td>
                         <td className="font-mono text-[11px] bg-background px-2 py-0.5 rounded border border-border/40 inline-block text-foreground font-bold">
-                          {brief?.style || "Default (modern)"}
+                          {directDiagnostics ? "Direct timeline" : brief?.style || "Default (modern)"}
                         </td>
                       </tr>
                       <tr className="border-b border-border/40 py-2">
                         <td className="font-semibold text-foreground py-2.5">Diagram Model</td>
                         <td className="font-mono text-[11px] bg-background px-2 py-0.5 rounded border border-border/40 inline-block text-foreground font-bold">
-                          Graph
+                          {directDiagnostics ? "TimelineEvent composition" : "Graph"}
                         </td>
                       </tr>
                       {brief?.scenes && (
@@ -547,7 +632,11 @@ function AdvanceWorkspace() {
             )}
 
             {activeTab === "explanation" && (
-              <RenderingExplanation brief={brief} project={project} />
+              <RenderingExplanation
+                brief={brief}
+                project={project}
+                authoredContent={rawAuthoredData}
+              />
             )}
           </div>
         </section>
