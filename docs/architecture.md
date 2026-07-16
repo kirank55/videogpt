@@ -12,10 +12,11 @@ flowchart LR
     Calls --> Bookends["Bookends content"]
     Calls --> Summary["Direct summary timeline"]
     Calls --> Main["Direct main timeline"]
-    Bookends --> Validate["Validate or one targeted repair"]
-    Summary --> Validate
-    Main --> Validate
-    Validate --> Compose["Render bookends, prefix IDs, shift events/keyframes"]
+    Bookends --> Repair["Validate or one targeted repair"]
+    Summary --> Normalize["Normalize or local fallback"]
+    Main --> Normalize
+    Repair --> Compose["Render bookends, prefix IDs, shift events/keyframes"]
+    Normalize --> Compose
     Compose --> Project["VideoProject"]
     Project --> Store["Session store + persistence"]
     Project --> Canvas["Canvas renderer"]
@@ -41,7 +42,7 @@ The summary prompt requests a minimal high-level introduction. The main prompt r
 
 ## Validation and repair
 
-`next/src/lib/agent/videoParts/directTimeline.ts` implements shared validation profiles. Schema parsing rejects unsupported event fields. Semantic validation checks budgets, IDs, local timing, full-duration backgrounds, canvas and path intersection, readable labels, shape counts, motion, and meaningful label collisions. Findings are returned unchanged to one targeted repair call along with the rejected JSON. Authored geometry is never silently moved or rewritten.
+`next/src/lib/agent/videoParts/directTimeline.ts` implements shared normalization profiles. It preserves renderer-safe authored fields while repairing aliases, timing, geometry, and missing essentials. Event and output-token budgets scale to the section's available duration. Invalid or malformed direct-timeline output becomes a deterministic local timeline after the initial request; it never triggers a second model call. Bookends retain one targeted repair because their response is small and has no equivalent authored timeline to salvage.
 
 ## Composition and rendering
 

@@ -32,6 +32,7 @@ describe("OpenRouter structured-output failures", () => {
     const request = fetchMock.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(String(request.body)) as Record<string, unknown>;
     expect(body.reasoning).toEqual({ enabled: false });
+    expect(body.provider).toEqual({ sort: "throughput" });
   });
 
   it("classifies empty length-limited content as retryable output exhaustion", async () => {

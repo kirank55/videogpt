@@ -5,6 +5,7 @@ import {
   validateDirectTimelineContent,
 } from "@/lib/agent/videoParts/directTimeline";
 import { generateVideoPart } from "@/lib/agent/videoParts/pipeline";
+import { OpenRouterJsonParseError } from "@/lib/agent/ai/openrouter";
 import { buildStandaloneVideoPartProject } from "@/lib/agent/videoParts/project";
 import {
   BookendsContentSchema,
@@ -408,6 +409,23 @@ describe("direct video parts", () => {
     expect(calls).toBe(1);
     expect(prompts).toEqual(["Explain solar power"]);
     expect(result.part).toBe("main-diagram");
+  });
+
+  it("renders a local timeline fallback after malformed model JSON", async () => {
+    let calls = 0;
+    const result = await generateVideoPart(
+      { part: "main-diagram", prompt: "Explain solar power", duration: 5 },
+      {
+        callModel: async () => {
+          calls += 1;
+          throw new OpenRouterJsonParseError("{ malformed", "stop");
+        },
+      },
+    );
+
+    expect(calls).toBe(1);
+    expect(result.part).toBe("main-diagram");
+    expect(result.project.events.length).toBeGreaterThan(0);
   });
 
   it("renders title and conclusion with deterministic timeline events", () => {

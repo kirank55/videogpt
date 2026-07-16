@@ -2,7 +2,7 @@
 
 Status: Accepted
 
-Direct-timeline generation treats the runtime renderer schema as the hard safety seam and visual-quality rules as recoverable diagnostics. Valid model JSON is normalized event by event: supported authorship is preserved, common aliases and imprecise geometry are repaired, and malformed or missing essentials receive deterministic renderer-safe fallbacks. This replaces all-or-nothing semantic validation because a partially imperfect video is more useful than discarding three expensive model results; only unrecoverable provider or JSON failures abort generation.
+Direct-timeline generation treats the runtime renderer schema as the hard safety seam and visual-quality rules as recoverable diagnostics. Model output is normalized event by event: supported authorship is preserved, common aliases and imprecise geometry are repaired, and malformed JSON or missing essentials receive deterministic renderer-safe fallbacks without another model request. Event and token budgets scale with the composition window. This replaces all-or-nothing validation and LLM repair because a usable imperfect video is more valuable than spending another long request or discarding three expensive results; only unrecoverable provider failures abort generation.
 
 ## Supersedes
 
