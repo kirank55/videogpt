@@ -4,6 +4,7 @@ import { GenerateRequestSchema } from "@/lib/agent/schemas/api";
 import { resolveDuration } from "@/lib/others/schemas/duration";
 
 export async function POST(req: NextRequest) {
+  const requestId = crypto.randomUUID();
   let body: unknown;
   try {
     body = await req.json();
@@ -31,8 +32,8 @@ export async function POST(req: NextRequest) {
       summary: result.summary,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error("[api/generate] composed generation failed:", message);
-    return NextResponse.json({ error: message, summary: message }, { status: 502 });
+    console.error(`[api/generate] request ${requestId} failed:`, error);
+    const message = "The model could not complete this video. Please try again.";
+    return NextResponse.json({ error: message, summary: message, requestId }, { status: 502 });
   }
 }

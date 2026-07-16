@@ -14,11 +14,13 @@ export const defaultMessages: ChatMessage[] = [
   },
 ];
 
-export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
+export function ChatThread({
+  messages = defaultMessages,
+  sessionId,
+  isLoading = false,
+}: ChatThreadProps) {
   const endRef = useRef<HTMLDivElement | null>(null);
-  const activeSessionId = useStore((s) => s.activeSessionId);
   const retryPrompt = useStore((s) => s.retryPrompt);
-  const isLoading = useStore((s) => s.isLoading);
 
   useEffect(() => {
     // Scroll the parent container down when messages are added or loading state changes
@@ -33,13 +35,13 @@ export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
             key={message.id}
             role={message.role}
             project={message.project}
-            sessionId={activeSessionId || undefined}
+            sessionId={sessionId}
             messageId={message.id}
             isError={message.isError}
             createdAt={message.createdAt}
             onRetry={
-              activeSessionId && message.isError
-                ? () => retryPrompt(activeSessionId)
+              sessionId && message.isError
+                ? () => retryPrompt(sessionId)
                 : undefined
             }
           >
@@ -47,7 +49,7 @@ export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
           </MessageBubble>
         ))}
         {isLoading && (
-          <MessageBubble role="assistant" isLoading={true} />
+          <MessageBubble role="assistant" isLoading={true} sessionId={sessionId} />
         )}
         <div ref={endRef} />
       </div>
@@ -57,4 +59,6 @@ export function ChatThread({ messages = defaultMessages }: ChatThreadProps) {
 
 type ChatThreadProps = {
   messages?: ChatMessage[];
+  sessionId?: string;
+  isLoading?: boolean;
 };

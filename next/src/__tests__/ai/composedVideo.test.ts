@@ -190,7 +190,7 @@ describe("composed video generation", () => {
     );
   });
 
-  it("fails the complete generation with the invalid section named", async () => {
+  it("composes a renderer-safe fallback for an empty authored section", async () => {
     const calls: string[] = [];
     const callModel: ComposedVideoModelCaller = async (systemPrompt) => {
       const part = systemPrompt.match(/PART: ([^\n]+)/)?.[1]?.trim() ?? "unknown";
@@ -210,11 +210,16 @@ describe("composed video generation", () => {
       return { mode: "direct-timeline", name: "Broken", visualIntent: "Broken", events: [] };
     };
 
-    await expect(generateComposedVideo(
+    const result = await generateComposedVideo(
       { prompt: "How does solar power work?", duration: 10 },
       { callModel },
-    )).rejects.toThrow(/main-diagram generation failed.*after one repair attempt/i);
-    expect(calls.filter((part) => part === "main-diagram")).toHaveLength(2);
+    );
+    expect(result.parts.mainDiagram.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "background-fallback", type: "background" }),
+      expect.objectContaining({ id: "label-fallback", type: "text" }),
+      expect.objectContaining({ id: "shape-fallback-1", type: "shape" }),
+    ]));
+    expect(calls.filter((part) => part === "main-diagram")).toHaveLength(1);
   });
 
   it("repairs malformed bookend JSON once using the rejected content", async () => {

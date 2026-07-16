@@ -56,6 +56,13 @@ describe("root generation routes", () => {
   it("streams generation phases and the same public response shape", async () => {
     generateComposedVideo.mockImplementation(async (_request, dependencies) => {
       dependencies.onPhase?.("generating-sections");
+      dependencies.onModelProgress?.("summary", { characterCount: 400 });
+      dependencies.onModelUsage?.("summary", {
+        prompt_tokens: 20,
+        completion_tokens: 96,
+        total_tokens: 116,
+      });
+      dependencies.onModelComplete?.("summary");
       dependencies.onPhase?.("composing");
       return generated;
     });
@@ -66,6 +73,9 @@ describe("root generation routes", () => {
     expect(response.headers.get("content-type")).toContain("text/event-stream");
     expect(payload).toContain('"type":"phase","phase":"generating-sections"');
     expect(payload).toContain('"type":"phase","phase":"composing"');
+    expect(payload).toContain('"type":"model-progress","part":"summary"');
+    expect(payload).toContain('"type":"model-complete","part":"summary"');
+    expect(payload).toContain('"completionTokens":96');
     expect(payload).toContain('"type":"done"');
     expect(payload).not.toContain('"parts"');
   });

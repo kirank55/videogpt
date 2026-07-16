@@ -115,7 +115,7 @@ type PlayerCardProps = {
   messageId?: string;
 };
 
-function PlayerLoadingCard() {
+function PlayerLoadingCard({ sessionId }: { sessionId?: string }) {
   return (
     <div className="card overflow-hidden transition-all bg-surface-raised flex flex-col">
       {/* Header Bar */}
@@ -139,7 +139,7 @@ function PlayerLoadingCard() {
       <div className="aspect-video flex flex-col items-center justify-center bg-black/15 dark:bg-black/35 rounded-2xl overflow-hidden m-4 min-h-[300px] gap-4 p-6 text-center border border-dashed border-border/40">
         <div className="size-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
         <div className="w-full max-w-md">
-          <StreamingProgress showSpinner={false} />
+          <StreamingProgress sessionId={sessionId} showSpinner={false} />
         </div>
       </div>
 
@@ -193,7 +193,7 @@ export function PlayerCard({
   messageId,
 }: PlayerCardProps) {
   if (isLoading || !project) {
-    return <PlayerLoadingCard />;
+    return <PlayerLoadingCard sessionId={sessionId} />;
   }
 
   return (

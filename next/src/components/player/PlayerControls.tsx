@@ -57,6 +57,7 @@ export function PlayerControls() {
     toggleFullscreen,
     isExporting,
     exportProgress,
+    exportError,
     startExport,
   } = usePlayerContext();
 
@@ -356,6 +357,11 @@ export function PlayerControls() {
           </button>
         </div>
       </div>
+      {exportError && (
+        <p className="text-right text-xs font-medium text-rose-500" role="alert">
+          {exportError}
+        </p>
+      )}
     </div>
   );
 }

@@ -26,6 +26,7 @@ type PlayerContextValue = {
   playerRef: React.RefObject<HTMLDivElement | null>;
   isExporting: boolean;
   exportProgress: number;
+  exportError: string | null;
   startExport: (
     format?: ExportFormat,
     options?: { fps?: number; gifWidth?: number; gifColors?: number }
@@ -61,12 +62,15 @@ export function PlayerProvider({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   // Local copy of the project with in-memory edits applied
   const [editedProject, setEditedProject] = useState<VideoProject>(project);
 
   // Keep editedProject in sync when the source project changes (e.g. after regeneration)
   useEffect(() => {
+    // Synchronize the editable snapshot when a regenerated project replaces the source.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEditedProject(project);
     if (isEditMode) setIsEditMode(false); // Exit edit mode on new project
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,6 +120,7 @@ export function PlayerProvider({
     if (isExporting) return;
     setIsExporting(true);
     setExportProgress(0);
+    setExportError(null);
     try {
       await exportVideo(editedProject, {
         format,
@@ -126,6 +131,7 @@ export function PlayerProvider({
       });
     } catch (err) {
       console.error("Export failed:", err);
+      setExportError("Export failed in this browser. Try a smaller GIF or retry the video export.");
     } finally {
       setIsExporting(false);
       setExportProgress(0);
@@ -142,6 +148,7 @@ export function PlayerProvider({
         playerRef,
         isExporting,
         exportProgress,
+        exportError,
         startExport,
         isEditMode,
         toggleEditMode,

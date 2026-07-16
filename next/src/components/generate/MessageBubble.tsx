@@ -110,7 +110,7 @@ function MessageTimestamp({ ts }: { ts: number }) {
 
 function ErrorBody({ children, onRetry }: { children: ReactNode; onRetry?: () => void }) {
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-start gap-3" role="alert">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 20 20"

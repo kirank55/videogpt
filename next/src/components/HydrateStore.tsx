@@ -6,6 +6,7 @@ import { hydrateFromStorage } from "@/lib/ui/persistence";
 
 export function HydrateStore() {
   const hydrate = useStore((s) => s.hydrate);
+  const finishHydration = useStore((s) => s.finishHydration);
   const hydrated = useRef(false);
 
   useEffect(() => {
@@ -15,8 +16,9 @@ export function HydrateStore() {
     const persisted = hydrateFromStorage();
     // guarded — no data no hydrate call
     if (persisted) hydrate(persisted);
+    else finishHydration();
 
-  }, [hydrate]);
+  }, [finishHydration, hydrate]);
 
   // Renders nothing — this is a behaviour-only component.
   return null;

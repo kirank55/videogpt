@@ -19,3 +19,22 @@ export type Session = {
   updatedAt: string;
 };
 
+export type GenerationPart = "bookends" | "summary" | "main-diagram";
+
+export type GenerationPartProgress = {
+  status: "waiting" | "streaming" | "complete";
+  characterCount: number;
+  estimatedTokens: number;
+  completionTokens?: number;
+};
+
+export type GenerationOperation = {
+  requestId: string;
+  status: "connecting" | "generating" | "composing" | "succeeded" | "failed" | "cancelled";
+  parts: Record<GenerationPart, GenerationPartProgress>;
+  characterCount: number;
+  estimatedTokens: number;
+  completionTokens?: number;
+  error?: string;
+};
+

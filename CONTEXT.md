@@ -8,7 +8,7 @@ VideoGPT turns one natural-language prompt into a fixed-duration, Canvas-rendere
 
 **TimelineEvent**: A renderer-safe background, text, shape, or particle event with a unique ID, visible interval, layer, geometry, and optional animation. It is the only visual authorship vocabulary accepted from models.
 
-**Direct timeline**: Model-authored `TimelineEvent[]` with coordinates and timing already chosen. Validation checks the work but does not lay it out, clip it, or rewrite it.
+**Direct timeline**: Model-authored `TimelineEvent[]` with coordinates and timing already chosen. Normalization preserves valid authorship while repairing unsupported event shapes, unsafe timing, and off-canvas geometry into renderer-safe events.
 
 **Bookends**: One model-authored content object containing the title, optional subtitle, and closing line. Its visual events are rendered deterministically so the model does not spend tokens choosing bookend coordinates.
 
@@ -18,9 +18,11 @@ VideoGPT turns one natural-language prompt into a fixed-duration, Canvas-rendere
 
 **Composition window**: One contiguous local interval assigned before generation. The windows are intro, summary, main, and conclusion. Summary and main models receive their exact local durations; their event times and absolute keyframes are shifted into the final project without rescaling.
 
-**Validation profile**: Shared direct-timeline validation configured for a role. Summary permits 4–40 events, 1–6 text events, and at least two shapes. Main permits 4–80 events and at least three shapes. Both require a full-window background, readable labels, visible motion, supported fields, valid geometry, and no significant simultaneous label collision.
+**Normalization profile**: Shared direct-timeline recovery configured for a role. Summary retains at most 40 events and at least two shapes; main retains at most 80 events and at least three shapes. Both guarantee renderer-safe events and add missing background, label, or shape fallbacks.
 
-**Targeted repair**: The single low-temperature retry allowed to each model request. It receives the rejected JSON and section-specific findings. A second invalid response fails the complete generation.
+**Recoverable diagnostic**: A visual-quality finding such as overlap, static output, unsupported decoration, or imprecise placement. It may reduce output quality but does not discard a renderer-safe video.
+
+**Targeted repair**: The single low-temperature retry allowed when a model response cannot be parsed as JSON. Valid JSON with imperfect timeline authorship is normalized without another model call.
 
 **Palette context**: One deterministic palette selected from the prompt and supplied to all three requests, keeping independently authored sections visually coherent.
 
@@ -32,5 +34,5 @@ VideoGPT turns one natural-language prompt into a fixed-duration, Canvas-rendere
 - The selected 5, 10, 15, or 20 second duration is preserved exactly.
 - The four windows are contiguous and cover the project with no blank gaps.
 - Every final event ID is prefixed `intro-`, `summary-`, `main-`, or `conclusion-`.
-- A section failure discards all generated sections; manual retry reruns all three.
+- An unrecoverable provider or JSON failure discards all generated sections; recoverable timeline findings render with normalization and fallbacks.
 - Follow-up modification is not part of the generation model. Users start a new project instead.

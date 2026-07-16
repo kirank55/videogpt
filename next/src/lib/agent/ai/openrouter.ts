@@ -12,6 +12,8 @@ export interface OpenRouterOptions {
   temperature?: number;
   reasoning?: { enabled: boolean };
   onUsage?: (usage: Usage) => void;
+  onChunk?: (chunk: { characterCount: number }) => void;
+  signal?: AbortSignal;
 }
 
 /** A successful provider response whose assistant content was not valid JSON. */
@@ -38,6 +40,78 @@ export class OpenRouterLengthError extends Error {
     super("OpenRouter returned empty content (finish_reason=length).");
     this.name = "OpenRouterLengthError";
   }
+}
+
+function parseAssistantJson(raw: string, finishReason?: string): unknown {
+  const cleaned = raw.trim().replace(/^```(?:json)?\s*\n?|\n?```\s*$/g, "").trim();
+  if (!cleaned) {
+    if (finishReason === "length") throw new OpenRouterLengthError();
+    throw new Error(
+      `OpenRouter returned empty content (finish_reason=${finishReason ?? "unknown"}).`,
+    );
+  }
+  try {
+    return JSON.parse(cleaned) as unknown;
+  } catch {
+    throw new OpenRouterJsonParseError(cleaned, finishReason);
+  }
+}
+
+async function readStreamingResponse(
+  response: Response,
+  options: OpenRouterOptions,
+): Promise<unknown> {
+  if (!response.body) throw new Error("OpenRouter returned an empty streaming response.");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let content = "";
+  let finishReason: string | undefined;
+
+  const consumeLine = (line: string) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith(":")) return;
+    if (!trimmed.startsWith("data:")) return;
+    const payload = trimmed.slice(5).trim();
+    if (!payload || payload === "[DONE]") return;
+
+    const event = JSON.parse(payload) as {
+      error?: { message?: string };
+      choices?: Array<{
+        delta?: { content?: string | null };
+        finish_reason?: string | null;
+      }>;
+      usage?: Usage;
+    };
+    if (event.error) {
+      throw new Error(event.error.message || "OpenRouter stream failed.");
+    }
+    if (event.usage) options.onUsage?.(event.usage);
+    const choice = event.choices?.[0];
+    if (choice?.finish_reason) finishReason = choice.finish_reason;
+    const delta = choice?.delta?.content;
+    if (delta) {
+      content += delta;
+      options.onChunk?.({ characterCount: delta.length });
+    }
+  };
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) consumeLine(line);
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) consumeLine(buffer);
+  } finally {
+    reader.releaseLock();
+  }
+
+  return parseAssistantJson(content, finishReason);
 }
 
 /** Sends exactly one structured-output request to the configured model. */
@@ -69,6 +143,10 @@ export async function callOpenRouter(
     ],
   };
   if (options.reasoning) body.reasoning = options.reasoning;
+  if (options.onChunk) {
+    body.stream = true;
+    body.stream_options = { include_usage: true };
+  }
 
   console.log(`[ai/openrouter] Requesting model: ${model}`);
   const response = await fetch(OPENROUTER_API_URL, {
@@ -80,6 +158,7 @@ export async function callOpenRouter(
       "X-Title": "VideoGPT",
     },
     body: JSON.stringify(body),
+    signal: options.signal,
   });
 
   if (!response.ok) {
@@ -88,6 +167,8 @@ export async function callOpenRouter(
       `OpenRouter HTTP ${response.status} ${response.statusText}: ${text.slice(0, 400)}`,
     );
   }
+
+  if (options.onChunk) return readStreamingResponse(response, options);
 
   const data = await response.json() as {
     choices?: Array<{
@@ -104,18 +185,5 @@ export async function callOpenRouter(
   if (!choice) throw new Error("OpenRouter returned no choices");
   if (choice.message?.parsed !== undefined) return choice.message.parsed;
 
-  const raw = choice.message?.content;
-  if (!raw) {
-    if (choice.finish_reason === "length") throw new OpenRouterLengthError();
-    throw new Error(
-      `OpenRouter returned empty content (finish_reason=${choice.finish_reason ?? "unknown"}).`,
-    );
-  }
-
-  const cleaned = raw.trim().replace(/^```(?:json)?\s*\n?|\n?```\s*$/g, "").trim();
-  try {
-    return JSON.parse(cleaned) as unknown;
-  } catch {
-    throw new OpenRouterJsonParseError(cleaned, choice.finish_reason);
-  }
+  return parseAssistantJson(choice.message?.content ?? "", choice.finish_reason);
 }

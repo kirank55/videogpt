@@ -1,16 +1,37 @@
 import { create } from "zustand";
-import type { ChatMessage, Session } from "@/types/generate";
+import type {
+  ChatMessage,
+  GenerationOperation,
+  GenerationPart,
+  Session,
+} from "@/types/generate";
 import { persistToStorage } from "./persistence";
 import type { PersistedState } from "./persistence";
 import {
   applyError,
   applySuccess,
   buildAssistantMessage,
-  callApi,
   callApiStream,
   type StreamCallbacks,
 } from "./apiClient";
 import { createSession } from "./factories";
+import { generateId } from "./ids";
+
+const GENERATION_PARTS: GenerationPart[] = ["bookends", "summary", "main-diagram"];
+
+function createOperation(): GenerationOperation {
+  return {
+    requestId: generateId("request"),
+    status: "connecting",
+    parts: Object.fromEntries(GENERATION_PARTS.map((part) => [part, {
+      status: "waiting",
+      characterCount: 0,
+      estimatedTokens: 0,
+    }])) as GenerationOperation["parts"],
+    characterCount: 0,
+    estimatedTokens: 0,
+  };
+}
 
 function updateSessionMessages(
   sessions: Session[],
@@ -22,131 +43,160 @@ function updateSessionMessages(
   );
 }
 
+function isGenerating(operation: GenerationOperation | undefined): boolean {
+  return operation?.status === "connecting"
+    || operation?.status === "generating"
+    || operation?.status === "composing";
+}
+
 interface StoreState {
   sessions: Session[];
   activeSessionId: string | null;
   prompt: string;
   duration: number;
-  error: string | null;
-  isLoading: boolean;
-  streamingTokenCount: number;
-  streamingCharCount: number;
-  loadingPhase: string | null;
+  operations: Record<string, GenerationOperation>;
+  hasHydrated: boolean;
   setPrompt: (prompt: string) => void;
   setDuration: (duration: number) => void;
-  clearError: () => void;
   setActiveSessionId: (id: string | null) => void;
-  submitInitialPrompt: (prompt: string) => Promise<void>;
+  submitInitialPrompt: (prompt: string) => string;
   retryPrompt: (sessionId: string) => Promise<void>;
   deleteSession: (id: string) => void;
   hydrate: (persisted: Partial<PersistedState>) => void;
+  finishHydration: () => void;
 }
 
 export const useStore = create<StoreState>((set, get) => {
-  const finishStreaming = () => set({
-    streamingTokenCount: 0,
-    streamingCharCount: 0,
-    loadingPhase: null,
+  const updateOperation = (
+    sessionId: string,
+    updater: (operation: GenerationOperation) => GenerationOperation,
+  ) => set((state) => {
+    const current = state.operations[sessionId];
+    if (!current) return state;
+    return { operations: { ...state.operations, [sessionId]: updater(current) } };
   });
 
   const callbacksFor = (sessionId: string): StreamCallbacks => ({
-    onPhase: (phase) => set({ loadingPhase: phase }),
-    onChunk: (tokenCount, charCount) => set({
-      streamingTokenCount: tokenCount,
-      streamingCharCount: charCount,
-    }),
+    onStarted: (requestId) => updateOperation(sessionId, (operation) => ({
+      ...operation,
+      requestId: requestId || operation.requestId,
+      status: "generating",
+    })),
+    onPhase: (phase) => updateOperation(sessionId, (operation) => ({
+      ...operation,
+      status: phase === "composing" ? "composing" : "generating",
+    })),
+    onProgress: ({ part, characterCount, estimatedTokens, completionTokens }) => {
+      updateOperation(sessionId, (operation) => {
+        const parts = {
+          ...operation.parts,
+          [part]: {
+            ...operation.parts[part],
+            status: "streaming" as const,
+            characterCount,
+            estimatedTokens,
+            ...(completionTokens === undefined ? {} : { completionTokens }),
+          },
+        };
+        const values = Object.values(parts);
+        return {
+          ...operation,
+          status: "generating",
+          parts,
+          characterCount: values.reduce((total, value) => total + value.characterCount, 0),
+          estimatedTokens: values.reduce((total, value) => total + value.estimatedTokens, 0),
+          completionTokens: values.some((value) => value.completionTokens !== undefined)
+            ? values.reduce((total, value) => total + (value.completionTokens ?? 0), 0)
+            : undefined,
+        };
+      });
+    },
+    onPartComplete: (part, completionTokens) => updateOperation(sessionId, (operation) => ({
+      ...operation,
+      parts: {
+        ...operation.parts,
+        [part]: {
+          ...operation.parts[part],
+          status: "complete",
+          ...(completionTokens === undefined ? {} : { completionTokens }),
+        },
+      },
+    })),
     onDone: (data) => {
-      finishStreaming();
       applySuccess(
         set,
         sessionId,
         buildAssistantMessage(data, "Project generated successfully."),
         data,
       );
+      updateOperation(sessionId, (operation) => ({ ...operation, status: "succeeded" }));
     },
     onError: (message) => {
-      finishStreaming();
       applyError(set, sessionId, message);
+      updateOperation(sessionId, (operation) => ({ ...operation, status: "failed", error: message }));
     },
   });
+
+  const startGeneration = (sessionId: string, prompt: string, duration: number) => {
+    set((state) => ({
+      operations: { ...state.operations, [sessionId]: createOperation() },
+    }));
+    void callApiStream(
+      "/api/generate",
+      { prompt, duration },
+      callbacksFor(sessionId),
+    );
+  };
 
   return {
     sessions: [],
     activeSessionId: null,
     prompt: "",
     duration: 5,
-    error: null,
-    isLoading: false,
-    streamingTokenCount: 0,
-    streamingCharCount: 0,
-    loadingPhase: null,
+    operations: {},
+    hasHydrated: false,
     setPrompt: (prompt) => set({ prompt }),
     setDuration: (duration) => set({ duration }),
-    clearError: () => set({ error: null }),
     setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
 
-    submitInitialPrompt: async (prompt) => {
+    submitInitialPrompt: (prompt) => {
       const { duration } = get();
-      set({
-        isLoading: true,
-        error: null,
-        streamingTokenCount: 0,
-        streamingCharCount: 0,
-        loadingPhase: null,
-      });
       const { session, sessionId } = createSession(prompt, duration);
       set((state) => ({
         sessions: [session, ...state.sessions],
         activeSessionId: sessionId,
       }));
-      await callApiStream(
-        "/api/generate",
-        { prompt, duration },
-        callbacksFor(sessionId),
-      );
+      startGeneration(sessionId, prompt, duration);
+      return sessionId;
     },
 
     retryPrompt: async (sessionId) => {
-      const session = get().sessions.find((candidate) => candidate.id === sessionId);
-      if (!session || session.messages.length < 2) return;
+      const state = get();
+      const session = state.sessions.find((candidate) => candidate.id === sessionId);
+      if (!session || session.messages.length < 2 || isGenerating(state.operations[sessionId])) return;
       const lastMessage = session.messages.at(-1);
       const userMessage = session.messages.at(-2);
       if (!lastMessage?.isError || userMessage?.role !== "user") return;
 
-      set((state) => ({
+      set((current) => ({
         sessions: updateSessionMessages(
-          state.sessions,
+          current.sessions,
           sessionId,
           (messages) => messages.slice(0, -1),
         ),
-        isLoading: true,
-        error: null,
-        loadingPhase: null,
       }));
-      try {
-        const data = await callApi("/api/generate", {
-          prompt: userMessage.content,
-          duration: session.duration,
-        });
-        applySuccess(
-          set,
-          sessionId,
-          buildAssistantMessage(data, "Project generated successfully."),
-          data,
-        );
-      } catch (error) {
-        applyError(
-          set,
-          sessionId,
-          error instanceof Error ? error.message : String(error),
-        );
-      }
+      startGeneration(sessionId, userMessage.content, session.duration);
     },
 
-    deleteSession: (id) => set((state) => ({
-      sessions: state.sessions.filter((session) => session.id !== id),
-      activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
-    })),
+    deleteSession: (id) => set((state) => {
+      const operations = { ...state.operations };
+      delete operations[id];
+      return {
+        sessions: state.sessions.filter((session) => session.id !== id),
+        activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
+        operations,
+      };
+    }),
 
     hydrate: (persisted) => set((state) => {
       const sanitizedSessions: Session[] = (persisted.sessions ?? []).map((session) => ({
@@ -171,8 +221,10 @@ export const useStore = create<StoreState>((set, get) => {
         sessions: [...sessionMap.values()],
         activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
         duration: persisted.duration ?? state.duration,
+        hasHydrated: true,
       };
     }),
+    finishHydration: () => set({ hasHydrated: true }),
   };
 });
 

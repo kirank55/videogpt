@@ -5,7 +5,13 @@ import type { PersistedState } from "@/lib/ui/persistence";
 describe("session hydration", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    useStore.setState({ sessions: [], activeSessionId: null, duration: 5 });
+    useStore.setState({
+      sessions: [],
+      activeSessionId: null,
+      duration: 5,
+      operations: {},
+      hasHydrated: false,
+    });
   });
 
   it("drops obsolete authored payloads while preserving rendered projects", () => {
@@ -51,18 +57,11 @@ describe("session hydration", () => {
   });
 
   it("retries a failed session with its original duration", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      project: {
-        id: "retried",
-        name: "Retried",
-        width: 1920,
-        height: 1080,
-        duration: 10,
-        events: [],
-      },
-      projectName: "Retried",
-      summary: "Retried",
-    }), { status: 200, headers: { "content-type": "application/json" } }));
+    const fetchMock = vi.fn().mockResolvedValue(new Response([
+      'data: {"type":"started","requestId":"retry-1"}',
+      'data: {"type":"done","project":{"id":"retried","name":"Retried","width":1920,"height":1080,"duration":10,"events":[]},"projectName":"Retried","summary":"Retried"}',
+      "",
+    ].join("\n\n"), { status: 200, headers: { "content-type": "text/event-stream" } }));
     vi.stubGlobal("fetch", fetchMock);
     useStore.setState({
       duration: 20,

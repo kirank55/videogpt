@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { callOpenRouter } from "@/lib/agent/ai/openrouter";
+import { callOpenRouter, type OpenRouterOptions } from "@/lib/agent/ai/openrouter";
 import {
   validateDirectSummaryContent,
   validateDirectTimelineContent,
@@ -20,11 +20,7 @@ import { resolveVideoPartTheme } from "@/lib/agent/videoParts/theme";
 export type VideoPartModelCaller = (
   systemPrompt: string,
   userPrompt: string,
-  options?: {
-    maxTokens?: number;
-    temperature?: number;
-    reasoning?: { enabled: boolean };
-  },
+  options?: OpenRouterOptions,
 ) => Promise<unknown>;
 
 export type VideoPartPipelineDependencies = {

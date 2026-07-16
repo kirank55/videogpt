@@ -89,6 +89,49 @@ function timeline(mode: "direct-summary-timeline" | "direct-timeline", duration 
 }
 
 describe("direct video parts", () => {
+  it("normalizes unsupported arrow shapes instead of rejecting the section", () => {
+    const summary = timeline("direct-summary-timeline");
+    const withArrow = {
+      ...summary,
+      events: summary.events.map((event) => event.id === "shape-one"
+        ? {
+            id: event.id,
+            type: "shape",
+            shapeType: "arrow",
+            start: event.start,
+            end: event.end,
+            layer: event.layer,
+            x1: 300,
+            y1: 480,
+            x2: 900,
+            y2: 480,
+            stroke: "#2563eb",
+            lineWidth: 8,
+          }
+        : event),
+    };
+
+    const result = validateDirectSummaryContent(withArrow, 5);
+    expect(result.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "shape-one", type: "shape", shapeType: "line", arrowEnd: true }),
+    ]));
+  });
+
+  it("keeps imprecisely positioned events renderable instead of failing generation", () => {
+    const main = timeline("direct-timeline");
+    const offCanvas = {
+      ...main,
+      events: main.events.map((event) => event.id === "shape-one"
+        ? { ...event, x: 4000, y: -900 }
+        : event),
+    };
+
+    const result = validateDirectTimelineContent(offCanvas, 5);
+    const shape = result.events.find((event) => event.id === "shape-one");
+    expect(shape).toMatchObject({ type: "shape" });
+    expect(shape && "x" in shape ? shape.x : 4000).toBeLessThan(1920);
+  });
+
   it("uses distinct strict contracts for compact summaries and main diagrams", () => {
     expect(SummaryPartContentSchema.parse(timeline("direct-summary-timeline"))).toBeDefined();
     expect(MainDiagramPartContentSchema.parse(timeline("direct-timeline"))).toBeDefined();
@@ -103,7 +146,7 @@ describe("direct video parts", () => {
   it("applies the smaller summary profile and the deeper main profile", () => {
     expect(validateDirectSummaryContent(timeline("direct-summary-timeline"), 5).events).toHaveLength(4);
     expect(validateDirectTimelineContent(timeline("direct-timeline"), 5).events).toHaveLength(5);
-    expect(() => validateDirectTimelineContent(timeline("direct-summary-timeline"), 5)).toThrow();
+    expect(validateDirectTimelineContent(timeline("direct-summary-timeline"), 5).mode).toBe("direct-timeline");
   });
 
   it.each([
@@ -244,11 +287,12 @@ describe("direct video parts", () => {
       }),
       "visible text color",
     ],
-  ])("rejects %s", (_name, build, finding) => {
-    expect(() => validateDirectTimelineContent(build(), 5)).toThrow(finding);
+  ])("renders despite %s", (_name, build, finding) => {
+    void finding;
+    expect(() => validateDirectTimelineContent(build(), 5)).not.toThrow();
   });
 
-  it("enforces summary text and event budgets", () => {
+  it("keeps oversized summaries within the renderer event budget", () => {
     const summary = timeline("direct-summary-timeline");
     const labels = Array.from({ length: 6 }, (_, index) => ({
       id: `extra-label-${index}`,
@@ -267,7 +311,7 @@ describe("direct video parts", () => {
     expect(() => validateDirectSummaryContent({
       ...summary,
       events: [...summary.events, ...labels],
-    }, 5)).toThrow("no more than 6 text events");
+    }, 5)).not.toThrow();
 
     const tooManyEvents = {
       ...summary,
@@ -280,10 +324,10 @@ describe("direct video parts", () => {
         })),
       ],
     };
-    expect(() => validateDirectSummaryContent(tooManyEvents, 5)).toThrow();
+    expect(validateDirectSummaryContent(tooManyEvents, 5).events.length).toBeLessThanOrEqual(40);
   });
 
-  it("rejects unreadable badge text and backdrop colors", () => {
+  it("repairs unreadable badge text and backdrop colors", () => {
     const main = timeline("direct-timeline");
     const badge = {
       id: "status-badge",
@@ -303,11 +347,17 @@ describe("direct video parts", () => {
       ...main,
       events: main.events.map((event) => event.id === "shape-two" ? badge : event),
     };
-    expect(() => validateDirectTimelineContent(withBadge, 5)).toThrow("visible textColor");
-    expect(() => validateDirectTimelineContent(withBadge, 5)).toThrow("fill opacity");
+    const result = validateDirectTimelineContent(withBadge, 5);
+    const repairedBadge = result.events.find((event) => event.id === "status-badge");
+    expect(repairedBadge).toMatchObject({
+      type: "shape",
+      shapeType: "badge",
+      textColor: "#ffffff",
+      fill: "rgba(15,23,42,0.9)",
+    });
   });
 
-  it("rejects significant label stacking but tolerates minor edge contact", () => {
+  it("renders label stacking as a recoverable visual diagnostic", () => {
     const baseLabel = {
       type: "text" as const,
       start: 0,
@@ -333,10 +383,10 @@ describe("direct video parts", () => {
       ...minor,
       events: minor.events.map((event) => event.id === "lower" ? { ...event, y: 825 } : event),
     };
-    expect(() => validateDirectSummaryContent(stacked, 5)).toThrow("overlaps significantly");
+    expect(() => validateDirectSummaryContent(stacked, 5)).not.toThrow();
   });
 
-  it("includes rejected JSON in the single targeted repair", async () => {
+  it("normalizes recoverable geometry without spending a repair call", async () => {
     const invalid = {
       ...timeline("direct-timeline"),
       events: timeline("direct-timeline").events.map((event) =>
@@ -355,8 +405,8 @@ describe("direct video parts", () => {
         },
       },
     );
-    expect(calls).toBe(2);
-    expect(prompts[1]).toContain('"id": "shape-one"');
+    expect(calls).toBe(1);
+    expect(prompts).toEqual(["Explain solar power"]);
     expect(result.part).toBe("main-diagram");
   });
 

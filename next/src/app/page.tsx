@@ -23,7 +23,7 @@ export default function Page() {
 
   const goToGenerate = (id: string | null = null) => {
     setActiveSessionId(id);
-    router.push("/generate");
+    router.push(id ? `/generate/${encodeURIComponent(id)}` : "/generate");
   };
 
   return (

@@ -29,16 +29,12 @@ export function PromptForm({
 
   const submit = () => {
     setTouched(true);
-    console.log("[PromptForm] submit called", { charCount, isLoading, tooShort });
     if (!trimmed || isLoading || tooShort) {
-      console.log("[PromptForm] submit blocked", { trimmed: !!trimmed, isLoading, tooShort });
       return;
     }
-    console.log("[PromptForm] calling onSubmit →", trimmed);
     onSubmit?.(trimmed);
     setPrompt("");
     setTouched(false);
-    console.log("[PromptForm] prompt cleared, waiting for response…");
   };
 
   return (

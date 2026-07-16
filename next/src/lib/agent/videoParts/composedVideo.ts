@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { callOpenRouter } from "@/lib/agent/ai/openrouter";
+import { callOpenRouter, type OpenRouterOptions, type Usage } from "@/lib/agent/ai/openrouter";
 import {
   generateVideoPart,
   type VideoPartModelCaller,
@@ -55,6 +55,16 @@ export type ComposedVideoResult = {
 export type ComposedVideoDependencies = {
   callModel: ComposedVideoModelCaller;
   onPhase?: (phase: "generating-sections" | "composing") => void;
+  onModelProgress?: (
+    part: "bookends" | "summary" | "main-diagram",
+    progress: { characterCount: number },
+  ) => void;
+  onModelUsage?: (
+    part: "bookends" | "summary" | "main-diagram",
+    usage: Usage,
+  ) => void;
+  onModelComplete?: (part: "bookends" | "summary" | "main-diagram") => void;
+  signal?: AbortSignal;
 };
 
 const DEFAULT_DEPENDENCIES: ComposedVideoDependencies = {
@@ -264,21 +274,48 @@ export async function generateComposedVideo(
     },
   });
 
+  const callForPart = (
+    part: "bookends" | "summary" | "main-diagram",
+  ): ComposedVideoModelCaller => (
+    systemPrompt: string,
+    userPrompt: string,
+    options: OpenRouterOptions = {},
+  ) => {
+    const nextOptions: OpenRouterOptions = { ...options, signal: dependencies.signal };
+    if (dependencies.onModelProgress) nextOptions.onChunk = (chunk) => {
+      options.onChunk?.(chunk);
+      dependencies.onModelProgress?.(part, chunk);
+    };
+    if (dependencies.onModelUsage) nextOptions.onUsage = (usage) => {
+      options.onUsage?.(usage);
+      dependencies.onModelUsage?.(part, usage);
+    };
+    return dependencies.callModel(systemPrompt, userPrompt, nextOptions);
+  };
+
+  const completePart = <T,>(
+    part: "bookends" | "summary" | "main-diagram",
+    promise: Promise<T>,
+  ) => promise.then((value) => {
+    dependencies.onModelComplete?.(part);
+    return value;
+  });
+
   dependencies.onPhase?.("generating-sections");
   const results = await Promise.allSettled([
-    generateBookends(request, visualContext, dependencies.callModel),
-    generateVideoPart({
+    completePart("bookends", generateBookends(request, visualContext, callForPart("bookends"))),
+    completePart("summary", generateVideoPart({
       part: "summary",
       prompt: request.prompt,
       duration: windows.summary.duration,
       visualContext,
-    }, { callModel: dependencies.callModel }),
-    generateVideoPart({
+    }, { callModel: callForPart("summary") })),
+    completePart("main-diagram", generateVideoPart({
       part: "main-diagram",
       prompt: request.prompt,
       duration: windows.main.duration,
       visualContext,
-    }, { callModel: dependencies.callModel }),
+    }, { callModel: callForPart("main-diagram") })),
   ]);
 
   const sectionNames = ["bookends", "summary", "main-diagram"] as const;
