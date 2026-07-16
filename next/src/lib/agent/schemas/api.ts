@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SupportedDurationSchema } from "@/lib/agent/schemas/brief";
+import { SupportedDurationSchema } from "@/lib/others/schemas/duration";
 
 export const GenerateRequestSchema = z.object({
   prompt: z.string().min(1),
@@ -8,13 +8,6 @@ export const GenerateRequestSchema = z.object({
    * Falls back to 5 when omitted.
    */
   duration: SupportedDurationSchema.optional().default(5),
-});
-
-export const ModifyRequestSchema = z.object({
-  sessionId: z.string().min(1),
-  prompt: z.string().min(1),
-  brief: z.unknown().optional(),
-});
+}).strict();
 
 export type GenerateRequest = z.infer<typeof GenerateRequestSchema>;
-export type ModifyRequest = z.infer<typeof ModifyRequestSchema>;

@@ -4,7 +4,7 @@
 // `size` by drawIcon().  Adding a new icon means:
 //   1. Write an `iconXxx(ctx)` function below.
 //   2. Add an entry to ICON_ATLAS.
-//   3. Add the name to IconName in types.ts and ICON_NAMES in schemas/brief.ts.
+//   3. Add the name to IconName in types.ts and the timeline event schema.
 //
 // External interface (the only thing callers need):
 //

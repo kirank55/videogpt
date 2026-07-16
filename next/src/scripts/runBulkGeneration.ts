@@ -1,4 +1,4 @@
-import { runGeneratePipeline } from "../lib/agent/ai/pipeline";
+import { generateComposedVideo } from "../lib/agent/videoParts/composedVideo";
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
@@ -51,20 +51,12 @@ async function main() {
   // 1. Run AI generation pipeline
   console.log(`1. Running AI pipeline (OpenRouter) for prompt ${idx}...`);
   const start = Date.now();
-  const result = await runGeneratePipeline(prompt, duration);
+  const result = await generateComposedVideo({ prompt, duration });
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`   Pipeline done in ${elapsed}s`);
 
-  const { brief, project, diagnostics } = result;
-  if (diagnostics.llmError) {
-    console.error(`❌ LLM Generation error: ${diagnostics.llmError}`);
-    process.exit(1);
-  }
-
-  console.log(
-    `   Brief: "${brief.title}" | Scenes: ${brief.scenes.length} ` +
-    `(${brief.scenes.map((scene) => scene.diagramLayout).join(", ")})`,
-  );
+  const { project } = result;
+  console.log(`   Project: "${result.projectName}" | Events: ${project.events.length}`);
 
   // Write temporary project js data to public folder
   console.log("2. Writing temporary project js data to public folder...");
@@ -97,7 +89,7 @@ async function main() {
 
   // Also write project.json in output directory
   fs.writeFileSync(path.join(outDir, "project.json"), JSON.stringify(project, null, 2));
-  fs.writeFileSync(path.join(outDir, "brief.json"), JSON.stringify(brief, null, 2));
+  fs.writeFileSync(path.join(outDir, "generation.json"), JSON.stringify(result, null, 2));
 
   // Flush file write wait
   await sleep(500);

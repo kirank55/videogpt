@@ -5,7 +5,7 @@ export default function DevSummaryGeneratePage() {
     <VideoPartGeneratePage
       part="summary"
       title="Dev — Summary Generator"
-      description="Generate and preview only the compact visual summary: its heading, supporting blocks, and context graph."
+      description="Generate and preview a compact LLM-authored summary timeline. It introduces the topic without expanding into the main mechanism."
     />
   );
 }

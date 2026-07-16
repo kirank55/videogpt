@@ -1,120 +1,151 @@
 import { create } from "zustand";
-import type { ChatMessage, Session } from "@/types/generate";
+import type {
+  ChatMessage,
+  GenerationOperation,
+  GenerationPart,
+  Session,
+} from "@/types/generate";
 import { persistToStorage } from "./persistence";
 import type { PersistedState } from "./persistence";
-import { callApi, callApiStream, buildAssistantMessage, applySuccess, applyError } from "./apiClient";
-import type { StreamCallbacks } from "./apiClient";
-import { createSession, createUserMessage } from "./factories";
+import {
+  applyError,
+  applySuccess,
+  buildAssistantMessage,
+  callApiStream,
+  type StreamCallbacks,
+} from "./apiClient";
+import { createSession } from "./factories";
+import { generateId } from "./ids";
 
-// ── Private helpers ───────────────────────────────────────────────────────────
+const GENERATION_PARTS: GenerationPart[] = ["bookends", "summary", "main-diagram"];
 
-/** Immutably update messages for a single session. */
+function createOperation(): GenerationOperation {
+  return {
+    requestId: generateId("request"),
+    status: "connecting",
+    parts: Object.fromEntries(GENERATION_PARTS.map((part) => [part, {
+      status: "waiting",
+      characterCount: 0,
+      estimatedTokens: 0,
+    }])) as GenerationOperation["parts"],
+    characterCount: 0,
+    estimatedTokens: 0,
+  };
+}
+
 function updateSessionMessages(
   sessions: Session[],
   sessionId: string,
   updater: (messages: ChatMessage[]) => ChatMessage[],
 ): Session[] {
-  return sessions.map((s) =>
-    s.id === sessionId ? { ...s, messages: updater(s.messages) } : s,
+  return sessions.map((session) =>
+    session.id === sessionId ? { ...session, messages: updater(session.messages) } : session
   );
 }
 
-// ── Store interface ───────────────────────────────────────────────────────────
+function isGenerating(operation: GenerationOperation | undefined): boolean {
+  return operation?.status === "connecting"
+    || operation?.status === "generating"
+    || operation?.status === "composing";
+}
 
 interface StoreState {
   sessions: Session[];
   activeSessionId: string | null;
   prompt: string;
   duration: number;
-  error: string | null;
-  isLoading: boolean;
-  /** Live token count while an LLM stream is in progress. */
-  streamingTokenCount: number;
-  /** Live character count while an LLM stream is in progress. */
-  streamingCharCount: number;
-  /** Current pipeline phase while loading (e.g. "calling-openrouter"). */
-  loadingPhase: string | null;
-  /** Auto-retry attempt count (0 = none yet, 1..MAX_RETRIES = in progress). */
-  retryCount: number;
-
-  // Setters
+  operations: Record<string, GenerationOperation>;
+  hasHydrated: boolean;
   setPrompt: (prompt: string) => void;
   setDuration: (duration: number) => void;
-  clearError: () => void;
   setActiveSessionId: (id: string | null) => void;
-
-  // Actions
-  submitInitialPrompt: (prompt: string) => Promise<void>;
-  submitModifyPrompt: (sessionId: string, prompt: string) => Promise<void>;
+  submitInitialPrompt: (prompt: string) => string;
   retryPrompt: (sessionId: string) => Promise<void>;
   deleteSession: (id: string) => void;
-  /** Called once on mount by HydrateStore to restore persisted state. */
   hydrate: (persisted: Partial<PersistedState>) => void;
+  finishHydration: () => void;
 }
 
-// ── Store factory ─────────────────────────────────────────────────────────────
-
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 2000;
-
 export const useStore = create<StoreState>((set, get) => {
-  // ── Internal streaming helpers (shared by submitInitialPrompt & submitModifyPrompt) ──
-
-  const startStreamingUI = () =>
-    set({
-      isLoading: true,
-      error: null,
-      streamingTokenCount: 0,
-      streamingCharCount: 0,
-      loadingPhase: null,
-      retryCount: 0,
-    });
-
-  /**
-   * Build stream callbacks bound to a specific endpoint + body. The callbacks
-   * own the auto-retry policy: on error, if retryCount < MAX_RETRIES, they wait
-   * RETRY_DELAY_MS and re-fire callApiStream with the same args. After
-   * MAX_RETRIES failures, the error is surfaced as a chat message with a
-   * manual retry button.
-   */
-  const makeStreamCallbacks = (
-    endpoint: string,
-    body: Record<string, unknown>,
+  const updateOperation = (
     sessionId: string,
-    successMessage: string,
-  ): StreamCallbacks => {
-    const callbacks: StreamCallbacks = {
-      onPhase: (phase) => {
-        set({ loadingPhase: phase });
+    updater: (operation: GenerationOperation) => GenerationOperation,
+  ) => set((state) => {
+    const current = state.operations[sessionId];
+    if (!current) return state;
+    return { operations: { ...state.operations, [sessionId]: updater(current) } };
+  });
+
+  const callbacksFor = (sessionId: string): StreamCallbacks => ({
+    onStarted: (requestId) => updateOperation(sessionId, (operation) => ({
+      ...operation,
+      requestId: requestId || operation.requestId,
+      status: "generating",
+    })),
+    onPhase: (phase) => updateOperation(sessionId, (operation) => ({
+      ...operation,
+      status: phase === "composing" ? "composing" : "generating",
+    })),
+    onProgress: ({ part, characterCount, estimatedTokens, completionTokens }) => {
+      updateOperation(sessionId, (operation) => {
+        const parts = {
+          ...operation.parts,
+          [part]: {
+            ...operation.parts[part],
+            status: "streaming" as const,
+            characterCount,
+            estimatedTokens,
+            ...(completionTokens === undefined ? {} : { completionTokens }),
+          },
+        };
+        const values = Object.values(parts);
+        return {
+          ...operation,
+          status: "generating",
+          parts,
+          characterCount: values.reduce((total, value) => total + value.characterCount, 0),
+          estimatedTokens: values.reduce((total, value) => total + value.estimatedTokens, 0),
+          completionTokens: values.some((value) => value.completionTokens !== undefined)
+            ? values.reduce((total, value) => total + (value.completionTokens ?? 0), 0)
+            : undefined,
+        };
+      });
+    },
+    onPartComplete: (part, completionTokens) => updateOperation(sessionId, (operation) => ({
+      ...operation,
+      parts: {
+        ...operation.parts,
+        [part]: {
+          ...operation.parts[part],
+          status: "complete",
+          ...(completionTokens === undefined ? {} : { completionTokens }),
+        },
       },
-      onChunk: (tokenCount, charCount) => {
-        set({ streamingTokenCount: tokenCount, streamingCharCount: charCount });
-      },
-      onDone: (data) => {
-        set({ streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null, retryCount: 0 });
-        applySuccess(set, sessionId, buildAssistantMessage(data, successMessage), data);
-      },
-      onError: (message) => {
-        const current = get().retryCount;
-        if (current < MAX_RETRIES) {
-          const next = current + 1;
-          set({
-            retryCount: next,
-            streamingTokenCount: 0,
-            streamingCharCount: 0,
-            loadingPhase: "retrying",
-          });
-          console.warn(`[store] Auto-retry ${next}/${MAX_RETRIES} in ${RETRY_DELAY_MS}ms: ${message}`);
-          setTimeout(() => {
-            callApiStream(endpoint, body, callbacks);
-          }, RETRY_DELAY_MS);
-        } else {
-          set({ streamingTokenCount: 0, streamingCharCount: 0, loadingPhase: null, retryCount: 0 });
-          applyError(set, sessionId, message);
-        }
-      },
-    };
-    return callbacks;
+    })),
+    onDone: (data) => {
+      applySuccess(
+        set,
+        sessionId,
+        buildAssistantMessage(data, "Project generated successfully."),
+        data,
+      );
+      updateOperation(sessionId, (operation) => ({ ...operation, status: "succeeded" }));
+    },
+    onError: (message) => {
+      applyError(set, sessionId, message);
+      updateOperation(sessionId, (operation) => ({ ...operation, status: "failed", error: message }));
+    },
+  });
+
+  const startGeneration = (sessionId: string, prompt: string, duration: number) => {
+    set((state) => ({
+      operations: { ...state.operations, [sessionId]: createOperation() },
+    }));
+    void callApiStream(
+      "/api/generate",
+      { prompt, duration },
+      callbacksFor(sessionId),
+    );
   };
 
   return {
@@ -122,119 +153,81 @@ export const useStore = create<StoreState>((set, get) => {
     activeSessionId: null,
     prompt: "",
     duration: 5,
-    error: null,
-    isLoading: false,
-    streamingTokenCount: 0,
-    streamingCharCount: 0,
-    loadingPhase: null,
-    retryCount: 0,
-
+    operations: {},
+    hasHydrated: false,
     setPrompt: (prompt) => set({ prompt }),
     setDuration: (duration) => set({ duration }),
-    clearError: () => set({ error: null }),
     setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
 
-    submitInitialPrompt: async (prompt) => {
+    submitInitialPrompt: (prompt) => {
       const { duration } = get();
-      startStreamingUI();
-
-      const { session: newSession, sessionId } = createSession(prompt);
+      const { session, sessionId } = createSession(prompt, duration);
       set((state) => ({
-        sessions: [newSession, ...state.sessions],
+        sessions: [session, ...state.sessions],
         activeSessionId: sessionId,
       }));
-
-      const body = { prompt, duration };
-      await callApiStream(
-        "/api/generate",
-        body,
-        makeStreamCallbacks("/api/generate", body, sessionId, "Project generated successfully."),
-      );
-    },
-
-    submitModifyPrompt: async (sessionId, prompt) => {
-      startStreamingUI();
-
-      const userMsg = createUserMessage(prompt);
-      set((state) => ({
-        sessions: updateSessionMessages(state.sessions, sessionId, (msgs) => [...msgs, userMsg]),
-      }));
-
-      const session = get().sessions.find((s) => s.id === sessionId);
-      const body = { sessionId, prompt, brief: session?.brief };
-      await callApiStream(
-        "/api/modify",
-        body,
-        makeStreamCallbacks("/api/modify", body, sessionId, "Project modified successfully."),
-      );
+      startGeneration(sessionId, prompt, duration);
+      return sessionId;
     },
 
     retryPrompt: async (sessionId) => {
-      const { duration } = get();
-      const session = get().sessions.find((s) => s.id === sessionId);
-      if (!session) return;
+      const state = get();
+      const session = state.sessions.find((candidate) => candidate.id === sessionId);
+      if (!session || session.messages.length < 2 || isGenerating(state.operations[sessionId])) return;
+      const lastMessage = session.messages.at(-1);
+      const userMessage = session.messages.at(-2);
+      if (!lastMessage?.isError || userMessage?.role !== "user") return;
 
-      const { messages } = session;
-      if (messages.length < 2) return;
-
-      const lastMsg = messages[messages.length - 1];
-      if (!lastMsg.isError) return;
-
-      const userMsg = messages[messages.length - 2];
-      if (userMsg.role !== "user") return;
-
-      const userPrompt = userMsg.content;
-
-      // Remove the error message, then retry (manual retry resets retryCount)
-      set((state) => ({
-        sessions: updateSessionMessages(state.sessions, sessionId, (msgs) => msgs.slice(0, -1)),
-        isLoading: true,
-        error: null,
-        loadingPhase: null,
-        retryCount: 0,
+      set((current) => ({
+        sessions: updateSessionMessages(
+          current.sessions,
+          sessionId,
+          (messages) => messages.slice(0, -1),
+        ),
       }));
-
-      try {
-        const data = session.brief
-          ? await callApi("/api/modify", { sessionId, prompt: userPrompt, brief: session.brief })
-          : await callApi("/api/generate", { prompt: userPrompt, duration });
-
-        const fallback = session.brief ? "Project modified successfully." : "Project generated successfully.";
-        applySuccess(set, sessionId, buildAssistantMessage(data, fallback), data);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        applyError(set, sessionId, message);
-      }
+      startGeneration(sessionId, userMessage.content, session.duration);
     },
 
-    deleteSession: (id) => {
-      set((state) => ({
-        sessions: state.sessions.filter((s) => s.id !== id),
+    deleteSession: (id) => set((state) => {
+      const operations = { ...state.operations };
+      delete operations[id];
+      return {
+        sessions: state.sessions.filter((session) => session.id !== id),
         activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
+        operations,
+      };
+    }),
+
+    hydrate: (persisted) => set((state) => {
+      const sanitizedSessions: Session[] = (persisted.sessions ?? []).map((session) => ({
+        id: session.id,
+        name: session.name,
+        duration: session.duration ?? persisted.duration ?? state.duration,
+        project: session.project,
+        updatedAt: session.updatedAt,
+        messages: session.messages.map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          project: message.project,
+          isError: message.isError,
+          createdAt: message.createdAt,
+        })),
       }));
-    },
-
-    hydrate: (persisted) => {
-      set((state) => {
-        // Persisted sessions take priority; state.sessions fill in any gaps
-        const sessionMap = new Map(
-          [...(persisted.sessions ?? []), ...state.sessions].map((s) => [s.id, s]),
-        );
-
-        return {
-          sessions: [...sessionMap.values()],
-          activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
-          duration: persisted.duration ?? state.duration,
-        };
-      });
-    },
+      const sessionMap = new Map(
+        [...sanitizedSessions, ...state.sessions].map((session) => [session.id, session]),
+      );
+      return {
+        sessions: [...sessionMap.values()],
+        activeSessionId: persisted.activeSessionId ?? state.activeSessionId,
+        duration: persisted.duration ?? state.duration,
+        hasHydrated: true,
+      };
+    }),
+    finishHydration: () => set({ hasHydrated: true }),
   };
 });
 
-// ── Auto-persist after every state change ────────────────────────────────────
-// Subscribe outside the store factory so we have access to the created store.
-// Only the serialisable slice is written; functions and transient flags are
-// intentionally excluded.
 useStore.subscribe((state) => {
   persistToStorage({
     sessions: state.sessions,

@@ -64,7 +64,7 @@ describe("dev project diagnostics", () => {
     });
   });
 
-  it("returns undefined for brief-authored content", () => {
-    expect(directTimelineDiagnostics({ title: "A brief", scenes: [] }, undefined)).toBeUndefined();
+  it("returns undefined for unsupported authored content", () => {
+    expect(directTimelineDiagnostics({ title: "Unsupported", scenes: [] }, undefined)).toBeUndefined();
   });
 });

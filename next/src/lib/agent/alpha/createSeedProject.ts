@@ -1,54 +1,55 @@
-import { buildProjectFromBrief } from "@/lib/agent/brief/buildProjectFromBrief";
-import { resolveDuration, type VideoBrief } from "@/lib/agent/schemas/brief";
+import { resolveDuration } from "@/lib/others/schemas/duration";
 import type { VideoProject } from "@/lib/ui/renderer";
 
 export function createSeedProject(name: string, duration: number): VideoProject {
   const safeDuration = resolveDuration(duration);
-  const brief: VideoBrief = {
-    title: name,
-    subtitle: "Generated with VideoGPT",
-    closingLine: "Ready to iterate.",
-    palette: "midnight",
-    style: "modern",
-    particleIntensity: 1,
-    scenes: [
+  return {
+    id: `seed-${safeDuration}`,
+    name,
+    width: 1920,
+    height: 1080,
+    duration: safeDuration,
+    events: [
       {
-        heading: "Prompt to Timeline",
-        diagramScript: {
-          summary: "Show the app pipeline from prompt to rendered timeline.",
-          beats: ["Prompt", "Brief", "Render"],
-          visualStory: "A prompt becomes a structured scene brief, then expands into renderable timeline events.",
-          mustShow: ["Prompt", "Scene Brief", "Timeline"],
-        },
-        diagramIntent: {
-          family: "graph-flow",
-          subject: "VideoGPT generation pipeline",
-          signatureVisuals: ["Prompt", "Scene Brief", "Timeline"],
-          motionCues: ["author", "expand"],
-        },
-        diagramLayout: "pipeline",
-        blocks: [
-          { heading: "Prompt", description: "A user asks for a visual explanation.", icon: "browser" },
-          { heading: "Brief", description: "The AI writes a structured scene brief.", icon: "code" },
-          { heading: "Render", description: "The expander turns it into animated events.", icon: "app" },
-        ],
-        graph: {
-          nodes: [
-            { id: "prompt", label: "Prompt", icon: "browser" },
-            { id: "brief", label: "Scene Brief", icon: "code" },
-            { id: "timeline", label: "Timeline", icon: "app" },
-          ],
-          edges: [
-            { from: "prompt", to: "brief", label: "author", animated: true },
-            { from: "brief", to: "timeline", label: "expand", animated: true },
-          ],
-        },
-        entryAnimation: "slide-up",
-        blockStyle: "cards",
-        transition: "fade",
+        id: "background",
+        type: "background",
+        start: 0,
+        end: safeDuration,
+        layer: 0,
+        background: { kind: "gradient", from: "#010a15", to: "#061020", angle: 150 },
+      },
+      {
+        id: "title",
+        type: "text",
+        start: 0,
+        end: safeDuration,
+        layer: 8,
+        text: name,
+        x: 960,
+        y: 430,
+        maxWidth: 1500,
+        color: "#f8fafc",
+        fontSize: 68,
+        fontWeight: 800,
+        align: "center",
+        opacity: { from: 0, to: 1, easing: "easeOut" },
+      },
+      {
+        id: "direct-timeline",
+        type: "text",
+        start: 0.2,
+        end: safeDuration,
+        layer: 8,
+        text: "Prompt to direct animated timeline",
+        x: 960,
+        y: 550,
+        maxWidth: 1100,
+        color: "rgb(148 163 184 / 0.85)",
+        fontSize: 32,
+        fontWeight: 600,
+        align: "center",
+        opacity: { from: 0, to: 1, easing: "easeOut" },
       },
     ],
   };
-
-  return buildProjectFromBrief(brief, safeDuration);
 }

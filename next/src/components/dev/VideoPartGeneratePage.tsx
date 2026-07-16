@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { PromptForm } from "@/components/generate/PromptForm";
 import { TopBar } from "@/components/layout/TopBar";
 import { PlayerCard } from "@/components/player";
-import type { SupportedDuration } from "@/lib/agent/schemas/brief";
+import type { SupportedDuration } from "@/lib/others/schemas/duration";
 import type {
   GenerateVideoPartResponse,
   VideoPartKind,

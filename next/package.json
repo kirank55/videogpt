@@ -9,10 +9,6 @@
     "lint": "eslint",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "analyze": "tsx --tsconfig tsconfig.scripts.json src/scripts/analyzeProject.ts",
-    "analyze:demo": "tsx --tsconfig tsconfig.scripts.json src/scripts/analyzeProject.ts --project demo",
-    "eval": "tsx --env-file=.env.local --tsconfig tsconfig.scripts.json src/scripts/evalPrompts.ts",
-    "eval:fast": "tsx --env-file=.env.local --tsconfig tsconfig.scripts.json src/scripts/evalPrompts.ts --fast",
     "diag": "tsx --env-file=.env.local --tsconfig tsconfig.scripts.json src/scripts/diagPipeline.ts"
   },
   "dependencies": {

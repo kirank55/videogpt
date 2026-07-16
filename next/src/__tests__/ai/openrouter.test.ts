@@ -47,4 +47,45 @@ describe("OpenRouter structured-output failures", () => {
       finishReason: "length",
     });
   });
+
+  it("requires one configured model instead of trying provider fallbacks", async () => {
+    delete process.env.DEFAULT_MODEL;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(callOpenRouter("system", "user")).rejects.toThrow("DEFAULT_MODEL");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("streams structured output chunks and parses the accumulated JSON", async () => {
+    const stream = [
+      'data: {"choices":[{"delta":{"content":"{\\"title\\":"},"finish_reason":null}]}',
+      ': OPENROUTER PROCESSING',
+      'data: {"choices":[{"delta":{"content":"\\"Dam\\"}"},"finish_reason":"stop"}]}',
+      'data: {"choices":[],"usage":{"prompt_tokens":20,"completion_tokens":4,"total_tokens":24}}',
+      "data: [DONE]",
+      "",
+    ].join("\n\n");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(stream, { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const onChunk = vi.fn();
+    const onUsage = vi.fn();
+
+    await expect(callOpenRouter("system", "user", { onChunk, onUsage })).resolves.toEqual({ title: "Dam" });
+
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toMatchObject({ stream: true });
+    expect(onChunk).toHaveBeenCalledTimes(2);
+    expect(onUsage).toHaveBeenCalledWith(expect.objectContaining({ completion_tokens: 4 }));
+  });
+
+  it("surfaces provider errors embedded in a successful HTTP stream", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      'data: {"error":{"message":"provider disconnected"},"choices":[{"delta":{},"finish_reason":"error"}]}\n\n',
+      { status: 200 },
+    )));
+
+    await expect(callOpenRouter("system", "user", { onChunk: vi.fn() }))
+      .rejects.toThrow("provider disconnected");
+  });
 });
