@@ -56,7 +56,7 @@ export function PromptForm({
         id="prompt-input"
         value={prompt}
         rows={2}
-        placeholder="Describe a scene, a mood, or a motion sequence..."
+        placeholder="Describe the topic or mechanism you want explained..."
         className={`min-h-20 w-full resize-none rounded-2xl border bg-surface px-4 py-3 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground focus:ring-1 ${showError
           ? "border-rose-500/60 focus:border-rose-500/60 focus:ring-rose-500/20"
           : "border-border focus:border-amber-500/60 focus:ring-amber-500/20"

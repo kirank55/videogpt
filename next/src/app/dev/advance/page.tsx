@@ -1,755 +1,181 @@
 "use client";
 
-import { useEffect, useRef, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useStore } from "@/lib/ui/store";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
-import { renderProjectFrame, type VideoProject } from "@/lib/ui/renderer";
-import { visibleEvents } from "@/lib/ui/renderer/visibleEvents";
+import {
+  renderProjectFrame,
+  type VideoProject,
+} from "@/lib/ui/renderer";
 import {
   loadDevGeneratedProjects,
   type DevGeneratedProject,
 } from "@/lib/ui/devGeneratedProjects";
 import { directTimelineDiagnostics } from "@/lib/ui/devProjectDiagnostics";
+import { useStore } from "@/lib/ui/store";
 
-type DiagnosticEdge = {
-  animated?: boolean;
-};
-
-type DiagnosticScene = {
-  sceneWeight?: number;
-  entryAnimation?: string;
-  emphasizeIndex?: number;
-  blockStyle?: string;
-  diagramLayout?: string;
-  graph?: {
-    nodes?: unknown[];
-    edges?: DiagnosticEdge[];
-  };
-};
-
-type DiagnosticBrief = {
-  title?: string;
-  titleSize?: string;
-  titleAlign?: string;
-  palette?: string;
-  style?: string;
-  scenes?: DiagnosticScene[];
-};
-
-// ── Frame Thumbnail Component ────────────────────────────────────────────────
-function FrameThumbnail({
-  project,
-  time,
-  onClick,
-  active,
-}: {
-  project: VideoProject;
-  time: number;
-  onClick: () => void;
-  active: boolean;
-}) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
+function FramePreview({ project, time }: { project: VideoProject; time: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      {
-        rootMargin: "200px",
-      }
-    );
-
-    observer.observe(canvas);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !project || !isVisible) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    // Clear and render static frame at specific timestamp
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    renderProjectFrame(ctx, project, time);
-  }, [project, time, isVisible]);
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    renderProjectFrame(context, project, time);
+  }, [project, time]);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`group flex flex-col gap-1.5 p-2 rounded-xl border text-left transition-all cursor-pointer ${active
-          ? "border-foreground bg-foreground/5 shadow-sm font-semibold"
-          : "border-border hover:border-foreground/30 hover:bg-foreground/1"
-        }`}
-    >
-      <span className="text-[10px] font-mono text-muted-foreground group-hover:text-foreground">
-        {time.toFixed(2)}s
-      </span>
-      <div className="aspect-video w-full rounded-lg overflow-hidden border border-border/60 bg-black/10">
-        <canvas
-          ref={canvasRef}
-          width={project.width || 800}
-          height={project.height || 450}
-          className="w-full h-full object-cover"
-        />
-      </div>
-    </button>
+    <canvas
+      ref={canvasRef}
+      width={project.width}
+      height={project.height}
+      className="aspect-video w-full rounded-xl border border-border bg-black"
+    />
   );
 }
 
-// ── Interactive Rendering Explanation Component ────────────────────────────────
-function RenderingExplanation({
-  brief,
-  project,
-  authoredContent,
-}: {
-  brief: DiagnosticBrief | undefined;
-  project: VideoProject | undefined;
-  authoredContent: unknown;
-}) {
-  const direct = directTimelineDiagnostics(authoredContent, project);
-  if (direct) {
-    return (
-      <div className="flex-1 space-y-6 overflow-y-auto pr-1 text-xs text-muted-foreground select-text">
-        <div className="space-y-2 rounded-xl border border-border/60 bg-foreground/1 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-bold text-foreground">Direct Timeline Renderer</span>
-            <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-violet-400">
-              LLM Authored
-            </span>
-          </div>
-          <p className="text-[11px] leading-relaxed">
-            The LLM authored the visible coordinates, layers, colors, timing, and animation directly. The Brief Expander and diagram layout modules were bypassed.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Visual Intent</h4>
-          <div className="rounded-xl border border-border/60 bg-background/30 p-4">
-            <p className="font-semibold text-foreground">{direct.name}</p>
-            <p className="mt-1.5 text-[11px] leading-relaxed">{direct.visualIntent}</p>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Authored Events</h4>
-          <div className="grid grid-cols-4 gap-2 font-mono text-[10px]">
-            {Object.entries(direct.eventTypeCounts).map(([type, count]) => (
-              <div key={type} className="rounded-lg border border-border/50 bg-background/40 p-3 text-center">
-                <div className="text-lg font-bold text-foreground">{count}</div>
-                <div className="mt-1 uppercase tracking-wider">{type}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Timeline and Layers</h4>
-          <div className="rounded-xl border border-border/60 bg-background/30 p-4 font-mono text-[11px]">
-            <div className="flex justify-between gap-4 border-b border-border/40 pb-2">
-              <span>Event count</span>
-              <span className="font-bold text-foreground">{direct.eventCount}</span>
-            </div>
-            <div className="flex justify-between gap-4 border-b border-border/40 py-2">
-              <span>Active range</span>
-              <span className="font-bold text-foreground">{direct.timelineStart.toFixed(1)}s – {direct.timelineEnd.toFixed(1)}s</span>
-            </div>
-            <div className="flex justify-between gap-4 pt-2">
-              <span>Used layers</span>
-              <span className="font-bold text-foreground">{direct.layers.join(", ")}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!brief || !project) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center text-muted-foreground italic text-xs">
-        No diagnostics or compiled project structure available.
-      </div>
-    );
-  }
-
-  const scenes = Array.isArray(brief.scenes) ? brief.scenes : [];
-  const firstScene = scenes[0] ?? {};
-  const graphNodeCount = scenes.reduce((sum, scene) => sum + (scene.graph?.nodes?.length ?? 0), 0);
-  const graphEdgeCount = scenes.reduce((sum, scene) => sum + (scene.graph?.edges?.length ?? 0), 0);
-  const animatedEdgeCount = scenes.reduce(
-    (sum, scene) => sum + (scene.graph?.edges?.filter((edge) => edge.animated).length ?? 0),
-    0,
-  );
-
-  const getEventTiming = (idPrefix: string) => {
-    const ev = project.events.find((e) => e.id === idPrefix || e.id.startsWith(idPrefix));
-    if (!ev) return "Inactive";
-    return `${ev.start.toFixed(1)}s – ${ev.end.toFixed(1)}s`;
-  };
-
-  return (
-    <div className="flex-1 overflow-y-auto pr-1 space-y-6 text-xs text-muted-foreground select-text">
-      {/* Overview Banner */}
-      <div className="p-4 rounded-xl border border-border/60 bg-foreground/1 space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="font-bold text-foreground text-sm">Brief Expansion Engine</span>
-          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            Graph
-          </span>
-        </div>
-        <p className="text-[11px] leading-relaxed">
-          The layout is dynamically generated by translating high-level, creative parameters from the AI Brief into pixel coordinates and absolute timestamps. Creative decisions are driven entirely by the AI.
-        </p>
-      </div>
-
-      {/* Timeline Breakdown */}
-      <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Timeline Sections</h4>
-        <p className="text-[11px] leading-relaxed">
-          Scene weights <code className="bg-background px-1.5 py-0.5 rounded font-mono text-foreground">{JSON.stringify(scenes.map((scene) => scene.sceneWeight ?? 1))}</code> distribute the generated scenes. Active time-ranges are extracted from compiled elements:
-        </p>
-        <div className="grid grid-cols-5 gap-1.5 font-mono text-[9px]">
-          <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Title</span>
-            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("title")}</span>
-          </div>
-          <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Scene</span>
-            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("scene-0-heading")}</span>
-          </div>
-          <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Edges</span>
-            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("scene-0-edge-")}</span>
-          </div>
-          <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Packets</span>
-            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("scene-0-packet-")}</span>
-          </div>
-          <div className="p-2.5 bg-background border border-border/40 rounded-lg text-center flex flex-col justify-between min-h-[60px]">
-            <span className="font-bold text-foreground">Closing</span>
-            <span className="text-[9px] text-muted-foreground/80 mt-1 bg-foreground/3 rounded py-0.5">{getEventTiming("closing-line")}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Layer Stack Hierarchy */}
-      <div className="space-y-3">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">Canvas Layer Hierarchy</h4>
-        <div className="space-y-1 bg-background/40 p-2 rounded-xl border border-border/40 font-mono text-[9px]">
-          <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
-            <span className="text-foreground font-semibold">Layer 5 (Top): Text & Labels</span>
-            <span>Title, scene headings, graph labels, outro</span>
-          </div>
-          <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
-            <span className="text-foreground font-semibold">Layer 4: Tech Icons & Badges</span>
-            <span>Node icons, packet badges, highlighted details</span>
-          </div>
-          <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
-            <span className="text-foreground font-semibold">Layer 3: Active Packets & Rings</span>
-            <span>Path-animated packets and emphasized graph shapes</span>
-          </div>
-          <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
-            <span className="text-foreground font-semibold">Layer 2: Graph Structure</span>
-            <span>Node backgrounds, edge lines, block connectors</span>
-          </div>
-          <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
-            <span className="text-foreground font-semibold">Layer 1: Accent Lines & Particles</span>
-            <span>Ambient particle systems and global accents</span>
-          </div>
-          <div className="p-1.5 bg-foreground/5 rounded border border-border/20 flex justify-between">
-            <span className="text-foreground font-semibold">Layer 0 (Base): Background Canvas</span>
-            <span>Vibrant Solid or Gradient color fill</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Attribute Mapping Table */}
-      <div className="space-y-2">
-        <h4 className="text-[10px] font-bold uppercase tracking-wider text-foreground">AI Parameter Mapping Specifications</h4>
-        <div className="border border-border/60 rounded-xl overflow-hidden bg-background/30">
-          <table className="w-full text-left border-collapse text-[11px]">
-            <thead>
-              <tr className="border-b border-border/65 bg-background/60 text-foreground font-bold">
-                <th className="p-2">Property</th>
-                <th className="p-2 w-1/3">Current Brief Value</th>
-                <th className="p-2">Canvas Compilation & Drawing Rules</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/40 font-normal">
-              <tr className="hover:bg-foreground/1">
-                <td className="p-2 font-mono font-semibold text-foreground">title</td>
-                <td className="p-2 italic text-foreground">{JSON.stringify(brief.title ?? "")}</td>
-                <td className="p-2 leading-relaxed">
-                  Drawn on Layer 5 (ID: <code className="bg-background px-1 rounded text-foreground font-mono">title</code>). Formatted using sizing directive <code className="bg-background px-1 rounded font-mono">{brief.titleSize || "large"}</code> and aligned <code className="bg-background px-1 rounded font-mono">{brief.titleAlign || "left"}</code>.
-                </td>
-              </tr>
-              <tr className="hover:bg-foreground/1">
-                <td className="p-2 font-mono font-semibold text-foreground">palette</td>
-                <td className="p-2 font-mono text-foreground">{JSON.stringify(brief.palette ?? "")}</td>
-                <td className="p-2 leading-relaxed">
-                  Resolves background fills (Layer 0 ID: <code className="bg-background px-1 rounded text-foreground font-mono">bg</code>) and shapes styling via accent & surface values. Injected overrides are applied to accents or panels dynamically.
-                </td>
-              </tr>
-              <tr className="hover:bg-foreground/1">
-                <td className="p-2 font-mono font-semibold text-foreground">style</td>
-                <td className="p-2 font-mono text-foreground">{JSON.stringify(brief.style ?? "")}</td>
-                <td className="p-2 leading-relaxed">
-                  Governs border radius, outline thicknesses, line dashed segments, and default easing functions.
-                </td>
-              </tr>
-              <tr className="hover:bg-foreground/1">
-                <td className="p-2 font-mono font-semibold text-foreground">entryAnimation</td>
-                <td className="p-2 font-mono text-foreground">{JSON.stringify(firstScene.entryAnimation || "slide-up")}</td>
-                <td className="p-2 leading-relaxed">
-                  Drives translation vectors (e.g. translateY or scale bounce) from start position to final canvas layout configuration.
-                </td>
-              </tr>
-              {graphNodeCount >= 0 ? (
-                <>
-                  <tr className="hover:bg-foreground/1">
-                    <td className="p-2 font-mono font-semibold text-foreground">graph.nodes</td>
-                    <td className="p-2 leading-relaxed text-foreground">
-                      <div>{graphNodeCount} nodes</div>
-                      <div className="mt-1">{graphEdgeCount} edges</div>
-                    </td>
-                    <td className="p-2 leading-relaxed">
-                      Nodes compile into rectangles, icons, and labels. Edges compile into connector lines.
-                    </td>
-                  </tr>
-                  <tr className="hover:bg-foreground/1">
-                    <td className="p-2 font-mono font-semibold text-foreground">emphasizeIndex</td>
-                    <td className="p-2 font-mono text-foreground">
-                      {firstScene.emphasizeIndex ?? 0}
-                    </td>
-                    <td className="p-2 leading-relaxed">
-                      Indexes receive highlight focus: accent colors, thicker borders (1.5x), and glow shadow blurs.
-                    </td>
-                  </tr>
-                  <tr className="hover:bg-foreground/1">
-                    <td className="p-2 font-mono font-semibold text-foreground">animatedEdges</td>
-                    <td className="p-2 font-mono text-foreground font-semibold">
-                      {animatedEdgeCount}
-                    </td>
-                    <td className="p-2 leading-relaxed">
-                      {animatedEdgeCount > 0 ? (
-                        <span>
-                          Emits packet shapes that travel along animated graph edges.
-                        </span>
-                      ) : (
-                        <span>Static graph edges display without packet events.</span>
-                      )}
-                    </td>
-                  </tr>
-                </>
-              ) : (
-                <>
-                  <tr className="hover:bg-foreground/1">
-                    <td className="p-2 font-mono font-semibold text-foreground">scenes</td>
-                    <td className="p-2 text-foreground">
-                      {scenes.length} scene{scenes.length === 1 ? "" : "s"}
-                    </td>
-                    <td className="p-2 leading-relaxed">
-                      Scenes contain content blocks plus graph diagrams.
-                    </td>
-                  </tr>
-                  <tr className="hover:bg-foreground/1">
-                    <td className="p-2 font-mono font-semibold text-foreground">blockStyle</td>
-                    <td className="p-2 font-mono text-foreground">{JSON.stringify(firstScene.blockStyle || "cards")}</td>
-                    <td className="p-2 leading-relaxed">
-                      Determines outline card bounds (<code className="bg-background px-1 rounded text-foreground font-mono">cards</code>), vertical dots (<code className="bg-background px-1 rounded text-foreground font-mono">timeline</code>), or serial counts (<code className="bg-background px-1 rounded text-foreground font-mono">numbered</code>).
-                    </td>
-                  </tr>
-                </>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Advanced Mode Diagnostics Workspace ───────────────────────────────────────
-function AdvanceWorkspace() {
-  const router = useRouter();
+function DirectTimelineInspector() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const sessions = useStore((state) => state.sessions);
+  const partId = searchParams.get("partId");
   const sessionId = searchParams.get("sessionId");
   const messageId = searchParams.get("messageId");
-  const partId = searchParams.get("partId");
+  const [partRecord] = useState<DevGeneratedProject | undefined>(() => (
+    partId
+      ? loadDevGeneratedProjects().find((item) => item.id === partId)
+      : undefined
+  ));
+  const [time, setTime] = useState(0);
 
-  const sessions = useStore((s) => s.sessions);
-  const activeSessionId = useStore((s) => s.activeSessionId);
-  const [partRecord, setPartRecord] = useState<DevGeneratedProject | null>(null);
+  const message = useMemo(() => {
+    if (!sessionId || !messageId) return undefined;
+    return sessions
+      .find((session) => session.id === sessionId)
+      ?.messages.find((item) => item.id === messageId);
+  }, [messageId, sessionId, sessions]);
 
-  // Determine target session and message
-  const targetSessionId = sessionId || activeSessionId;
-  const session = sessions.find((s) => s.id === targetSessionId);
-  const message = messageId
-    ? session?.messages.find((m) => m.id === messageId)
-    : session?.messages[session.messages.length - 1]; // fallback to latest assistant msg
+  const project = partRecord?.project ?? message?.project;
+  const content = partRecord?.content;
+  const diagnostics = directTimelineDiagnostics(content, project);
 
-  const project = partId ? partRecord?.project : message?.project;
-  const brief = (partId ? partRecord?.content : message?.brief) as DiagnosticBrief | undefined;
-  const rawAuthoredData = partId ? partRecord?.content : message?.rawBrief;
-  const directDiagnostics = directTimelineDiagnostics(rawAuthoredData, project);
-
-  // State
-  const [activeTab, setActiveTab] = useState<"metadata" | "raw" | "brief" | "project" | "explanation">("metadata");
-  const [selectedTime, setSelectedTime] = useState<number>(0);
-  const [copied, setCopied] = useState(false);
-
-  const focusCanvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    if (!partId) return;
-    const timer = window.setTimeout(() => {
-      const stored = loadDevGeneratedProjects().find((item) => item.id === partId);
-      if (stored) {
-        setPartRecord(stored);
-      } else {
-        router.replace("/dev");
-      }
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [partId, router]);
-
-  // Redirect if missing critical workspace-session details.
-  useEffect(() => {
-    if (!partId && (!targetSessionId || !messageId)) {
-      router.replace("/dev");
-    }
-  }, [partId, targetSessionId, messageId, router]);
-
-  // Sync rendering on main focus canvas
-  useEffect(() => {
-    const canvas = focusCanvasRef.current;
-    if (!canvas || !project) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    renderProjectFrame(ctx, project, selectedTime);
-  }, [project, selectedTime]);
-
-  const hasWorkspaceSource = !partId && Boolean(session && message);
-  if ((!partRecord && !hasWorkspaceSource) || !project) {
+  if (!project) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center p-6 text-center">
-        <p className="text-sm text-muted-foreground animate-pulse">Loading diagnostics data...</p>
-      </div>
+      <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-6">
+        <TopBar title="Direct timeline inspector" />
+        <section className="card p-8 text-center">
+          <h1 className="text-xl font-semibold">Project not found</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            The saved project may have been removed from local storage.
+          </p>
+          <button className="button-primary mt-5" onClick={() => router.push("/dev")}>
+            Back to developer projects
+          </button>
+        </section>
+      </main>
     );
   }
 
-  // Generate frames at native 30 FPS
-  const fps = 30;
-  const duration = project.duration || 5;
-  const totalFrames = Math.ceil(duration * fps);
-  const frameTimes = Array.from({ length: totalFrames + 1 }, (_, i) => {
-    if (i === totalFrames) return duration;
-    return i / fps;
-  });
-
-  // Fetch active events at selected time
-  const activeEvents = visibleEvents(project, selectedTime);
-
-  // Copy code utility
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const getCodeContent = () => {
-    if (activeTab === "raw") return JSON.stringify(rawAuthoredData || { error: "No raw AI response was stored for this generation." }, null, 2);
-    if (activeTab === "brief") return JSON.stringify(
-      directDiagnostics
-        ? rawAuthoredData
-        : brief || { error: "No Brief generated for this frame version" },
-      null,
-      2,
-    );
-    if (activeTab === "project") return JSON.stringify(project, null, 2);
-    return "";
-  };
-
-  const isJsonTab = activeTab === "raw" || activeTab === "brief" || activeTab === "project";
+  const eventTypeCounts = project.events.reduce<Record<string, number>>((counts, event) => {
+    counts[event.type] = (counts[event.type] ?? 0) + 1;
+    return counts;
+  }, {});
+  const layers = [...new Set(project.events.map((event) => event.layer))].sort((a, b) => a - b);
 
   return (
-    <div className="flex h-full flex-col overflow-hidden p-6 md:p-10">
+    <main className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 p-6">
       <TopBar
-        title="Diagnostics"
-        actions={
-          <button
-            type="button"
-            onClick={() => router.push("/dev")}
-            className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-muted-foreground transition-all duration-150 hover:bg-foreground/3 hover:text-foreground active:scale-95 cursor-pointer"
-          >
-            ← Back to Dev
+        title={diagnostics?.name ?? project.name}
+        actions={(
+          <button className="button-secondary" onClick={() => router.push("/dev")}>
+            Back
           </button>
-        }
+        )}
       />
 
-      <main className="mt-6 flex flex-1 overflow-hidden gap-6">
-        {/* ── Left Column: Data Inspector ─────────────────────────────── */}
-        <section className="w-1/2 flex flex-col h-full border border-border bg-surface-raised rounded-xl p-5 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border/60 pb-3 mb-4 gap-2 flex-wrap">
-            <div className="flex gap-1 bg-background p-0.5 rounded-lg border border-border/80 flex-wrap">
-              {(["metadata", "raw", "brief", "project", "explanation"] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-2 py-1 text-[11px] font-bold rounded-md transition-all cursor-pointer ${activeTab === tab
-                      ? "bg-surface-raised text-foreground shadow-xs border border-border/10"
-                      : "text-muted-foreground hover:text-foreground"
-                    }`}
-                >
-                  {tab === "metadata"
-                    ? "Metadata"
-                    : tab === "raw"
-                    ? "Raw AI Response"
-                    : tab === "brief"
-                    ? directDiagnostics ? "Authored Events" : "AI Brief"
-                    : tab === "project"
-                    ? "Timeline JSON"
-                    : "Rendering Flow"}
-                </button>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
+        <section className="card p-4">
+          <FramePreview project={project} time={time} />
+          <div className="mt-4 flex items-center gap-4">
+            <input
+              aria-label="Preview time"
+              className="w-full accent-cyan-400"
+              type="range"
+              min={0}
+              max={project.duration}
+              step={0.01}
+              value={time}
+              onChange={(event) => setTime(Number(event.target.value))}
+            />
+            <output className="w-20 text-right font-mono text-sm">{time.toFixed(2)}s</output>
+          </div>
+        </section>
+
+        <aside className="card space-y-5 p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Authorship
+            </p>
+            <p className="mt-2 text-lg font-semibold">
+              {diagnostics?.mode ?? "composed direct timeline"}
+            </p>
+            {diagnostics?.visualIntent ? (
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {diagnostics.visualIntent}
+              </p>
+            ) : null}
+          </div>
+
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-muted-foreground">Duration</dt>
+              <dd className="mt-1 font-mono">{project.duration}s</dd>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-muted-foreground">Events</dt>
+              <dd className="mt-1 font-mono">{project.events.length}</dd>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-muted-foreground">Canvas</dt>
+              <dd className="mt-1 font-mono">{project.width}×{project.height}</dd>
+            </div>
+            <div className="rounded-lg border border-border p-3">
+              <dt className="text-muted-foreground">Layers</dt>
+              <dd className="mt-1 font-mono">{layers.join(", ") || "none"}</dd>
+            </div>
+          </dl>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Event vocabulary
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {Object.entries(eventTypeCounts).map(([type, count]) => (
+                <span key={type} className="rounded-full border border-border px-3 py-1 text-sm">
+                  {type} <span className="font-mono text-muted-foreground">{count}</span>
+                </span>
               ))}
             </div>
-
-            {isJsonTab && (
-              <button
-                type="button"
-                onClick={() => handleCopy(getCodeContent())}
-                className="rounded-lg border border-border px-2.5 py-1 text-xs font-bold text-muted-foreground hover:bg-foreground/5 hover:text-foreground transition-all duration-150 cursor-pointer"
-              >
-                {copied ? "Copied!" : "Copy JSON"}
-              </button>
-            )}
           </div>
+        </aside>
+      </div>
 
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {activeTab === "metadata" && (
-              <div className="space-y-6 overflow-y-auto pr-1">
-                <div>
-                  <h3 className="text-xs uppercase tracking-widest text-muted-foreground font-bold mb-3">
-                    Project Info
-                  </h3>
-                  <table className="w-full text-xs text-left text-muted-foreground">
-                    <tbody>
-                      {partRecord && (
-                        <>
-                          <tr className="border-b border-border/40 py-2">
-                            <td className="font-semibold text-foreground py-2.5 w-1/3">Source</td>
-                            <td className="capitalize">Part Generation · {partRecord.part}</td>
-                          </tr>
-                          <tr className="border-b border-border/40 py-2">
-                            <td className="font-semibold text-foreground py-2.5">Prompt</td>
-                            <td>{partRecord.prompt}</td>
-                          </tr>
-                        </>
-                      )}
-                      <tr className="border-b border-border/40 py-2">
-                        <td className="font-semibold text-foreground py-2.5 w-1/3">Project Name</td>
-                        <td>{project.name}</td>
-                      </tr>
-                      <tr className="border-b border-border/40 py-2">
-                        <td className="font-semibold text-foreground py-2.5">Duration</td>
-                        <td>{duration.toFixed(1)}s</td>
-                      </tr>
-                      <tr className="border-b border-border/40 py-2">
-                        <td className="font-semibold text-foreground py-2.5">Aspect Ratio</td>
-                        <td>{project.width} × {project.height} (16:9 HD Canvas)</td>
-                      </tr>
-                      <tr className="border-b border-border/40 py-2">
-                        <td className="font-semibold text-foreground py-2.5">Total Timeline Events</td>
-                        <td>{project.events.length} elements (layers)</td>
-                      </tr>
-                      {directDiagnostics && (
-                        <>
-                          <tr className="border-b border-border/40 py-2">
-                            <td className="font-semibold text-foreground py-2.5">Source Mode</td>
-                            <td>Direct LLM-authored timeline</td>
-                          </tr>
-                          <tr className="border-b border-border/40 py-2">
-                            <td className="font-semibold text-foreground py-2.5">Visual Intent</td>
-                            <td>{directDiagnostics.visualIntent}</td>
-                          </tr>
-                        </>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div>
-                  <h3 className="text-xs uppercase tracking-widest text-muted-foreground font-bold mb-3">
-                    Style Catalog Specs
-                  </h3>
-                  <table className="w-full text-xs text-left text-muted-foreground">
-                    <tbody>
-                      <tr className="border-b border-border/40 py-2">
-                        <td className="font-semibold text-foreground py-2.5 w-1/3">Color Palette</td>
-                        <td className="font-mono text-[11px] bg-background px-2 py-0.5 rounded border border-border/40 inline-block text-foreground font-bold">
-                          {directDiagnostics ? "LLM-authored per event" : brief?.palette || "Default (midnight)"}
-                        </td>
-                      </tr>
-                      <tr className="border-b border-border/40 py-2">
-                        <td className="font-semibold text-foreground py-2.5">Style Presets</td>
-                        <td className="font-mono text-[11px] bg-background px-2 py-0.5 rounded border border-border/40 inline-block text-foreground font-bold">
-                          {directDiagnostics ? "Direct timeline" : brief?.style || "Default (modern)"}
-                        </td>
-                      </tr>
-                      <tr className="border-b border-border/40 py-2">
-                        <td className="font-semibold text-foreground py-2.5">Diagram Model</td>
-                        <td className="font-mono text-[11px] bg-background px-2 py-0.5 rounded border border-border/40 inline-block text-foreground font-bold">
-                          {directDiagnostics ? "TimelineEvent composition" : "Graph"}
-                        </td>
-                      </tr>
-                      {brief?.scenes && (
-                        <tr className="border-b border-border/40 py-2">
-                          <td className="font-semibold text-foreground py-2.5">Scenes</td>
-                          <td className="text-foreground font-semibold">{brief.scenes.length}</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {isJsonTab && (
-              <pre className="flex-1 bg-background text-foreground p-4 rounded-xl text-xs font-mono overflow-auto whitespace-pre-wrap select-text border border-border/80">
-                {getCodeContent()}
-              </pre>
-            )}
-
-            {activeTab === "explanation" && (
-              <RenderingExplanation
-                brief={brief}
-                project={project}
-                authoredContent={rawAuthoredData}
-              />
-            )}
-          </div>
-        </section>
-
-        {/* ── Right Column: Visual Timeline & Frame Inspector ─────────── */}
-        <section className="w-1/2 flex flex-col h-full border border-border bg-surface-raised rounded-xl p-5 overflow-hidden">
-          <div className="border-b border-border/60 pb-3 mb-4">
-            <h3 className="text-sm font-bold text-foreground">Timeline Frame Steps</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Inspecting {duration.toFixed(1)}s timeline. Click any frame to focus details.
-            </p>
-          </div>
-
-          {/* Thumbnails grid */}
-          <div className="grid grid-cols-4 gap-2.5 overflow-y-auto pb-4 max-h-[200px] border-b border-border/40 pr-1 select-none">
-            {frameTimes.map((time) => (
-              <FrameThumbnail
-                key={time}
-                project={project}
-                time={time}
-                onClick={() => setSelectedTime(time)}
-                active={Math.abs(selectedTime - time) < 0.01}
-              />
-            ))}
-          </div>
-
-          {/* Focused frame & event details */}
-          <div className="flex-1 mt-4 flex gap-4 overflow-hidden">
-            {/* Focus Canvas */}
-            <div className="w-1/2 flex flex-col gap-2 overflow-hidden justify-center">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/85">
-                Focus Frame at {selectedTime.toFixed(2)}s
-              </span>
-              <div className="aspect-video w-full rounded-xl overflow-hidden border border-border/80 bg-black/25 flex items-center justify-center p-1">
-                <canvas
-                  ref={focusCanvasRef}
-                  width={project.width || 800}
-                  height={project.height || 450}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            </div>
-
-            {/* Event layer checklist */}
-            <div className="w-1/2 flex flex-col overflow-hidden">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/85 mb-2.5">
-                Active Layers ({activeEvents.length})
-              </span>
-              <div className="flex-1 overflow-y-auto space-y-2 pr-1 select-text">
-                {activeEvents.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-xs text-muted-foreground/60 italic">
-                    No active drawing layers at this moment.
-                  </div>
-                ) : (
-                  activeEvents.map((event, idx) => (
-                    <div
-                      key={`${event.id}-${idx}`}
-                      className="p-3 bg-background border border-border/80 rounded-xl space-y-1.5 shadow-xs"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[9px] font-bold uppercase tracking-widest bg-foreground/5 text-foreground px-1.5 py-0.5 rounded border border-border/40">
-                          {event.type}
-                        </span>
-                        <span className="text-[9px] font-mono text-muted-foreground/85">
-                          Layer {event.layer}
-                        </span>
-                      </div>
-                      <div className="text-[11px]">
-                        <span className="font-semibold text-foreground">ID:</span>{" "}
-                        <span className="font-mono text-[10px] bg-foreground/5 px-1 py-0.5 rounded">
-                          {event.id}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">
-                        <span className="font-semibold text-foreground">Timing:</span>{" "}
-                        {event.start.toFixed(1)}s – {event.end.toFixed(1)}s
-                      </div>
-                      {/* Custom context summary based on event fields */}
-                      {event.type === "text" && (
-                        <div className="text-[11px] border-t border-border/40 pt-1.5 mt-1">
-                          <span className="font-semibold text-foreground">Content:</span>{" "}
-                          <span className="italic">{JSON.stringify(event.text)}</span>
-                        </div>
-                      )}
-                      {event.type === "shape" && (
-                        <div className="text-[11px] border-t border-border/40 pt-1.5 mt-1">
-                          <span className="font-semibold text-foreground">Shape:</span>{" "}
-                          {event.shapeType}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
+      <section className="card overflow-hidden">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="font-semibold">Authored timeline events</h2>
+        </div>
+        <pre className="max-h-[520px] overflow-auto p-5 text-xs leading-5">
+          {JSON.stringify(content ?? project.events, null, 2)}
+        </pre>
+      </section>
+    </main>
   );
 }
 
-// ── Root Suspense Wrapper ───────────────────────────────────────────────────
-export default function AdvanceDiagnosticsPage() {
+export default function AdvancePage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex h-screen items-center justify-center p-6">
-          <p className="text-sm text-muted-foreground">Loading diagnostics view...</p>
-        </div>
-      }
-    >
-      <AdvanceWorkspace />
+    <Suspense fallback={<main className="p-8">Loading direct timeline inspector…</main>}>
+      <DirectTimelineInspector />
     </Suspense>
   );
 }

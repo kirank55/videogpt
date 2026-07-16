@@ -1,8 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { PALETTES, DEFAULT_PALETTE } from "@/lib/others/catalog/palettes";
-import { STYLES, DEFAULT_STYLE } from "@/lib/others/catalog/styles";
 import type { PaletteSpec } from "@/lib/others/catalog/palettes";
-import type { StyleSpec } from "@/lib/others/catalog/styles";
 
 const PALETTE_FIELDS: (keyof PaletteSpec)[] = [
   "bgFrom",
@@ -31,17 +29,8 @@ const PALETTE_COLOR_FIELDS: (keyof PaletteSpec)[] = [
   "glow",
 ];
 
-const STYLE_FIELDS: (keyof StyleSpec)[] = [
-  "radius",
-  "easing",
-  "strokeWeight",
-  "glowIntensity",
-  "particleDensity",
-];
-
 describe("Catalog", () => {
   const paletteEntries = Object.entries(PALETTES);
-  const styleEntries = Object.entries(STYLES);
 
   it("has at least 6 named palettes", () => {
     expect(paletteEntries.length).toBeGreaterThanOrEqual(6);
@@ -86,50 +75,6 @@ describe("Catalog", () => {
           `palette color field '${field}' must not be empty`,
         ).toBeGreaterThan(0);
       }
-    },
-  );
-
-  it("has at least 4 named styles", () => {
-    expect(styleEntries.length).toBeGreaterThanOrEqual(4);
-  });
-
-  it("default style 'modern' exists", () => {
-    expect(STYLES[DEFAULT_STYLE]).toBeDefined();
-  });
-
-  it.each(styleEntries)(
-    "style '%s' has all required fields",
-    (_name, spec) => {
-      for (const field of STYLE_FIELDS) {
-        expect(
-          spec[field],
-          `style field '${field}' must be defined`,
-        ).toBeDefined();
-      }
-    },
-  );
-
-  it.each(styleEntries)(
-    "style '%s' has valid numeric fields",
-    (_name, spec) => {
-      expect(spec.radius).toBeGreaterThanOrEqual(0);
-      expect(spec.strokeWeight).toBeGreaterThan(0);
-      expect(spec.glowIntensity).toBeGreaterThanOrEqual(0);
-      expect(spec.particleDensity).toBeGreaterThanOrEqual(0);
-    },
-  );
-
-  it.each(styleEntries)(
-    "style '%s' easing is a valid EasingName",
-    (_name, spec) => {
-      const validEasings = [
-        "linear",
-        "easeIn",
-        "easeOut",
-        "easeInOut",
-        "bounce",
-      ];
-      expect(validEasings).toContain(spec.easing);
     },
   );
 });

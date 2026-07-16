@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from "react";
 import { PlayerCard } from "@/components/player";
-import { StreamingProgress } from "@/components/StreamingProgress";
 import type { VideoProject } from "@/lib/ui/renderer";
 
 type MessageBubbleProps = {

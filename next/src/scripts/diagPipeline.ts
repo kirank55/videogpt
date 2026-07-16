@@ -1,24 +1,19 @@
 #!/usr/bin/env tsx
-// Quick single-prompt test through the real pipeline.
-// Run: npm run diag
-
-import { runGeneratePipeline } from "@/lib/agent/ai/pipeline";
+import { generateComposedVideo } from "@/lib/agent/videoParts/composedVideo";
 
 async function main() {
-  console.log("Testing pipeline with: 'client-server architecture' (15s)…\n");
+  const prompt = "a 15-second video about client-server architecture";
   const start = Date.now();
-  const result = await runGeneratePipeline("a 15-second video about client-server architecture", 15);
+  const result = await generateComposedVideo({ prompt, duration: 15 });
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-
-  const { brief, diagnostics } = result;
   console.log(`Done in ${elapsed}s`);
-  console.log(`Scenes:   ${brief.scenes.length}`);
-  console.log(`Layouts:  ${brief.scenes.map((scene) => scene.diagramLayout).join(", ")}`);
-  console.log(`Title:    ${brief.title}`);
-  console.log(`Palette:  ${brief.palette} / ${brief.style}`);
-  console.log(`Events:   ${result.project.events.length}`);
-  if (diagnostics.llmError) console.log(`\n❌ LLM error: ${diagnostics.llmError}`);
-  else console.log(`\n✅ No LLM error`);
+  console.log(`Title: ${result.projectName}`);
+  console.log(`Summary: ${result.parts.summary.name}`);
+  console.log(`Main diagram: ${result.parts.mainDiagram.name}`);
+  console.log(`Events: ${result.project.events.length}`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

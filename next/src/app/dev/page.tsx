@@ -94,17 +94,7 @@ function DevVideoCard({
   onPlay: () => void;
   onDiagnostics?: () => void;
 }) {
-  const sceneCount = new Set(
-    item.project.events
-      .map((e) => e.id.match(/^scene-(\d+)-heading$/)?.[1])
-      .filter(Boolean),
-  ).size;
-  const graphLayerCount = item.project.events.filter(
-    (e) =>
-      e.id.includes("-node-") ||
-      e.id.includes("-edge-") ||
-      e.id.includes("-packet-"),
-  ).length;
+  const layerCount = new Set(item.project.events.map((event) => event.layer)).size;
 
   return (
     <article
@@ -131,11 +121,11 @@ function DevVideoCard({
               )}
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-              <span>Graph Scenes</span>
+              <span>Direct Timeline</span>
               <span>•</span>
-              <span>{sceneCount || 1} Scenes</span>
+              <span>{item.project.events.length} Events</span>
               <span>•</span>
-              <span>{graphLayerCount} Graph Layers</span>
+              <span>{layerCount} Layers</span>
               <span>•</span>
               <span>{item.project.duration}s</span>
             </div>
@@ -468,7 +458,7 @@ function DevDashboardContent() {
                 onClick={() => router.push("/dev/generate")}
                 className="rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-all duration-150 hover:opacity-90 active:scale-95 cursor-pointer shadow-sm"
               >
-                Generate All Designs →
+                Generate Parts →
               </button>
               <button
                 type="button"

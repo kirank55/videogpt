@@ -10,7 +10,7 @@ export const defaultMessages: ChatMessage[] = [
     id: "intro",
     role: "assistant",
     content:
-      "Welcome back. Describe the video beat you want to build and I will sketch the first scene plan.",
+      "Describe the animated explanation you want. I will generate coordinated bookends, a compact summary, and a deeper main diagram.",
   },
 ];
 

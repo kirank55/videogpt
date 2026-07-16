@@ -32,13 +32,17 @@ export function createUserMessage(content: string): ChatMessage {
 /**
  * Create a new Session with an initial user message.
  */
-export function createSession(prompt: string): { session: Session; sessionId: string } {
+export function createSession(
+  prompt: string,
+  duration: number,
+): { session: Session; sessionId: string } {
   const sessionId = generateId("session");
   const userMsg = createUserMessage(prompt);
 
   const session: Session = {
     id: sessionId,
     name: prompt.slice(0, 30) || "Untitled Project",
+    duration,
     messages: [userMsg],
     updatedAt: formatUpdatedAt(),
   };

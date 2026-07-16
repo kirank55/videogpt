@@ -21,7 +21,6 @@ export default function GeneratePage() {
     duration,
     setDuration,
     submitInitialPrompt,
-    submitModifyPrompt,
     setActiveSessionId,
   } = useStore(
     useShallow((s) => ({
@@ -33,7 +32,6 @@ export default function GeneratePage() {
       duration: s.duration,
       setDuration: s.setDuration,
       submitInitialPrompt: s.submitInitialPrompt,
-      submitModifyPrompt: s.submitModifyPrompt,
       setActiveSessionId: s.setActiveSessionId,
     }))
   );
@@ -53,11 +51,9 @@ export default function GeneratePage() {
 
   const handleSubmit = useCallback(
     (promptVal: string) => {
-      // If no session is active, create a new session
       if (!activeSessionId) submitInitialPrompt(promptVal);
-      else submitModifyPrompt(activeSessionId, promptVal);
     },
-    [activeSessionId, submitInitialPrompt, submitModifyPrompt]
+    [activeSessionId, submitInitialPrompt]
   );
 
   return (
@@ -78,19 +74,23 @@ export default function GeneratePage() {
         {activeSession ? <ChatThread messages={messages} /> : <NoPreview />}
       </div>
 
-      {/* Input area fixed at bottom */}
-      <div className="shrink-0 pt-2">
-        <PromptForm
-          prompt={prompt}
-          setPrompt={setPrompt}
-          duration={duration}
-          onChangeDuration={setDuration}
-          isLoading={isLoading}
-          onSubmit={handleSubmit}
-          minLength={activeSession ? undefined : 20}
-        />
-      </div>
+      {!activeSession ? (
+        <div className="shrink-0 pt-2">
+          <PromptForm
+            prompt={prompt}
+            setPrompt={setPrompt}
+            duration={duration}
+            onChangeDuration={setDuration}
+            isLoading={isLoading}
+            onSubmit={handleSubmit}
+            minLength={20}
+          />
+        </div>
+      ) : !isLoading && activeSession.project ? (
+        <div className="shrink-0 pt-3 text-center text-sm text-muted-foreground">
+          Create a new project to generate another video.
+        </div>
+      ) : null}
     </div>
   );
 }
-

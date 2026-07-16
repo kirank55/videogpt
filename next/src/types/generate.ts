@@ -5,8 +5,6 @@ export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   project?: VideoProject;
-  brief?: any;
-  rawBrief?: any;
   isError?: boolean;
   /** Epoch ms when the message was created; older persisted sessions may omit this. */
   createdAt?: number;
@@ -15,9 +13,9 @@ export type ChatMessage = {
 export type Session = {
   id: string;
   name: string;
+  duration: number;
   messages: ChatMessage[];
   project?: VideoProject;
-  brief?: unknown;
   updatedAt: string;
 };
 

@@ -1,6 +1,6 @@
 // ── Named Palette catalog ────────────────────────────────────────────────────
 //
-// Each palette is a complete color set.  The AI picks a name; the Brief Expander
+// Each palette is a complete color set. The composer picks one deterministic name and
 // resolves it to exact values.  Add new palettes here — no code changes needed.
 //
 // Fields:

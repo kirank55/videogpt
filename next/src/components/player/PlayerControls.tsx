@@ -11,56 +11,25 @@ type Chapter = {
 };
 
 function getChapters(project: VideoProject): Chapter[] {
-  const chapters: Chapter[] = [];
   const events = [...(project.events || [])].sort((a, b) => a.start - b.start);
+  const authoredSections = [
+    { prefix: "intro-", name: "Introduction" },
+    { prefix: "summary-", name: "Summary" },
+    { prefix: "main-", name: "Main diagram" },
+    { prefix: "conclusion-", name: "Conclusion" },
+  ].flatMap(({ prefix, name }) => {
+    const firstEvent = events.find((event) => event.id.startsWith(prefix));
+    return firstEvent ? [{ name, time: firstEvent.start }] : [];
+  });
 
-  const titleEvent = events.find(e => e.id === "title" || e.id === "intro-title");
-  if (titleEvent) {
-    chapters.push({ name: "Title", time: titleEvent.start });
-  } else {
-    chapters.push({ name: "Title", time: 0 });
-  }
-
-  events
-    .filter((e) => e.type === "text" && /^scene-\d+-heading$/.test(e.id))
-    .forEach((event) => {
-      const name = event.type === "text" ? event.text : "Scene";
-      if (!chapters.some(c => Math.abs(c.time - event.start) < 0.5)) {
-        chapters.push({ name, time: event.start });
-      }
-    });
-
-  const firstPacketEvent = events.find(e => e.id.includes("-packet-"));
-  if (firstPacketEvent && !chapters.some(c => Math.abs(c.time - firstPacketEvent.start) < 0.5)) {
-    chapters.push({ name: "Animated Flow", time: firstPacketEvent.start });
-  }
-
-  const outroEvent = events.find(e => e.id === "closing-line" || e.id === "outro-separator" || e.id?.includes("outro") || e.id?.includes("closing"));
-  if (outroEvent) {
-    if (!chapters.some(c => Math.abs(c.time - outroEvent.start) < 0.5)) {
-      chapters.push({ name: "Conclusion", time: outroEvent.start });
-    }
-  }
-
-  const uniqueChapters = chapters
-    .filter((v, i, a) => a.findIndex(t => t.name === v.name) === i)
-    .sort((a, b) => a.time - b.time);
-
-  if (uniqueChapters.length <= 1) {
-    const d = project.duration || 15;
-    return [
-      { name: "Start", time: 0 },
-      { name: "Setup", time: d * 0.2 },
-      { name: "Flow", time: d * 0.5 },
-      { name: "Outro", time: d * 0.8 },
-    ];
-  }
-
-  if (uniqueChapters.length > 0 && uniqueChapters[0].time > 0) {
-    uniqueChapters.unshift({ name: "Start", time: 0 });
-  }
-
-  return uniqueChapters;
+  if (authoredSections.length > 0) return authoredSections;
+  const duration = project.duration || 15;
+  return [
+    { name: "Start", time: 0 },
+    { name: "Overview", time: duration * 0.3 },
+    { name: "Detail", time: duration * 0.65 },
+    { name: "Conclusion", time: duration * 0.85 },
+  ];
 }
 
 function getChapterAtTime(time: number, chapters: Chapter[]) {

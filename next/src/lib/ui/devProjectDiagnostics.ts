@@ -1,7 +1,7 @@
 import type { VideoProject } from "@/lib/ui/renderer";
 
 export type DirectTimelineDiagnostics = {
-  mode: "direct-timeline";
+  mode: "direct-timeline" | "direct-summary-timeline";
   name: string;
   visualIntent: string;
   eventCount: number;
@@ -23,8 +23,9 @@ export function directTimelineDiagnostics(
 ): DirectTimelineDiagnostics | undefined {
   if (!content || typeof content !== "object") return undefined;
   const record = content as Record<string, unknown>;
+  const mode = record.mode;
   if (
-    record.mode !== "direct-timeline"
+    (mode !== "direct-timeline" && mode !== "direct-summary-timeline")
     || typeof record.name !== "string"
     || typeof record.visualIntent !== "string"
     || !project
@@ -43,7 +44,7 @@ export function directTimelineDiagnostics(
   });
 
   return {
-    mode: "direct-timeline",
+    mode,
     name: record.name,
     visualIntent: record.visualIntent,
     eventCount: project.events.length,

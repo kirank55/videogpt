@@ -1,162 +1,169 @@
 import {
-  buildProjectFromBriefSection,
-  type BriefProjectSection,
-  type ScenePresentation,
-} from "@/lib/agent/brief/buildProjectFromBrief";
-import { validateBrief } from "@/lib/agent/brief/validateBrief";
-import type { Scene, SupportedDuration, VideoBrief } from "@/lib/agent/schemas/brief";
-import { buildDirectTimelineProject } from "@/lib/agent/videoParts/directTimeline";
-import type {
-  AuthoredVideoPart,
-  SummaryPartContent,
-} from "@/lib/agent/videoParts/schemas";
+  buildDirectSummaryProject,
+  buildDirectTimelineProject,
+  DIRECT_TIMELINE_HEIGHT,
+  DIRECT_TIMELINE_WIDTH,
+} from "@/lib/agent/videoParts/directTimeline";
+import type { AuthoredVideoPart } from "@/lib/agent/videoParts/schemas";
 import type { VideoPartTheme } from "@/lib/agent/videoParts/theme";
-import type { VideoProject } from "@/lib/ui/renderer";
+import { DEFAULT_PALETTE, PALETTES } from "@/lib/others/catalog/palettes";
+import { seededHash } from "@/lib/others/timeline/utils";
+import type { TimelineEvent, VideoProject } from "@/lib/ui/renderer";
 
-type SummarySceneInput = Pick<
-  Scene,
-  | "heading"
-  | "diagramScript"
-  | "diagramIntent"
-  | "diagramLayout"
-  | "blocks"
-  | "entryAnimation"
-  | "blockStyle"
-  | "emphasizeIndex"
-  | "transition"
-> & Partial<Pick<
-  Scene,
-  "graph" | "visualPrimitives" | "primitiveRelationships" | "storyboard"
->>;
-
-/** Adapts strict Summary authorship into a reusable renderer scene. */
-export function summaryPartScene(content: SummaryPartContent): {
-  scene: SummarySceneInput;
-  presentation: ScenePresentation;
-} {
-  if (content.diagramFamily === "graph-flow") {
-    const signatureVisuals = content.graph.nodes.map((node) => node.label).slice(0, 8);
-    return {
-      presentation: "compact-context",
-      scene: {
-        heading: content.heading,
-        diagramScript: {
-          summary: content.heading,
-          beats: content.blocks.map((block) => block.heading),
-          visualStory: `Introduce ${content.heading} as a compact connected context graph.`,
-          mustShow: signatureVisuals,
-        },
-        diagramIntent: {
-          family: "graph-flow" as const,
-          subject: content.heading,
-          signatureVisuals,
-          motionCues: content.graph.edges
-            .filter((edge) => edge.animated)
-            .map((edge) => `${edge.from} to ${edge.to}`),
-        },
-        diagramLayout: content.diagramLayout,
-        blocks: content.blocks,
-        graph: content.graph,
-        entryAnimation: "slide-up" as const,
-        blockStyle: "stacked" as const,
-        emphasizeIndex: -1,
-        transition: "none" as const,
-      },
-    };
-  }
-
-  const signatureVisuals = content.visualPrimitives.map((primitive) => primitive.label);
+function themedBackground(
+  id: string,
+  duration: number,
+  theme: VideoPartTheme,
+): TimelineEvent {
+  const palette = PALETTES[theme.palette] ?? PALETTES[DEFAULT_PALETTE];
   return {
-    presentation: "compact-storyboard",
-    scene: {
-      heading: content.heading,
-      diagramScript: {
-        summary: content.heading,
-        beats: content.storyboard.stages.map((stage) => stage.label),
-        visualStory: `Introduce ${content.heading} with a compact ${content.diagramFamily} drawing.`,
-        mustShow: signatureVisuals,
-      },
-      diagramIntent: {
-        family: content.diagramFamily,
-        subject: content.heading,
-        signatureVisuals,
-        motionCues: content.primitiveRelationships
-          .map((relationship) => relationship.motion ?? relationship.relation),
-      },
-      diagramLayout: "stack" as const,
-      blocks: content.blocks,
-      visualPrimitives: content.visualPrimitives,
-      primitiveRelationships: content.primitiveRelationships,
-      storyboard: content.storyboard,
-      entryAnimation: "slide-up" as const,
-      blockStyle: "stacked" as const,
-      emphasizeIndex: -1,
-      transition: "none" as const,
+    id,
+    type: "background",
+    start: 0,
+    end: duration,
+    layer: 0,
+    background: {
+      kind: "gradient",
+      from: palette.bgFrom,
+      to: palette.bgTo,
+      angle: palette.bgAngle,
     },
   };
 }
 
-type BriefAuthoredVideoPart = Exclude<AuthoredVideoPart, { part: "main-diagram" }>;
-
-function briefAndSection(
-  artifact: BriefAuthoredVideoPart,
+function buildTitleEvents(
+  content: Extract<AuthoredVideoPart, { part: "title" }>["content"],
+  duration: number,
   theme: VideoPartTheme,
-): { brief: VideoBrief; section: BriefProjectSection } {
-  const shared = { ...theme, palette: theme.palette, style: theme.style };
-
-  switch (artifact.part) {
-    case "title":
-      return {
-        brief: validateBrief({
-          ...shared,
-          title: artifact.content.title,
-          subtitle: artifact.content.subtitle,
-          closingStyle: "none",
-          scenes: [],
-        }),
-        section: { kind: "title" },
-      };
-    case "summary": {
-      const adaptedSummary = summaryPartScene(artifact.content);
-      return {
-        brief: validateBrief({
-          ...shared,
-          title: artifact.content.heading,
-          closingStyle: "none",
-          scenes: [adaptedSummary.scene],
-        }),
-        section: {
-          kind: "scene",
-          sourceIndex: 0,
-          eventIndex: 0,
-          sceneCount: 2,
-          presentation: adaptedSummary.presentation,
-        },
-      };
-    }
-    case "conclusion":
-      return {
-        brief: validateBrief({
-          ...shared,
-          title: artifact.content.closingLine,
-          closingLine: artifact.content.closingLine,
-          closingStyle: theme.closingStyle ?? "fade-up",
-          scenes: [],
-        }),
-        section: { kind: "closing" },
-      };
+): TimelineEvent[] {
+  const palette = PALETTES[theme.palette] ?? PALETTES[DEFAULT_PALETTE];
+  const centered = theme.titleAlign === "center";
+  const x = centered ? DIRECT_TIMELINE_WIDTH / 2 : 180;
+  const align = centered ? "center" as const : "left" as const;
+  const titleSize = theme.titleSize === "hero" ? 76 : 64;
+  const events: TimelineEvent[] = [
+    themedBackground("background", duration, theme),
+    {
+      id: "accent-line",
+      type: "shape",
+      shapeType: "line",
+      start: 0,
+      end: duration,
+      layer: 3,
+      x1: centered ? 610 : 180,
+      y1: 430,
+      x2: centered ? 1310 : 760,
+      y2: 430,
+      stroke: palette.accent1,
+      lineWidth: 8,
+      drawProgress: { from: 0, to: 1, easing: "easeOut" },
+    },
+    {
+      id: "title",
+      type: "text",
+      start: 0,
+      end: duration,
+      layer: 8,
+      text: content.title,
+      x,
+      y: 470,
+      maxWidth: centered ? 1500 : 1450,
+      color: palette.text,
+      fontSize: titleSize,
+      fontWeight: 800,
+      align,
+      opacity: { from: 0, to: 1, easing: "easeOut" },
+      translateY: { from: 22, to: 0, easing: "easeOut" },
+    },
+  ];
+  if (content.subtitle) {
+    events.push({
+      id: "subtitle",
+      type: "text",
+      start: Math.min(0.15, duration / 5),
+      end: duration,
+      layer: 8,
+      text: content.subtitle,
+      x,
+      y: 590,
+      maxWidth: centered ? 1300 : 1250,
+      color: palette.muted,
+      fontSize: 32,
+      fontWeight: 600,
+      align,
+      opacity: { from: 0, to: 1, easing: "easeOut" },
+    });
   }
+  return events;
 }
 
-/** Converts a strict authored part into a valid brief section and renders it. */
+function buildConclusionEvents(
+  content: Extract<AuthoredVideoPart, { part: "conclusion" }>["content"],
+  duration: number,
+  theme: VideoPartTheme,
+): TimelineEvent[] {
+  const palette = PALETTES[theme.palette] ?? PALETTES[DEFAULT_PALETTE];
+  return [
+    themedBackground("background", duration, theme),
+    {
+      id: "closing-ring",
+      type: "shape",
+      shapeType: "circle",
+      start: 0,
+      end: duration,
+      layer: 2,
+      x: DIRECT_TIMELINE_WIDTH / 2,
+      y: DIRECT_TIMELINE_HEIGHT / 2,
+      radius: 250,
+      fill: "transparent",
+      stroke: palette.accent2,
+      strokeWidth: 5,
+      opacity: { from: 0, to: 0.55, easing: "easeOut" },
+      scale: { from: 0.75, to: 1, easing: "easeOut" },
+    },
+    {
+      id: "closing-line",
+      type: "text",
+      start: 0,
+      end: duration,
+      layer: 8,
+      text: content.closingLine,
+      x: DIRECT_TIMELINE_WIDTH / 2,
+      y: DIRECT_TIMELINE_HEIGHT / 2,
+      maxWidth: 1320,
+      color: palette.text,
+      fontSize: 48,
+      fontWeight: 800,
+      align: "center",
+      verticalAlign: "middle",
+      opacity: { from: 0, to: 1, easing: "easeOut" },
+      translateY: { from: 18, to: 0, easing: "easeOut" },
+    },
+  ];
+}
+
 export function buildStandaloneVideoPartProject(
   artifact: AuthoredVideoPart,
-  duration: SupportedDuration,
+  duration: number,
   theme: VideoPartTheme,
 ): VideoProject {
+  if (artifact.part === "summary") {
+    return buildDirectSummaryProject(artifact.content, duration);
+  }
   if (artifact.part === "main-diagram") {
     return buildDirectTimelineProject(artifact.content, duration);
   }
-  const adapted = briefAndSection(artifact, theme);
-  return buildProjectFromBriefSection(adapted.brief, duration, adapted.section);
+
+  const events = artifact.part === "title"
+    ? buildTitleEvents(artifact.content, duration, theme)
+    : buildConclusionEvents(artifact.content, duration, theme);
+  const hash = seededHash(JSON.stringify({ artifact, duration, theme })).toString(16);
+  return {
+    id: `direct-${artifact.part}-${hash}`,
+    name: artifact.part === "title" ? artifact.content.title : artifact.content.closingLine,
+    width: DIRECT_TIMELINE_WIDTH,
+    height: DIRECT_TIMELINE_HEIGHT,
+    duration,
+    events,
+  };
 }

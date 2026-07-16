@@ -47,4 +47,13 @@ describe("OpenRouter structured-output failures", () => {
       finishReason: "length",
     });
   });
+
+  it("requires one configured model instead of trying provider fallbacks", async () => {
+    delete process.env.DEFAULT_MODEL;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(callOpenRouter("system", "user")).rejects.toThrow("DEFAULT_MODEL");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

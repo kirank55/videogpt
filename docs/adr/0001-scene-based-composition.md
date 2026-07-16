@@ -1,5 +1,7 @@
 # Scene-based video composition
 
+Status: Superseded by ADR 0012
+
 ## Layout planning addendum
 
 Scene-based composition uses a dedicated `SceneLayoutPlan` boundary. The scene layout module turns one Scene plus canvas settings into named regions, positioned nodes/edges/blocks/text boxes, omitted labels, fit decisions, fallbacks, and developer-only diagnostics. The Brief Expander consumes that plan to emit renderable `TimelineEvent`s and absolute timestamps; it does not invent or split Scenes.

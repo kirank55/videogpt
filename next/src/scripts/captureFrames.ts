@@ -1,4 +1,4 @@
-import { runGeneratePipeline } from "../lib/agent/ai/pipeline";
+import { generateComposedVideo } from "../lib/agent/videoParts/composedVideo";
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
@@ -42,23 +42,12 @@ async function main() {
   // 1. Run AI generation pipeline
   console.log("1. Running AI pipeline (OpenRouter)...");
   const start = Date.now();
-  const result = await runGeneratePipeline(prompt, duration);
+  const result = await generateComposedVideo({ prompt, duration });
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`   Pipeline done in ${elapsed}s`);
 
-  const { brief, project, diagnostics } = result;
-  if (diagnostics.llmError) {
-    console.error(`❌ LLM Generation error: ${diagnostics.llmError}`);
-    process.exit(1);
-  }
-
-  console.log(
-    `   Brief: "${brief.title}" | Scenes: ${brief.scenes.length} ` +
-    `(${brief.scenes.map((scene) => scene.diagramLayout).join(", ")})`,
-  );
-  console.log(
-    `   Graph nodes: ${brief.scenes.reduce((sum, scene) => sum + scene.graph.nodes.length, 0)} items`,
-  );
+  const { project } = result;
+  console.log(`   Project: "${result.projectName}" | Events: ${project.events.length}`);
 
   // 2. Save project temporarily to public folder as a synchronous script file
   console.log("2. Writing temporary project js data to public folder...");
@@ -111,8 +100,8 @@ async function main() {
     }
   }
 
-  // 4. Clean up temporary files (disabled to allow viewing on /brief-only page)
-  console.log("4. Preserving temp project data for /brief-only viewer...");
+  // 4. Preserve temporary project data for the renderer-only developer viewer.
+  console.log("4. Preserving temp project data for the renderer-only viewer...");
   // if (fs.existsSync(tempJSPath)) {
   //   fs.unlinkSync(tempJSPath);
   // }

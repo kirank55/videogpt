@@ -17,7 +17,7 @@ export type DevGeneratedProject = {
 function normalizeDevGeneratedProject(value: unknown): DevGeneratedProject | undefined {
   if (!value || typeof value !== "object") return undefined;
   const item = value as Record<string, unknown>;
-  const part = item.part === "phase-1" ? "summary" : item.part;
+  const part = item.part;
   const validPart = part === "title"
     || part === "summary"
     || part === "main-diagram"

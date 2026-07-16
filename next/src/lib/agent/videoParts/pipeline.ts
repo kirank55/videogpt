@@ -1,12 +1,14 @@
 import { z } from "zod";
 import { callOpenRouter } from "@/lib/agent/ai/openrouter";
-import { validateDirectTimelineContent } from "@/lib/agent/videoParts/directTimeline";
+import {
+  validateDirectSummaryContent,
+  validateDirectTimelineContent,
+} from "@/lib/agent/videoParts/directTimeline";
 import { buildStandaloneVideoPartProject } from "@/lib/agent/videoParts/project";
 import {
   parseAuthoredVideoPart,
   type AuthoredVideoPart,
   type GeneratedVideoPart,
-  type GenerateVideoPartRequest,
   type VideoPartKind,
 } from "@/lib/agent/videoParts/schemas";
 import {
@@ -27,6 +29,13 @@ export type VideoPartModelCaller = (
 
 export type VideoPartPipelineDependencies = {
   callModel: VideoPartModelCaller;
+};
+
+export type GenerateVideoPartInput = {
+  part: VideoPartKind;
+  prompt: string;
+  duration: number;
+  visualContext?: string;
 };
 
 const DEFAULT_DEPENDENCIES: VideoPartPipelineDependencies = {
@@ -87,10 +96,14 @@ function isRepairableModelOutputFailure(
  * schema-guided repair attempt; provider failures are allowed to surface.
  */
 export async function generateVideoPart(
-  request: GenerateVideoPartRequest,
+  request: GenerateVideoPartInput,
   dependencies: VideoPartPipelineDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<GeneratedVideoPart> {
-  const systemPrompt = buildVideoPartSystemPrompt(request.part, request.duration);
+  const systemPrompt = buildVideoPartSystemPrompt(
+    request.part,
+    request.duration,
+    request.visualContext,
+  );
   const options = {
     maxTokens: MAX_TOKENS[request.part],
     temperature: request.part === "main-diagram" ? 0.8 : 0.65,
@@ -98,6 +111,12 @@ export async function generateVideoPart(
   };
 
   const parseGeneratedPart = (raw: unknown): AuthoredVideoPart => {
+    if (request.part === "summary") {
+      return {
+        part: request.part,
+        content: validateDirectSummaryContent(raw, request.duration),
+      };
+    }
     if (request.part === "main-diagram") {
       return {
         part: request.part,

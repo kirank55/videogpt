@@ -9,13 +9,13 @@
 //     → construct a ChatMessage from a successful API response
 //
 //   applySuccess(set, sessionId, data, fallbackSummary)
-//     → write assistant message + updated project/brief into sessions
+//     → write assistant message + composed project into sessions
 //
 //   applyError(set, sessionId, message)
 //     → append error ChatMessage, set error flag, clear isLoading
 //
 // This is the single seam for all network interactions from the store.
-// The three store actions (submitInitialPrompt, submitModifyPrompt, retryPrompt)
+// The store's initial generation and manual retry actions
 // are thin dispatchers that supply endpoint, body, and summary copy.
 
 import type { ChatMessage } from "@/types/generate";
@@ -25,10 +25,8 @@ import { generateId } from "./ids";
 
 export interface ApiResponse {
   project?: unknown;
-  brief?: unknown;
   projectName?: string;
   summary?: string;
-  rawBrief?: unknown;
   error?: string;
 }
 
@@ -82,23 +80,11 @@ export interface StreamCallbacks {
   onError: (message: string) => void;
 }
 
-async function executeFallback(
-  endpoint: string,
-  body: Record<string, unknown>,
-  callbacks: StreamCallbacks,
-): Promise<void> {
-  try {
-    const data = await callApi(endpoint, body);
-    callbacks.onDone(data);
-  } catch (err) {
-    callbacks.onError(err instanceof Error ? err.message : String(err));
-  }
-}
-
 /**
  * POST `endpoint/stream` with `body` as an SSE streaming request.
  * Parses `data:` lines from the response and dispatches to callbacks.
- * Falls back to regular `callApi` if streaming is not supported.
+ * It never retries generation; users can retry a failed initial request
+ * explicitly from its error message.
  */
 export async function callApiStream(
   endpoint: string,
@@ -118,12 +104,14 @@ export async function callApiStream(
     });
   } catch {
     // Network error — fall back to regular request
-    return executeFallback(endpoint, body, callbacks);
+    callbacks.onError("Unable to connect to the generation stream.");
+    return;
   }
 
   if (!res.ok || !res.body) {
     // Non-streaming fallback
-    return executeFallback(endpoint, body, callbacks);
+    callbacks.onError(`API Error: ${res.status} ${res.statusText}`);
+    return;
   }
 
   const reader = res.body.getReader();
@@ -189,8 +177,6 @@ export function buildAssistantMessage(
     role: "assistant",
     content: data.summary ?? fallbackSummary,
     project: data.project as ChatMessage["project"],
-    brief: data.brief,
-    rawBrief: data.rawBrief,
     createdAt: Date.now(),
   };
 }
@@ -214,17 +200,15 @@ export function buildErrorMessage(message: string): ChatMessage {
 // updates in one place. The store actions call these instead of inlining the
 // same state transform.
 
-type SetFn = (fn: (state: { sessions: import("@/types/generate").Session[] }) => Partial<import("@/types/generate").Session[]> | object) => void;
-
 /**
- * Append `assistantMsg` to the session's messages and update its project/brief.
+ * Append `assistantMsg` to the session's messages and update its project.
  * Clears `isLoading`.
  */
 export function applySuccess(
   set: (partial: object | ((state: object) => object)) => void,
   sessionId: string,
   assistantMsg: ChatMessage,
-  data: Pick<ApiResponse, "project" | "brief" | "projectName">,
+  data: Pick<ApiResponse, "project" | "projectName">,
 ): void {
   set((state: { sessions: import("@/types/generate").Session[]; [k: string]: unknown }) => ({
     sessions: state.sessions.map((s) =>
@@ -233,7 +217,6 @@ export function applySuccess(
             ...s,
             messages: [...s.messages, assistantMsg],
             project: data.project,
-            brief: data.brief,
             ...(data.projectName ? { name: data.projectName } : {}),
           }
         : s,

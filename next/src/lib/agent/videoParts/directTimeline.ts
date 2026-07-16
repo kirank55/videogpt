@@ -1,9 +1,10 @@
-import { seededHash } from "@/lib/agent/brief/briefHelpers";
-import type { SupportedDuration } from "@/lib/agent/schemas/brief";
 import {
   MainDiagramPartContentSchema,
+  SummaryPartContentSchema,
   type MainDiagramPartContent,
+  type SummaryPartContent,
 } from "@/lib/agent/videoParts/schemas";
+import { seededHash } from "@/lib/others/timeline/utils";
 import type {
   AnimatedValue,
   TimelineEvent,
@@ -27,6 +28,16 @@ const MIN_BACKDROP_ALPHA = 0.7;
 const RECOMMENDED_LABEL_GAP = 8;
 const MAX_MINOR_LABEL_OVERLAP_RATIO = 0.15;
 const VISIBLE_OPACITY = 0.15;
+const ANIMATED_EVENT_FIELDS = [
+  "opacity",
+  "translateX",
+  "translateY",
+  "scale",
+  "scaleX",
+  "scaleY",
+  "rotate",
+  "drawProgress",
+] as const;
 
 type TextTimelineEvent = Extract<TimelineEvent, { type: "text" }>;
 type BadgeTimelineEvent = Extract<TimelineEvent, { type: "shape" }> & {
@@ -253,7 +264,7 @@ function textReadabilityIssues(
   if (event.maxWidth < MIN_LABEL_WIDTH) {
     issues.push(`${prefix} maxWidth must be at least ${MIN_LABEL_WIDTH}px`);
   }
-  if (event.color.trim().toLowerCase() === "transparent" || !canBecomeVisible(event)) {
+  if (colorAlpha(event.color) <= 0.05 || !canBecomeVisible(event)) {
     issues.push(`${prefix} must use a visible text color and opacity`);
   }
 
@@ -383,12 +394,19 @@ function labelCollisionIssues(events: TimelineEvent[]): string[] {
   return issues;
 }
 
-/** Validates the duration- and canvas-dependent contract without rewriting authored events. */
-export function validateDirectTimelineContent(
+type DirectTimelineContent = MainDiagramPartContent | SummaryPartContent;
+
+type DirectTimelineProfile = {
+  minShapes: number;
+  maxTextEvents?: number;
+};
+
+function validateParsedDirectTimeline<T extends DirectTimelineContent>(
   raw: unknown,
-  duration: SupportedDuration,
-): MainDiagramPartContent {
-  const content = MainDiagramPartContentSchema.parse(raw);
+  content: T,
+  duration: number,
+  profile: DirectTimelineProfile,
+): T {
   const issues: string[] = [];
   const droppedPaths = droppedPropertyPaths(raw, content);
   if (droppedPaths.length > 0) {
@@ -417,10 +435,37 @@ export function validateDirectTimelineContent(
     if (event.type === "text") {
       issues.push(...textReadabilityIssues(event, index));
     }
-    if (event.type === "shape" && event.shapeType === "badge" && (event.fontSize ?? 20) < MIN_LABEL_FONT_SIZE) {
-      issues.push(
-        `events.${index}: readable badge "${event.id}" fontSize must be at least ${MIN_LABEL_FONT_SIZE}px`,
-      );
+    if (event.type === "shape" && event.shapeType === "badge") {
+      if ((event.fontSize ?? 20) < MIN_LABEL_FONT_SIZE) {
+        issues.push(
+          `events.${index}: readable badge "${event.id}" fontSize must be at least ${MIN_LABEL_FONT_SIZE}px`,
+        );
+      }
+      if (colorAlpha(event.textColor) <= 0.05) {
+        issues.push(`events.${index}: readable badge "${event.id}" needs a visible textColor`);
+      }
+      if (colorAlpha(event.fill) < MIN_BACKDROP_ALPHA) {
+        issues.push(
+          `events.${index}: readable badge "${event.id}" fill opacity must be at least ${MIN_BACKDROP_ALPHA}`,
+        );
+      }
+    }
+
+    for (const field of ANIMATED_EVENT_FIELDS) {
+      const value = event[field];
+      if (!value || !("keyframes" in value)) continue;
+      let previousTime = Number.NEGATIVE_INFINITY;
+      value.keyframes.forEach((keyframe, keyframeIndex) => {
+        if (keyframe.time < event.start || keyframe.time > event.end) {
+          issues.push(
+            `events.${index}.${field}.keyframes.${keyframeIndex}: time must stay within event interval ${event.start}-${event.end}s`,
+          );
+        }
+        if (keyframe.time <= previousTime) {
+          issues.push(`events.${index}.${field}.keyframes: times must be strictly increasing`);
+        }
+        previousTime = keyframe.time;
+      });
     }
   });
   issues.push(...labelCollisionIssues(content.events));
@@ -434,9 +479,14 @@ export function validateDirectTimelineContent(
 
   const textCount = content.events.filter((event) => event.type === "text").length;
   if (textCount === 0) issues.push("events: include at least one readable text label");
+  if (profile.maxTextEvents !== undefined && textCount > profile.maxTextEvents) {
+    issues.push(`events: include no more than ${profile.maxTextEvents} text events`);
+  }
 
   const shapeCount = content.events.filter((event) => event.type === "shape").length;
-  if (shapeCount < 3) issues.push("events: include at least three shape events for the diagram");
+  if (shapeCount < profile.minShapes) {
+    issues.push(`events: include at least ${profile.minShapes} shape events for the diagram`);
+  }
 
   const revealStarts = new Set(
     content.events.filter((event) => event.type !== "background").map((event) => event.start),
@@ -450,15 +500,52 @@ export function validateDirectTimelineContent(
   return content;
 }
 
+/** Validates the main diagram's duration- and canvas-dependent contract. */
+export function validateDirectTimelineContent(
+  raw: unknown,
+  duration: number,
+): MainDiagramPartContent {
+  const content = MainDiagramPartContentSchema.parse(raw);
+  return validateParsedDirectTimeline(raw, content, duration, { minShapes: 3 });
+}
+
+/** Validates the compact summary timeline without rewriting authored events. */
+export function validateDirectSummaryContent(
+  raw: unknown,
+  duration: number,
+): SummaryPartContent {
+  const content = SummaryPartContentSchema.parse(raw);
+  return validateParsedDirectTimeline(raw, content, duration, {
+    minShapes: 2,
+    maxTextEvents: 6,
+  });
+}
+
 /** Wraps validated direct events in server-owned VideoProject metadata. */
 export function buildDirectTimelineProject(
   raw: unknown,
-  duration: SupportedDuration,
+  duration: number,
 ): VideoProject {
   const content = validateDirectTimelineContent(raw, duration);
   const hash = seededHash(JSON.stringify({ content, duration })).toString(16);
   return {
     id: `direct-main-${hash}`,
+    name: content.name,
+    width: DIRECT_TIMELINE_WIDTH,
+    height: DIRECT_TIMELINE_HEIGHT,
+    duration,
+    events: content.events,
+  };
+}
+
+export function buildDirectSummaryProject(
+  raw: unknown,
+  duration: number,
+): VideoProject {
+  const content = validateDirectSummaryContent(raw, duration);
+  const hash = seededHash(JSON.stringify({ content, duration })).toString(16);
+  return {
+    id: `direct-summary-${hash}`,
     name: content.name,
     width: DIRECT_TIMELINE_WIDTH,
     height: DIRECT_TIMELINE_HEIGHT,

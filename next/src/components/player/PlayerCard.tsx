@@ -2,7 +2,7 @@
 
 import { FabricCanvas } from "@/components/canvas";
 import { PlayerControls } from "@/components/player/PlayerControls";
-import { StreamingProgress, useStreamingProgress } from "@/components/StreamingProgress";
+import { StreamingProgress } from "@/components/StreamingProgress";
 import type { VideoProject } from "@/lib/ui/renderer";
 import {
   PlayerProvider,
@@ -116,8 +116,6 @@ type PlayerCardProps = {
 };
 
 function PlayerLoadingCard() {
-  const { isRetrying } = useStreamingProgress();
-
   return (
     <div className="card overflow-hidden transition-all bg-surface-raised flex flex-col">
       {/* Header Bar */}
@@ -125,7 +123,7 @@ function PlayerLoadingCard() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-bold text-foreground animate-pulse">
-              {isRetrying ? "Retrying generation..." : "Generating Video..."}
+              Generating video...
             </p>
             <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground mt-0.5 animate-pulse">
               Please wait

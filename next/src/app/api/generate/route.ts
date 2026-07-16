@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { generateComposedVideo } from "@/lib/agent/videoParts/composedVideo";
 import { GenerateRequestSchema } from "@/lib/agent/schemas/api";
-import { runGeneratePipeline } from "@/lib/agent/ai/pipeline";
-import { resolveDuration } from "@/lib/agent/schemas/brief";
+import { resolveDuration } from "@/lib/others/schemas/duration";
 
 export async function POST(req: NextRequest) {
   let body: unknown;
@@ -19,44 +19,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { prompt, duration: rawDuration } = parsed.data;
-  const duration = resolveDuration(rawDuration);
-
-  console.log(`[api/generate] prompt="${prompt}" duration=${duration}s`);
-  const t0 = Date.now();
-
-  const { project, brief, projectName, summary: llmSummary, diagnostics } = await runGeneratePipeline(prompt, duration);
-
-  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  const { llmError } = diagnostics;
-
-  if (llmError) {
-    console.warn(`[api/generate] LLM error (${elapsed}s): ${llmError}`);
-  } else {
-    console.log(
-      `[api/generate] done (${elapsed}s) scenes=${brief.scenes.length} ` +
-      `palette=${brief.palette}/${brief.style} ` +
-      `events=${project.events.length}`,
-    );
-  }
-
-  const summary =
-    llmError
-      ? `⚠️ AI generation failed: ${llmError.slice(0, 120)}`
-      : llmSummary || `Here's a ${duration}s animation for: "${prompt}". Modify it or ask for changes.`;
-
-  if (llmError) {
+  const duration = resolveDuration(parsed.data.duration);
+  try {
+    const result = await generateComposedVideo({
+      prompt: parsed.data.prompt,
+      duration,
+    });
     return NextResponse.json({
-      error: llmError,
-      summary,
-    }, { status: 502 });
+      project: result.project,
+      projectName: result.projectName,
+      summary: result.summary,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[api/generate] composed generation failed:", message);
+    return NextResponse.json({ error: message, summary: message }, { status: 502 });
   }
-
-  return NextResponse.json({
-    project,
-    brief,
-    projectName,
-    summary,
-  });
 }
-// Force Next.js API route compilation refresh after prompt updates
