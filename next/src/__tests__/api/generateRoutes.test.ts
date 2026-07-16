@@ -76,6 +76,10 @@ describe("root generation routes", () => {
     expect(payload).toContain('"type":"model-progress","part":"summary"');
     expect(payload).toContain('"type":"model-complete","part":"summary"');
     expect(payload).toContain('"completionTokens":96');
+    expect(payload).toContain('"promptTokens":20');
+    expect(payload).toContain('"durationMs":');
+    expect(payload).toContain('"ttftMs":');
+    expect(payload).toContain('"tokensPerSecond":');
     expect(payload).toContain('"type":"done"');
     expect(payload).not.toContain('"parts"');
   });

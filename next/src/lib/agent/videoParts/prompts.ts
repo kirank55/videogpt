@@ -1,9 +1,7 @@
-import { z } from "zod";
 import {
-  BookendsContentSchema,
-  videoPartJsonSchema,
   type VideoPartKind,
 } from "@/lib/agent/videoParts/schemas";
+import { getVideoPartBudget } from "@/lib/agent/videoParts/budgets";
 
 const roleGuides: Record<VideoPartKind, string> = {
   title: "Write a concise, compelling video title and an optional explanatory subtitle. Generate no scene content.",
@@ -18,11 +16,31 @@ Examples of composition thinking: a solar-cell prompt can draw a semiconductor c
   conclusion: "Write one concise closing line that resolves the explanation. Generate no title or scene content.",
 };
 
+const rendererContract = `
+OUTPUT CONTRACT (only these keys):
+Root: {"mode":"direct-summary-timeline"|"direct-timeline","name":string,"visualIntent":string,"events":TimelineEvent[]}
+Every event: {"id":unique string,"type":...,"start":number>=0,"end":number,"layer":integer>=0}. Keep 0 <= start < end <= segment duration.
+Optional animation keys on any event: opacity, translateX, translateY, scale, scaleX, scaleY, rotate, drawProgress. Each is {"from":number,"to":number,"easing":"linear"|"easeIn"|"easeOut"|"easeInOut"|"bounce"} or {"keyframes":[{"time":number,"value":number,"easing":...}]}. Optional path is {"points":[{"x":number,"y":number},...],"easing":...}.
+
+TimelineEvent variants:
+- background: {type:"background", background:{kind:"solid",color:string}|{kind:"gradient",from:string,to:string,angle:number}}
+- text: {type:"text", text:string,x:number,y:number,maxWidth:number,color:string,fontSize:number,fontWeight?:number|string,align?:"left"|"right"|"center",backdrop?:{fill:string,paddingX?:number,paddingY?:number,radius?:number}}
+- rect: {type:"shape",shapeType:"rect",x,y,width,height,fill:string,radius?:number,stroke?:string,strokeWidth?:number}
+- circle: {type:"shape",shapeType:"circle",x,y,radius,fill:string,stroke?:string,strokeWidth?:number}
+- triangle: {type:"shape",shapeType:"triangle",x,y,width,height,fill:string,stroke?:string,strokeWidth?:number}
+- line: {type:"shape",shapeType:"line",x1,y1,x2,y2,stroke:string,lineWidth:number,arrowStart?:boolean,arrowEnd?:boolean}
+- icon: {type:"shape",shapeType:"icon",iconName:"browser"|"server"|"database"|"cloud"|"lock"|"globe"|"gear"|"code"|"api"|"mobile"|"router"|"shield"|"cpu"|"cache"|"app"|"building"|"foundation"|"beam"|"floor"|"elevator"|"wall"|"wrench"|"water",cx,cy,size:number,color:string}
+- badge: {type:"shape",shapeType:"badge",cx,cy,text:string,fontSize?:number,paddingX?:number,paddingY?:number,fill:string,textColor:string}
+- progress: {type:"shape",shapeType:"progress",x,y,width,height,trackColor:string,fillColor:string,fillFraction?:number}
+- particle: {type:"particle",count:positive integer,seed:nonnegative integer,origin:{x,y},spread:{x,y},drift:{x,y},particleRadius:{min,max},color:string}
+Numbers represented above without explicit types are numbers. Do not invent event types, shape types, fields, or wrapper objects.`;
+
 export function buildVideoPartSystemPrompt(
   part: VideoPartKind,
   duration: number,
   visualContext?: string,
 ): string {
+  const budget = getVideoPartBudget(part, duration);
   const ownershipGuide = part === "summary" || part === "main-diagram"
     ? "The server owns only project id, canvas dimensions, duration, and final section offset. The canvas renderer draws your validated TimelineEvents exactly; no layout or scene-expansion pipeline will reposition them."
     : "The deterministic bookend renderer owns palette, style, coordinates, timing, and transitions.";
@@ -39,9 +57,13 @@ ${roleGuides[part]}
 ${ownershipGuide}
 Use concise text that fits a 1920x1080 canvas.
 Every event id must be unique, and every animation must belong to an event in this response.
+${budget.maxEvents ? `Use at most ${budget.maxEvents} events.` : ""}
 
-JSON SCHEMA:
-${JSON.stringify(videoPartJsonSchema(part))}
+${part === "summary" || part === "main-diagram"
+    ? rendererContract
+    : part === "title"
+      ? 'OUTPUT CONTRACT: {"title":string,"subtitle"?:string}'
+      : 'OUTPUT CONTRACT: {"closingLine":string}'}
   `.trim();
 }
 
@@ -59,8 +81,7 @@ ${visualContext ? `VISUAL CONTEXT: ${visualContext}` : ""}
 
 Write a concise title, an optional explanatory subtitle, and one concise closing line that resolves the explanation. Do not write summary content, diagram events, scenes, coordinates, or styling.
 
-JSON SCHEMA:
-${JSON.stringify(z.toJSONSchema(BookendsContentSchema))}
+OUTPUT CONTRACT: {"title":string,"subtitle"?:string,"closingLine":string}
   `.trim();
 }
 

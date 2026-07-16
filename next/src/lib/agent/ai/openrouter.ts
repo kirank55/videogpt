@@ -137,6 +137,7 @@ export async function callOpenRouter(
     max_tokens: options.maxTokens ?? 8192,
     temperature: options.temperature ?? 0.7,
     response_format: { type: "json_object" },
+    provider: { sort: "throughput" },
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

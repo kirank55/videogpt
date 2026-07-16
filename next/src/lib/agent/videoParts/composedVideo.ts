@@ -20,6 +20,7 @@ import { DEFAULT_PALETTE, PALETTES } from "@/lib/others/catalog/palettes";
 import type { SupportedDuration } from "@/lib/others/schemas/duration";
 import { seededHash } from "@/lib/others/timeline/utils";
 import type { AnimatedValue, TimelineEvent, VideoProject } from "@/lib/ui/renderer";
+import { BOOKENDS_MAX_TOKENS } from "@/lib/agent/videoParts/budgets";
 
 export type ComposedVideoModelCaller = VideoPartModelCaller;
 
@@ -172,7 +173,7 @@ async function generateBookends(
     let repaired: unknown;
     try {
       repaired = await callModel(systemPrompt, repairPrompt, {
-        maxTokens: 768,
+        maxTokens: BOOKENDS_MAX_TOKENS,
         temperature: 0.2,
         reasoning: { enabled: false },
       });
@@ -196,7 +197,7 @@ async function generateBookends(
   let raw: unknown;
   try {
     raw = await callModel(systemPrompt, request.prompt, {
-      maxTokens: 768,
+      maxTokens: BOOKENDS_MAX_TOKENS,
       temperature: 0.65,
       reasoning: { enabled: false },
     });

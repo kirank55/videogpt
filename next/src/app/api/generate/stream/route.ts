@@ -11,7 +11,10 @@ function sseEvent(type: string, data: Record<string, unknown>): string {
 type ServerProgress = {
   characterCount: number;
   sentCharacterCount: number;
+  promptTokens: number;
   completionTokens: number;
+  startedAt: number;
+  firstChunkAt?: number;
   lastSentAt: number;
 };
 
@@ -54,7 +57,9 @@ export async function POST(req: NextRequest) {
         (["bookends", "summary", "main-diagram"] as GenerationPart[]).map((part) => [part, {
           characterCount: 0,
           sentCharacterCount: 0,
+          promptTokens: 0,
           completionTokens: 0,
+          startedAt: Date.now(),
           lastSentAt: 0,
         }]),
       ) as Record<GenerationPart, ServerProgress>;
@@ -85,20 +90,40 @@ export async function POST(req: NextRequest) {
             signal: req.signal,
             onPhase: (phase) => send("phase", { phase }),
             onModelProgress: (part, chunk) => {
+              progress[part].firstChunkAt ??= Date.now();
               progress[part].characterCount += chunk.characterCount;
               sendProgress(part);
             },
             onModelUsage: (part, usage) => {
+              progress[part].promptTokens += usage.prompt_tokens;
               progress[part].completionTokens += usage.completion_tokens;
               sendProgress(part, true);
             },
             onModelComplete: (part) => {
               sendProgress(part, true);
+              const current = progress[part];
+              const completedAt = Date.now();
+              const durationMs = completedAt - current.startedAt;
+              const ttftMs = (current.firstChunkAt ?? completedAt) - current.startedAt;
+              const tokensPerSecond = Number(
+                (current.completionTokens / Math.max(durationMs / 1_000, 0.001)).toFixed(1),
+              );
+              console.info("[api/generate/stream] model section complete", {
+                requestId,
+                part,
+                promptTokens: current.promptTokens,
+                completionTokens: current.completionTokens,
+                durationMs,
+                ttftMs,
+                tokensPerSecond,
+              });
               send("model-complete", {
                 part,
-                ...(progress[part].completionTokens > 0
-                  ? { completionTokens: progress[part].completionTokens }
-                  : {}),
+                promptTokens: current.promptTokens,
+                completionTokens: current.completionTokens,
+                durationMs,
+                ttftMs,
+                tokensPerSecond,
               });
             },
           },

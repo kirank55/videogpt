@@ -12,6 +12,7 @@ import type {
 } from "@/lib/others/schemas/timeline";
 import { TimelineEventSchema } from "@/lib/others/schemas/timeline";
 import { getAnimatedStyle } from "@/lib/ui/renderer/animation";
+import { getVideoPartBudget } from "@/lib/agent/videoParts/budgets";
 import {
   boundsOverlap,
   getShapeCenter,
@@ -617,7 +618,8 @@ function normalizeDirectTimelineContent(
   profile: DirectTimelineProfile,
 ): unknown {
   const raw = asRecord(rawValue);
-  const maximumEvents = mode === "direct-summary-timeline" ? 40 : 80;
+  const part = mode === "direct-summary-timeline" ? "summary" : "main-diagram";
+  const maximumEvents = getVideoPartBudget(part, duration).maxEvents!;
   const sourceEvents = Array.isArray(raw.events) ? raw.events.slice(0, maximumEvents) : [];
   const events = sourceEvents.map((event, index) => normalizeEvent(event, index, duration));
   const usedIds = new Set<string>();

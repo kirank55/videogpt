@@ -16,6 +16,7 @@ import {
   buildVideoPartSystemPrompt,
 } from "@/lib/agent/videoParts/prompts";
 import { resolveVideoPartTheme } from "@/lib/agent/videoParts/theme";
+import { getVideoPartBudget } from "@/lib/agent/videoParts/budgets";
 
 export type VideoPartModelCaller = (
   systemPrompt: string,
@@ -36,13 +37,6 @@ export type GenerateVideoPartInput = {
 
 const DEFAULT_DEPENDENCIES: VideoPartPipelineDependencies = {
   callModel: callOpenRouter,
-};
-
-const MAX_TOKENS: Record<VideoPartKind, number> = {
-  title: 512,
-  summary: 4096,
-  "main-diagram": 16384,
-  conclusion: 384,
 };
 
 export class VideoPartGenerationError extends Error {
@@ -87,9 +81,9 @@ function isRepairableModelOutputFailure(
 }
 
 /**
- * Generates exactly one authored video part, validates its strict contract,
- * and expands it to an isolated renderable project. Invalid JSON receives one
- * schema-guided repair attempt; provider failures are allowed to surface.
+ * Generates exactly one authored video part and expands it to an isolated
+ * renderable project. Direct timelines normalize or fall back locally after
+ * one request; small copy-only parts retain one schema-guided repair attempt.
  */
 export async function generateVideoPart(
   request: GenerateVideoPartInput,
@@ -100,8 +94,9 @@ export async function generateVideoPart(
     request.duration,
     request.visualContext,
   );
+  const budget = getVideoPartBudget(request.part, request.duration);
   const options = {
-    maxTokens: MAX_TOKENS[request.part],
+    maxTokens: budget.maxTokens,
     temperature: request.part === "main-diagram" ? 0.8 : 0.65,
     reasoning: { enabled: false },
   };
@@ -167,6 +162,9 @@ export async function generateVideoPart(
     raw = await dependencies.callModel(systemPrompt, request.prompt, options);
   } catch (firstCallError) {
     if (!isRepairableModelOutputFailure(firstCallError)) throw firstCallError;
+    if (request.part === "summary" || request.part === "main-diagram") {
+      return finalize(parseGeneratedPart({}));
+    }
     const artifact = await repair(firstCallError, firstCallError.content);
     return finalize(artifact);
   }
@@ -175,7 +173,9 @@ export async function generateVideoPart(
   try {
     artifact = parseGeneratedPart(raw);
   } catch (firstError) {
-    artifact = await repair(firstError, serializeModelOutput(raw));
+    artifact = request.part === "summary" || request.part === "main-diagram"
+      ? parseGeneratedPart({})
+      : await repair(firstError, serializeModelOutput(raw));
   }
 
   return finalize(artifact);

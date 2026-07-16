@@ -18,11 +18,11 @@ VideoGPT turns one natural-language prompt into a fixed-duration, Canvas-rendere
 
 **Composition window**: One contiguous local interval assigned before generation. The windows are intro, summary, main, and conclusion. Summary and main models receive their exact local durations; their event times and absolute keyframes are shifted into the final project without rescaling.
 
-**Normalization profile**: Shared direct-timeline recovery configured for a role. Summary retains at most 40 events and at least two shapes; main retains at most 80 events and at least three shapes. Both guarantee renderer-safe events and add missing background, label, or shape fallbacks.
+**Normalization profile**: Shared direct-timeline recovery configured for a role and its composition window. Summary stays compact; main scales with its available duration. Both guarantee renderer-safe events and add missing background, label, or shape fallbacks.
 
 **Recoverable diagnostic**: A visual-quality finding such as overlap, static output, unsupported decoration, or imprecise placement. It may reduce output quality but does not discard a renderer-safe video.
 
-**Targeted repair**: The single low-temperature retry allowed when a model response cannot be parsed as JSON. Valid JSON with imperfect timeline authorship is normalized without another model call.
+**Targeted repair**: The single low-temperature retry allowed for invalid non-timeline copy such as bookends. Direct timelines never spend another model request on repair; malformed output becomes a deterministic renderer-safe fallback.
 
 **Palette context**: One deterministic palette selected from the prompt and supplied to all three requests, keeping independently authored sections visually coherent.
 
@@ -34,5 +34,5 @@ VideoGPT turns one natural-language prompt into a fixed-duration, Canvas-rendere
 - The selected 5, 10, 15, or 20 second duration is preserved exactly.
 - The four windows are contiguous and cover the project with no blank gaps.
 - Every final event ID is prefixed `intro-`, `summary-`, `main-`, or `conclusion-`.
-- An unrecoverable provider or JSON failure discards all generated sections; recoverable timeline findings render with normalization and fallbacks.
+- An unrecoverable provider failure discards all generated sections. Invalid direct-timeline output renders with normalization and fallbacks instead of discarding the video.
 - Follow-up modification is not part of the generation model. Users start a new project instead.
