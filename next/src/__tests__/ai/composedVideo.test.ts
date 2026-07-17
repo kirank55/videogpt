@@ -155,11 +155,12 @@ describe("composed video generation", () => {
 
     expect(started.sort()).toEqual(["bookends", "main-diagram", "summary"]);
     expect(initialRequests.every(({ userPrompt }) => userPrompt === "How does solar power work?")).toBe(true);
-    const visualContexts = initialRequests.map(({ systemPrompt }) =>
-      systemPrompt.match(/VISUAL CONTEXT: (.+)/)?.[1]
-    );
-    expect(new Set(visualContexts).size).toBe(1);
-    expect(visualContexts[0]).toContain('"palette"');
+    const visualContextOf = (part: string) =>
+      initialRequests.find((request) => request.part === part)
+        ?.systemPrompt.match(/VISUAL CONTEXT: (.+)/)?.[1];
+    expect(visualContextOf("bookends")).toBeUndefined();
+    expect(visualContextOf("summary")).toBe(visualContextOf("main-diagram"));
+    expect(visualContextOf("summary")).toContain('"palette"');
     const windowsForRequest = planCompositionWindows(10);
     expect(localDuration(
       initialRequests.find(({ part }) => part === "summary")!.systemPrompt,
