@@ -160,10 +160,9 @@ function isRepairableModelOutputFailure(
 
 async function generateBookends(
   request: GenerateComposedVideoRequest,
-  visualContext: string,
   callModel: ComposedVideoModelCaller,
 ): Promise<BookendsContent> {
-  const systemPrompt = buildBookendsSystemPrompt(request.duration, visualContext);
+  const systemPrompt = buildBookendsSystemPrompt(request.duration);
   const repair = async (firstError: unknown, previousOutput?: string) => {
     const repairPrompt = buildVideoPartRepairPrompt(
       request.prompt,
@@ -304,7 +303,7 @@ export async function generateComposedVideo(
 
   dependencies.onPhase?.("generating-sections");
   const results = await Promise.allSettled([
-    completePart("bookends", generateBookends(request, visualContext, callForPart("bookends"))),
+    completePart("bookends", generateBookends(request, callForPart("bookends"))),
     completePart("summary", generateVideoPart({
       part: "summary",
       prompt: request.prompt,

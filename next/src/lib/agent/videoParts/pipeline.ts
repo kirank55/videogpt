@@ -97,7 +97,7 @@ export async function generateVideoPart(
   const budget = getVideoPartBudget(request.part, request.duration);
   const options = {
     maxTokens: budget.maxTokens,
-    temperature: request.part === "main-diagram" ? 0.8 : 0.65,
+    temperature: request.part === "main-diagram" ? 0.5 : 0.65,
     reasoning: { enabled: false },
   };
 
