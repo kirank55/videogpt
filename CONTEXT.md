@@ -1,6 +1,6 @@
 # VideoGPT domain language
 
-VideoGPT turns one natural-language prompt into a fixed-duration, Canvas-rendered animated explanation. New generation uses three independent model requests and composes their validated timeline events into one project.
+VideoGPT turns one natural-language prompt into a fixed-duration, Canvas-rendered animated explanation. Root generation plans a duration-aware sequence of content scenes, authors those scenes independently, and composes their validated timeline events into one project.
 
 ## Core terms
 
@@ -12,27 +12,41 @@ VideoGPT turns one natural-language prompt into a fixed-duration, Canvas-rendere
 
 **Bookends**: One model-authored content object containing the title, optional subtitle, and closing line. Its visual events are rendered deterministically so the model does not spend tokens choosing bookend coordinates.
 
-**Direct summary**: A compact introductory timeline. It presents the high-level structure with few labels and shapes; it does not explain the underlying mechanism.
+**Overview scene**: An optional compact introductory timeline that presents a useful high-level visual model. It is omitted when it would displace a more valuable substantive scene.
+_Avoid_: Mandatory summary, introduction scene
 
-**Main diagram**: A deeper direct timeline that explains one mechanism, causal relationship, interaction, cutaway, state transition, or spatial model. It should not repeat the summary composition.
+**Substantive scene**: A content scene whose role is to explain a mechanism, demonstrate a concrete example, or make a meaningful comparison. In a constrained video it takes precedence over an overview scene.
+_Avoid_: Detail scene, main scene
 
-**Composition window**: One contiguous local interval assigned before generation. The windows are intro, summary, main, and conclusion. Summary and main models receive their exact local durations; their event times and absolute keyframes are shifted into the final project without rescaling.
+**Scene visual quality**: The visual richness and subject specificity of one generated scene, expressed through meaningful objects, composition, and animation. It does not mean playback resolution, encoding fidelity, or the video's overall narrative structure.
+_Avoid_: Quality
 
-**Normalization profile**: Shared direct-timeline recovery configured for a role and its composition window. Summary stays compact; main scales with its available duration. Both guarantee renderer-safe events and add missing background, label, or shape fallbacks.
+**Scene quality evaluation**: A repeatable side-by-side benchmark that compares root substantive scenes with the isolated dev reference across varied subject types. It assesses subject specificity, meaningful geometry, motion, readability, and avoidance of generic compositions.
+_Avoid_: Demo prompt, quality check
+
+**Scene share**: The planner's relative preference for how content time should be divided among planned scenes. It yields to minimum useful scene durations and may not force a scene into a fragmentary window.
+_Avoid_: Fixed duration, guaranteed percentage
+
+**Composition window**: One contiguous local interval assigned before scene generation. Intro, the selected content scenes, and conclusion receive exact local durations; content event times and absolute keyframes are shifted into the final project without rescaling.
+
+**Normalization profile**: Direct-timeline recovery configured for a scene role and composition window. Overview scenes stay compact; substantive scenes receive a visual-authorship budget floor. Both guarantee renderer-safe events and add missing background, label, or shape fallbacks.
 
 **Recoverable diagnostic**: A visual-quality finding such as overlap, static output, unsupported decoration, or imprecise placement. It may reduce output quality but does not discard a renderer-safe video.
 
-**Targeted repair**: The single low-temperature retry allowed for invalid non-timeline copy such as bookends. Direct timelines never spend another model request on repair; malformed output becomes a deterministic renderer-safe fallback.
+**Targeted repair**: One low-temperature retry for invalid bookend copy or an unusable substantive timeline. Recoverable timeline defects are normalized without a retry; an unusable substantive result falls back deterministically only after its repair fails.
 
-**Palette context**: One deterministic palette selected from the prompt and supplied to all three requests, keeping independently authored sections visually coherent.
+**Palette context**: One deterministic set of background, text, and primary-accent anchors supplied to independently authored scenes for visual coherence. Scenes may add a small number of subject-specific semantic colors when color communicates meaning.
+_Avoid_: Fixed palette, exclusive palette
 
 **Persisted session**: Client state containing messages and already-rendered projects. Hydration drops obsolete authored payload fields while retaining valid projects.
 
 ## Generation invariants
 
-- Root generation performs exactly three concurrent model requests.
+- Root generation plans at least one content scene, then authors the selected scenes independently.
+- Content-scene ceilings are one, two, three, and four for 5, 10, 15, and 20 second videos respectively; the planner may choose fewer.
 - The selected 5, 10, 15, or 20 second duration is preserved exactly.
-- The four windows are contiguous and cover the project with no blank gaps.
-- Every final event ID is prefixed `intro-`, `summary-`, `main-`, or `conclusion-`.
-- An unrecoverable provider failure discards all generated sections. Invalid direct-timeline output renders with normalization and fallbacks instead of discarding the video.
+- Intro, content-scene, and conclusion windows are contiguous and cover the project with no blank gaps.
+- Planner scene shares yield to minimum useful scene durations.
+- Every final event ID is prefixed by its composition section or planned scene ID.
+- An unrecoverable provider failure discards all generated sections. Recoverable direct-timeline output is normalized; an unusable substantive scene receives one targeted repair before deterministic fallback.
 - Follow-up modification is not part of the generation model. Users start a new project instead.
