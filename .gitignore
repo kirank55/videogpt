@@ -25,6 +25,7 @@ node_modules
 *.pem
 *.local.md
 /demo
+/evaluation-artifacts/
 .agents
 skills-lock.json
 videographic
