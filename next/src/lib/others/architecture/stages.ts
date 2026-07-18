@@ -23,7 +23,7 @@ export const PIPELINE_STAGES: ArchStage[] = [
     summary: "One planner request chooses dynamic scenes, copy, and time shares",
     file: "next/src/lib/agent/rootGeneration/planner.ts",
     symbol: "planVideoScenes",
-    dataShape: "VideoPlan: title/closing copy + 2-5 scenes with roles, goals, and shares",
+    dataShape: "VideoPlan: title/closing copy + 1-4 scenes within duration-specific ceilings",
     details: "The planner picks scene roles (overview, mechanism, example, comparison) per topic. Invalid plans get one targeted repair; total failure falls back to a deterministic two-scene plan.",
   },
   {
@@ -42,7 +42,7 @@ export const PIPELINE_STAGES: ArchStage[] = [
     file: "next/src/lib/agent/rootGeneration/composedVideo.ts",
     symbol: "generateComposedVideo",
     dataShape: "One direct timeline payload per scene",
-    details: "Each scene is generated with its plan goal, the other scenes' goals as negative context, and a shared palette; malformed output becomes a renderer-safe fallback without a repair request.",
+    details: "Each scene is generated with its plan goal, neighboring scene boundaries, and a shared palette. An unusable substantive timeline gets one targeted repair before a diagnostic renderer-safe fallback; recoverable output is normalized without another request.",
   },
   {
     id: "timeline-validation",
@@ -50,7 +50,7 @@ export const PIPELINE_STAGES: ArchStage[] = [
     summary: "Safe renderer vocabulary, geometry, timing, and readability",
     file: "next/src/lib/agent/rootGeneration/directTimeline.ts",
     dataShape: "Validated TimelineEvent[]",
-    details: "Overview scenes use the compact profile and detailed scenes the scaled profile while sharing spatial, collision, and animation checks.",
+    details: "Overview scenes use the compact profile and substantive scenes the scaled profile while sharing spatial, collision, and animation checks.",
   },
   {
     id: "composition",

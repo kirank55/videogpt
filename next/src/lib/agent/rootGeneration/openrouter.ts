@@ -41,17 +41,23 @@ export class OpenRouterJsonParseError extends Error {
 /** The model consumed its output budget before emitting assistant content. */
 export class OpenRouterLengthError extends Error {
   readonly finishReason = "length";
+  readonly content: string;
 
-  constructor() {
-    super("OpenRouter returned empty content (finish_reason=length).");
+  constructor(content = "") {
+    super(
+      content
+        ? `OpenRouter stopped before completing output (finish_reason=length): ${content.slice(0, 300)}`
+        : "OpenRouter returned empty content (finish_reason=length).",
+    );
     this.name = "OpenRouterLengthError";
+    this.content = content;
   }
 }
 
 function parseAssistantJson(raw: string, finishReason?: string): unknown {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*\n?|\n?```\s*$/g, "").trim();
+  if (finishReason === "length") throw new OpenRouterLengthError(cleaned);
   if (!cleaned) {
-    if (finishReason === "length") throw new OpenRouterLengthError();
     throw new Error(
       `OpenRouter returned empty content (finish_reason=${finishReason ?? "unknown"}).`,
     );
@@ -194,4 +200,3 @@ export async function callOpenRouter(
 
   return parseAssistantJson(choice.message?.content ?? "", choice.finish_reason);
 }
-

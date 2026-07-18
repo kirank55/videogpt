@@ -11,7 +11,9 @@ export type EvaluationDiagnosticCode =
   | "renderer-schema-failure"
   | "renderer-failure"
   | "generation-failure"
+  | "degraded-scene"
   | "deterministic-fallback"
+  | "unusable-fallback"
   | "excessive-overlap"
   | "missing-motion"
   | "unreadable-text"
@@ -123,6 +125,11 @@ function looksLikeGenericCardLayout(events: TimelineEvent[]): string[] | undefin
   return undefined;
 }
 
+function isDeterministicFallbackEvent(event: TimelineEvent): boolean {
+  return /(?:^|-)(?:background-fallback|label-fallback|shape-fallback-\d+)$/
+    .test(event.id);
+}
+
 export function classifyProjectDiagnostics(project: unknown): EvaluationDiagnostic[] {
   const parsed = VideoProjectSchema.safeParse(project);
   if (!parsed.success) {
@@ -138,8 +145,9 @@ export function classifyProjectDiagnostics(project: unknown): EvaluationDiagnost
 
   const diagnostics: EvaluationDiagnostic[] = [];
   const events = parsed.data.events;
+  const contentEvents = events.filter((event) => event.type !== "background");
   const fallbackIds = events
-    .filter((event) => event.id.includes("fallback"))
+    .filter(isDeterministicFallbackEvent)
     .map((event) => event.id);
   if (fallbackIds.length > 0) {
     diagnostics.push({
@@ -147,6 +155,17 @@ export function classifyProjectDiagnostics(project: unknown): EvaluationDiagnost
       severity: 4,
       message: "The normalized project contains deterministic fallback events.",
       eventIds: fallbackIds,
+    });
+  }
+  if (
+    contentEvents.length > 0
+    && contentEvents.every(isDeterministicFallbackEvent)
+  ) {
+    diagnostics.push({
+      code: "unusable-fallback",
+      severity: 5,
+      message: "All substantive content events are deterministic fallbacks.",
+      eventIds: contentEvents.map((event) => event.id),
     });
   }
 
@@ -160,7 +179,6 @@ export function classifyProjectDiagnostics(project: unknown): EvaluationDiagnost
     });
   }
 
-  const contentEvents = events.filter((event) => event.type !== "background");
   if (
     !contentEvents.some(isAnimated)
     && new Set(contentEvents.map((event) => event.start)).size <= 1
@@ -216,4 +234,25 @@ export function rendererFailureDiagnostic(error: unknown): EvaluationDiagnostic 
 
 export function diagnosticFailureSeverity(diagnostics: EvaluationDiagnostic[]): number {
   return diagnostics.reduce((maximum, diagnostic) => Math.max(maximum, diagnostic.severity), 0);
+}
+
+export const DISQUALIFYING_DIAGNOSTIC_CODES = [
+  "renderer-schema-failure",
+  "renderer-failure",
+  "generation-failure",
+  "degraded-scene",
+  "unusable-fallback",
+  "unreadable-text",
+] as const satisfies readonly EvaluationDiagnosticCode[];
+
+const disqualifyingDiagnosticCodes = new Set<EvaluationDiagnosticCode>(
+  DISQUALIFYING_DIAGNOSTIC_CODES,
+);
+
+export function hasDisqualifyingDiagnostics(
+  diagnostics: EvaluationDiagnostic[],
+): boolean {
+  return diagnostics.some((diagnostic) =>
+    disqualifyingDiagnosticCodes.has(diagnostic.code)
+  );
 }

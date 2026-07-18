@@ -293,6 +293,51 @@ describe("composed video generation", () => {
     expect(result.project.events.some((event) => event.id === "cell-background-fallback")).toBe(true);
   });
 
+  it("composes a repaired substantive scene in its original window without retrying other scenes", async () => {
+    const sceneCalls = new Map<string, number>();
+    const callModel: ComposedVideoModelCaller = async (systemPrompt) => {
+      if (systemPrompt.includes("PART: planner")) return plan;
+      const sceneId = sceneIdOf(systemPrompt);
+      sceneCalls.set(sceneId, (sceneCalls.get(sceneId) ?? 0) + 1);
+      const duration = localDuration(systemPrompt);
+      if (sceneId === "cell" && sceneCalls.get(sceneId) === 1) {
+        return {
+          mode: "direct-timeline",
+          name: "Empty",
+          visualIntent: "No usable visual content.",
+          events: [],
+        };
+      }
+      const compact = systemPrompt.includes("SCENE ROLE: overview");
+      return {
+        mode: compact ? "direct-summary-timeline" : "direct-timeline",
+        name: "Scene",
+        visualIntent: "Scene visuals.",
+        events: directEvents(duration, compact),
+      };
+    };
+
+    const result = await generateComposedVideo(
+      { prompt: "How does solar power work?", duration: 15 },
+      { callModel },
+    );
+    const windows = planSceneWindows(result.plan, 15);
+    const cellWindow = windows.scenes.find((window) => window.scene.id === "cell")!;
+    const cellEvents = result.project.events.filter((event) => event.id.startsWith("cell-"));
+
+    expect(sceneCalls).toEqual(new Map([
+      ["overview", 1],
+      ["cell", 2],
+      ["panels", 1],
+    ]));
+    expect(cellEvents.every((event) =>
+      event.start >= cellWindow.start && event.end <= cellWindow.end
+    )).toBe(true);
+    expect(result.scenes.find((generated) => generated.scene.id === "cell")?.diagnostics).toEqual([]);
+    expect(result.project.events.some((event) => event.id.startsWith("overview-"))).toBe(true);
+    expect(result.project.events.some((event) => event.id.startsWith("panels-"))).toBe(true);
+  });
+
   it("rejects when a scene generation fails hard", async () => {
     const callModel: ComposedVideoModelCaller = async (systemPrompt) => {
       if (systemPrompt.includes("PART: planner")) return plan;

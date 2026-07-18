@@ -1,5 +1,7 @@
 import { spawn, spawnSync, type ChildProcess } from "child_process";
+import { createHash } from "crypto";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { callOpenRouter as callRootModel } from "../lib/agent/rootGeneration/openrouter";
 import type { OpenRouterOptions as RootModelOptions } from "../lib/agent/rootGeneration/openrouter";
@@ -10,8 +12,10 @@ import { generateVideoPart } from "../lib/agent/videoParts/pipeline";
 import { loadEvaluationCases, type EvaluationCase } from "../lib/evaluation/cases";
 import {
   classifyProjectDiagnostics,
+  DISQUALIFYING_DIAGNOSTIC_CODES,
   diagnosticFailureSeverity,
   generationFailureDiagnostic,
+  hasDisqualifyingDiagnostics,
   rendererFailureDiagnostic,
   type EvaluationDiagnostic,
 } from "../lib/evaluation/diagnostics";
@@ -24,6 +28,7 @@ import {
 } from "../lib/evaluation/metadata";
 import {
   HUMAN_SCORE_CRITERIA,
+  assessQualityThreshold,
   summarizeEvaluation,
   type HumanScore,
   type HumanScoreCriterion,
@@ -52,8 +57,25 @@ type RubricFile = {
   entries: RubricEntry[];
 };
 
+type EvaluationManifest = {
+  schemaVersion: 1;
+  evaluationId: string;
+  createdAt: string;
+  requestedModel: string;
+  evaluationCaseRevision: string;
+  repetitions: number;
+  frameFractions: readonly number[];
+  cases: EvaluationCase[];
+};
+
 function timestampId(): string {
   return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function evaluationCaseRevision(cases: EvaluationCase[]): string {
+  return `sha256:${createHash("sha256")
+    .update(JSON.stringify(cases))
+    .digest("hex")}`;
 }
 
 function parseArguments(): { outputRoot: string; summarizeDirectory?: string } {
@@ -140,13 +162,26 @@ async function generateProject(
   caseDefinition: EvaluationCase,
   generationPath: GenerationPath,
   modelCalls: CapturedModelCall[],
-): Promise<VideoProject> {
+): Promise<{
+  project: VideoProject;
+  diagnostics: EvaluationDiagnostic[];
+}> {
   if (generationPath === "root") {
     const result = await generateComposedVideo(
       { prompt: caseDefinition.prompt, duration: caseDefinition.duration },
       { callModel: createCapturedCaller(modelCalls, callRootModel) },
     );
-    return result.project;
+    return {
+      project: result.project,
+      diagnostics: result.scenes.flatMap((scene) =>
+        scene.diagnostics.map((diagnostic) => ({
+          code: diagnostic.code,
+          severity: 4,
+          message: `${scene.scene.id}: ${diagnostic.reason}`,
+          eventIds: scene.project.events.map((event) => `${scene.scene.id}-${event.id}`),
+        }))
+      ),
+    };
   }
   const result = await generateVideoPart(
     {
@@ -156,7 +191,7 @@ async function generateProject(
     },
     { callModel: createCapturedCaller(modelCalls, callDevModel) },
   );
-  return result.project;
+  return { project: result.project, diagnostics: [] };
 }
 
 function browserCandidates(): string[] {
@@ -234,20 +269,29 @@ async function captureFrame(
     `window.tempProject = ${JSON.stringify(project)};\n`,
   );
   const url = `http://127.0.0.1:${RENDER_PORT}/dev/renderer-only?time=${time}&run=${Date.now()}`;
-  const result = spawnSync(browser, [
-    "--headless",
-    "--disable-gpu",
-    "--hide-scrollbars",
-    "--window-size=1920,1080",
-    "--virtual-time-budget=3000",
-    `--screenshot=${outputPath}`,
-    url,
-  ], { encoding: "utf8", timeout: 30_000 });
-  if (result.error) throw result.error;
-  if (result.status !== 0 || !fs.existsSync(outputPath)) {
-    throw new Error(
-      `Browser capture failed with status ${result.status}: ${(result.stderr || result.stdout).slice(0, 500)}`,
-    );
+  const browserProfile = fs.mkdtempSync(path.join(os.tmpdir(), "videogpt-quality-"));
+  try {
+    const result = spawnSync(browser, [
+      "--headless",
+      "--disable-background-networking",
+      "--disable-gpu",
+      "--hide-scrollbars",
+      "--no-default-browser-check",
+      "--no-first-run",
+      `--user-data-dir=${browserProfile}`,
+      "--window-size=1920,1080",
+      "--virtual-time-budget=3000",
+      `--screenshot=${outputPath}`,
+      url,
+    ], { encoding: "utf8", timeout: 60_000 });
+    if (result.error) throw result.error;
+    if (result.status !== 0 || !fs.existsSync(outputPath)) {
+      throw new Error(
+        `Browser capture failed with status ${result.status}: ${(result.stderr || result.stdout).slice(0, 500)}`,
+      );
+    }
+  } finally {
+    fs.rmSync(browserProfile, { recursive: true, force: true });
   }
 }
 
@@ -353,22 +397,86 @@ function completedScores(rubric: RubricFile): HumanScore[] {
   });
 }
 
-function writeSummary(evaluationDirectory: string): void {
+function writeSummary(evaluationDirectory: string): "pass" | "fail" | "incomplete" {
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(evaluationDirectory, "manifest.json"), "utf8"),
+  ) as Partial<EvaluationManifest> & Pick<EvaluationManifest, "evaluationId" | "createdAt" | "cases">;
   const artifacts = JSON.parse(
     fs.readFileSync(path.join(evaluationDirectory, "artifacts.json"), "utf8"),
   ) as EvaluationArtifactMetadata[];
   const rubric = JSON.parse(
     fs.readFileSync(path.join(evaluationDirectory, "rubric.json"), "utf8"),
   ) as RubricFile;
-  const runs: ScoredRun[] = artifacts.map((artifact) => ({
-    artifactId: artifact.artifactId,
-    caseId: artifact.caseId,
-    generationPath: artifact.generationPath,
-    failureSeverity: diagnosticFailureSeverity(artifact.diagnostics),
-  }));
-  const results = summarizeEvaluation(runs, completedScores(rubric));
-  writeJson(path.join(evaluationDirectory, "results.json"), results);
+  const runs: ScoredRun[] = artifacts.map((artifact) => {
+    const currentDiagnostics = artifact.normalizedProject === undefined
+      ? artifact.diagnostics
+      : [...artifact.diagnostics, ...classifyProjectDiagnostics(artifact.normalizedProject)];
+    return {
+      artifactId: artifact.artifactId,
+      caseId: artifact.caseId,
+      generationPath: artifact.generationPath,
+      failureSeverity: diagnosticFailureSeverity(currentDiagnostics),
+      disqualified: hasDisqualifyingDiagnostics(currentDiagnostics),
+      requiredArtifactsPresent:
+        fs.existsSync(path.join(
+          evaluationDirectory,
+          "runs",
+          artifact.artifactId,
+          "metadata.json",
+        ))
+        && artifact.normalizedProject !== undefined
+        && fs.existsSync(path.join(
+          evaluationDirectory,
+          "runs",
+          artifact.artifactId,
+          "project.json",
+        ))
+        && artifact.renderedFrames.length === FRAME_FRACTIONS.length
+        && artifact.renderedFrames.every((frame) =>
+          fs.existsSync(path.join(evaluationDirectory, frame))
+        ),
+    };
+  });
+  const scores = completedScores(rubric);
+  const summaries = summarizeEvaluation(runs, scores);
+  const assessment = assessQualityThreshold({
+    runs,
+    scores,
+    caseIds: manifest.cases.map((caseDefinition) => caseDefinition.id),
+    repetitions: manifest.repetitions ?? REPETITIONS,
+  });
+  const modelConfigurations = [
+    ...new Map(artifacts.flatMap((artifact) =>
+      artifact.modelCalls.map((call) => {
+        const configuration = {
+          generationPath: artifact.generationPath,
+          model: call.model,
+          options: call.options,
+        };
+        return [JSON.stringify(configuration), configuration] as const;
+      })
+    )).values(),
+  ];
+  writeJson(path.join(evaluationDirectory, "results.json"), {
+    schemaVersion: 1,
+    evaluationId: manifest.evaluationId,
+    runTimestamp: manifest.createdAt,
+    summarizedAt: new Date().toISOString(),
+    evaluationCaseRevision:
+      manifest.evaluationCaseRevision ?? evaluationCaseRevision(manifest.cases),
+    requestedModel: manifest.requestedModel ?? null,
+    modelConfigurations,
+    thresholds: {
+      rootOverallMedianAtLeastDev: true,
+      minimumRootCategoryAverage: 3,
+      maximumPerPromptRootDeficit: 0.5,
+      disqualifyingDiagnostics: DISQUALIFYING_DIAGNOSTIC_CODES,
+    },
+    summaries,
+    assessment,
+  });
   console.log(`Wrote ${path.join(evaluationDirectory, "results.json")}`);
+  return assessment.status;
 }
 
 async function runEvaluation(outputRoot: string): Promise<void> {
@@ -382,14 +490,17 @@ async function runEvaluation(outputRoot: string): Promise<void> {
   const evaluationId = `scene-quality-${timestampId()}`;
   const evaluationDirectory = path.join(outputRoot, evaluationId);
   fs.mkdirSync(evaluationDirectory, { recursive: true });
-  writeJson(path.join(evaluationDirectory, "manifest.json"), {
+  const manifest: EvaluationManifest = {
     schemaVersion: 1,
     evaluationId,
     createdAt: new Date().toISOString(),
+    requestedModel: process.env.DEFAULT_MODEL,
+    evaluationCaseRevision: evaluationCaseRevision(cases),
     repetitions: REPETITIONS,
     frameFractions: FRAME_FRACTIONS,
     cases,
-  });
+  };
+  writeJson(path.join(evaluationDirectory, "manifest.json"), manifest);
 
   const browser = resolveBrowser();
   const server = await startRendererServer();
@@ -412,11 +523,13 @@ async function runEvaluation(outputRoot: string): Promise<void> {
           let rawFailure: unknown;
           const renderedFrames: string[] = [];
           try {
-            normalizedProject = await generateProject(
+            const generated = await generateProject(
               caseDefinition,
               generationPath,
               modelCalls,
             );
+            normalizedProject = generated.project;
+            diagnostics.push(...generated.diagnostics);
             diagnostics.push(...classifyProjectDiagnostics(normalizedProject));
             writeJson(path.join(artifactDirectory, "project.json"), normalizedProject);
             for (let frameIndex = 0; frameIndex < FRAME_FRACTIONS.length; frameIndex += 1) {
@@ -480,7 +593,11 @@ async function runEvaluation(outputRoot: string): Promise<void> {
 async function main(): Promise<void> {
   const { outputRoot, summarizeDirectory } = parseArguments();
   if (summarizeDirectory) {
-    writeSummary(summarizeDirectory);
+    const status = writeSummary(summarizeDirectory);
+    if (status !== "pass") {
+      console.error(`Quality threshold status: ${status}`);
+      process.exitCode = 1;
+    }
     return;
   }
   await runEvaluation(outputRoot);

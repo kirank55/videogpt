@@ -43,7 +43,8 @@ The evaluation root also contains:
 - `artifacts.json`: all run metadata in one file.
 - `index.html`: root/dev frames side by side for every case and repetition.
 - `rubric.json`: the human scoring sheet.
-- `results.json`: median and worst run selections per prompt and path.
+- `results.json`: median and worst-run results per prompt and path, provenance,
+  and the overall threshold assessment.
 
 ## Score and summarize
 
@@ -63,10 +64,29 @@ npm run evaluate:quality -- --summarize ..\evaluation-artifacts\scene-quality-<t
 ```
 
 The summarizer validates all entered scores. For each prompt and path,
-`results.json` identifies the median scored run and the worst failure. Worst
-failure selection uses deterministic diagnostic severity first, then human
-score when diagnostic severity ties. Before human scoring, median fields remain
-`null`; worst deterministic failures are still identified.
+`results.json` identifies the median scored run and the worst failure, including
+their overall scores and the worst run's diagnostic severity. Worst failure
+selection uses deterministic diagnostic severity first, then human score when
+diagnostic severity ties.
+
+The same file records the run timestamp, requested model, observed model
+options, and a SHA-256 revision of the exact ordered evaluation-case set. Its
+assessment is `incomplete` until all 48 expected artifacts have scores. Once
+complete, it is `pass` only when:
+
+- no renderer/schema/generation failure, unusable degraded or fully generic
+  fallback scene, or unreadable output disqualifies a run (recoverable
+  deterministic normalization remains a diagnostic but does not by itself make
+  a run unusable);
+- root's overall median is at least dev's;
+- every root scoring-category average is at least 3/5; and
+- root trails dev by at most 0.5 points on every prompt.
+
+The explicit `--summarize` command exits unsuccessfully for both `incomplete`
+and `fail`, after writing the report. This makes the command usable as the final
+quality gate while retaining the evidence needed to diagnose a miss. The
+initial generation command still finishes normally with an `incomplete`
+assessment so the rubric can be scored afterward.
 
 ## Deterministic diagnostics
 
