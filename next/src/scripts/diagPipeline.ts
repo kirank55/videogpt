@@ -8,8 +8,10 @@ async function main() {
   const elapsed = ((Date.now() - start) / 1000).toFixed(1);
   console.log(`Done in ${elapsed}s`);
   console.log(`Title: ${result.projectName}`);
-  console.log(`Summary: ${result.parts.summary.name}`);
-  console.log(`Main diagram: ${result.parts.mainDiagram.name}`);
+  console.log(`Logline: ${result.summary}`);
+  for (const scene of result.scenes) {
+    console.log(`Scene ${scene.scene.id} (${scene.scene.role}): ${scene.content.name}`);
+  }
   console.log(`Events: ${result.project.events.length}`);
 }
 

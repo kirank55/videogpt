@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { GenerateRequestSchema } from "@/lib/agent/schemas/api";
 import { generateComposedVideo } from "@/lib/agent/videoParts/composedVideo";
 import { resolveDuration } from "@/lib/others/schemas/duration";
-import type { GenerationPart } from "@/types/generate";
 
 function sseEvent(type: string, data: Record<string, unknown>): string {
   return `data: ${JSON.stringify({ type, ...data })}\n\n`;
@@ -53,19 +52,25 @@ export async function POST(req: NextRequest) {
       const send = (type: string, data: Record<string, unknown>) => {
         if (!closed) controller.enqueue(encoder.encode(sseEvent(type, data)));
       };
-      const progress = Object.fromEntries(
-        (["bookends", "summary", "main-diagram"] as GenerationPart[]).map((part) => [part, {
-          characterCount: 0,
-          sentCharacterCount: 0,
-          promptTokens: 0,
-          completionTokens: 0,
-          startedAt: Date.now(),
-          lastSentAt: 0,
-        }]),
-      ) as Record<GenerationPart, ServerProgress>;
+      const progress = new Map<string, ServerProgress>();
+      const progressFor = (part: string): ServerProgress => {
+        let current = progress.get(part);
+        if (!current) {
+          current = {
+            characterCount: 0,
+            sentCharacterCount: 0,
+            promptTokens: 0,
+            completionTokens: 0,
+            startedAt: Date.now(),
+            lastSentAt: 0,
+          };
+          progress.set(part, current);
+        }
+        return current;
+      };
 
-      const sendProgress = (part: GenerationPart, force = false) => {
-        const current = progress[part];
+      const sendProgress = (part: string, force = false) => {
+        const current = progressFor(part);
         const now = Date.now();
         if (!force
           && current.characterCount - current.sentCharacterCount < 128
@@ -89,19 +94,25 @@ export async function POST(req: NextRequest) {
             callModel: (await import("@/lib/agent/ai/openrouter")).callOpenRouter,
             signal: req.signal,
             onPhase: (phase) => send("phase", { phase }),
+            onPlan: (plan) => send("plan", {
+              title: plan.title,
+              scenes: plan.scenes.map(({ id, name, role }) => ({ id, name, role })),
+            }),
             onModelProgress: (part, chunk) => {
-              progress[part].firstChunkAt ??= Date.now();
-              progress[part].characterCount += chunk.characterCount;
+              const current = progressFor(part);
+              current.firstChunkAt ??= Date.now();
+              current.characterCount += chunk.characterCount;
               sendProgress(part);
             },
             onModelUsage: (part, usage) => {
-              progress[part].promptTokens += usage.prompt_tokens;
-              progress[part].completionTokens += usage.completion_tokens;
+              const current = progressFor(part);
+              current.promptTokens += usage.prompt_tokens;
+              current.completionTokens += usage.completion_tokens;
               sendProgress(part, true);
             },
             onModelComplete: (part) => {
               sendProgress(part, true);
-              const current = progress[part];
+              const current = progressFor(part);
               const completedAt = Date.now();
               const durationMs = completedAt - current.startedAt;
               const ttftMs = (current.firstChunkAt ?? completedAt) - current.startedAt;

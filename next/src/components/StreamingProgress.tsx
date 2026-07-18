@@ -1,18 +1,11 @@
 "use client";
 
 import { useStore } from "@/lib/ui/store";
-import type { GenerationOperation, GenerationPart } from "@/types/generate";
-
-const PART_LABELS: Record<GenerationPart, string> = {
-  bookends: "Outlines",
-  summary: "Summary",
-  "main-diagram": "Visuals",
-};
-
-const PARTS = Object.keys(PART_LABELS) as GenerationPart[];
+import type { GenerationOperation } from "@/types/generate";
 
 function phaseLabel(operation: GenerationOperation | undefined): string {
   if (!operation || operation.status === "connecting") return "Connecting to model…";
+  if (operation.status === "planning") return "Planning the video scenes…";
   if (operation.status === "composing") return "Composing the final timeline…";
   return "Generating the video scenes...";
 }
@@ -25,8 +18,10 @@ export function StreamingProgress({
   showSpinner?: boolean;
 }) {
   const operation = useStore((state) => sessionId ? state.operations[sessionId] : undefined);
+  const parts = Object.keys(operation?.parts ?? {});
   const exactTokens = operation?.completionTokens !== undefined
-    && PARTS.every((part) => operation.parts[part].status === "complete");
+    && parts.length > 0
+    && parts.every((part) => operation.parts[part].status === "complete");
   const tokenCount = exactTokens
     ? operation?.completionTokens ?? 0
     : operation?.estimatedTokens ?? 0;
@@ -46,7 +41,7 @@ export function StreamingProgress({
       </div>
 
       <div className="grid gap-1.5 text-left">
-        {PARTS.map((part) => {
+        {parts.map((part) => {
           const progress = operation?.parts[part];
           const status = progress?.status ?? "waiting";
           return (
@@ -58,7 +53,7 @@ export function StreamingProgress({
                     ? "animate-pulse bg-primary"
                     : "bg-muted-foreground/30"
               }`} aria-hidden="true" />
-              <span className="text-foreground/80">{PART_LABELS[part]}</span>
+              <span className="text-foreground/80">{progress?.label ?? part}</span>
               <span className="ml-auto text-muted-foreground">
                 {status === "complete" ? "Complete" : status === "streaming" ? "Streaming" : "Waiting"}
               </span>

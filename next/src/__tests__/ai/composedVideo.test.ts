@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   generateComposedVideo,
-  planCompositionWindows,
   type ComposedVideoModelCaller,
 } from "@/lib/agent/videoParts/composedVideo";
+import { planSceneWindows, type VideoPlan } from "@/lib/agent/videoParts/planner";
 
 function localDuration(systemPrompt: string): number {
   const match = systemPrompt.match(/SEGMENT DURATION: ([\d.]+)s/);
@@ -11,7 +11,7 @@ function localDuration(systemPrompt: string): number {
   return Number(match[1]);
 }
 
-function directEvents(duration: number, summary: boolean) {
+function directEvents(duration: number, compact: boolean) {
   return [
     {
       id: "background",
@@ -27,7 +27,7 @@ function directEvents(duration: number, summary: boolean) {
       start: 0,
       end: duration,
       layer: 8,
-      text: summary ? "Solar power at a glance" : "Charge separation",
+      text: compact ? "Solar power at a glance" : "Charge separation",
       x: 160,
       y: 100,
       maxWidth: 1500,
@@ -67,7 +67,7 @@ function directEvents(duration: number, summary: boolean) {
       radius: 140,
       fill: "#f59e0b",
     },
-    ...(!summary
+    ...(!compact
       ? [{
           id: "mechanism-arrow",
           type: "shape" as const,
@@ -88,63 +88,133 @@ function directEvents(duration: number, summary: boolean) {
   ];
 }
 
-describe("composed video generation", () => {
-  it.each([
-    [5, 0.85],
-    [10, 1.05],
-    [15, 1.35],
-    [20, 1.5],
-  ] as const)("plans contiguous windows for %ss", (duration, bookend) => {
-    const windows = planCompositionWindows(duration);
-    expect(windows.intro).toEqual({ start: 0, end: bookend, duration: bookend });
-    expect(windows.intro.end).toBe(windows.summary.start);
-    expect(windows.summary.end).toBe(windows.main.start);
-    expect(windows.main.end).toBe(windows.conclusion.start);
-    expect(windows.conclusion.end).toBe(duration);
-    expect(windows.summary.duration).toBeGreaterThanOrEqual(1);
-    expect(windows.summary.duration).toBeLessThanOrEqual(4);
-  });
+const plan: VideoPlan = {
+  title: "Solar Power",
+  subtitle: "From light to electricity",
+  closingLine: "Separated charge becomes useful current.",
+  logline: "How solar cells turn sunlight into current.",
+  scenes: [
+    { id: "overview", role: "overview", name: "At a glance", goal: "Introduce the cell.", share: 0.25 },
+    { id: "cell", role: "mechanism", name: "Inside the cell", goal: "Charge separation.", share: 0.5 },
+    { id: "panels", role: "comparison", name: "Panel types", goal: "Compare cell types.", share: 0.25 },
+  ],
+};
 
-  it("starts exactly three authored groups concurrently and composes one bounded project", async () => {
+function sceneIdOf(systemPrompt: string): string {
+  return systemPrompt.match(/SCENE: ([^\n]+)/)?.[1]?.trim() ?? "unknown";
+}
+
+describe("composed video generation", () => {
+  it("plans first, generates scenes concurrently, and composes one bounded project", async () => {
     const started: string[] = [];
-    const initialRequests: Array<{
-      part: string;
-      userPrompt: string;
-      systemPrompt: string;
-    }> = [];
+    const initialRequests: Array<{ part: string; userPrompt: string; systemPrompt: string }> = [];
+    const phases: string[] = [];
+    let planned: VideoPlan | undefined;
     let release!: () => void;
-    const allStarted = new Promise<void>((resolve) => {
+    const allScenesStarted = new Promise<void>((resolve) => {
       release = resolve;
     });
 
     const callModel: ComposedVideoModelCaller = async (systemPrompt, userPrompt) => {
-      const part = systemPrompt.match(/PART: ([^\n]+)/)?.[1]?.trim() ?? "unknown";
-      started.push(part);
-      initialRequests.push({ part, userPrompt, systemPrompt });
-      if (started.length === 3) release();
-      await allStarted;
+      if (systemPrompt.includes("PART: planner")) {
+        started.push("plan");
+        initialRequests.push({ part: "plan", userPrompt, systemPrompt });
+        return plan;
+      }
+      const sceneId = sceneIdOf(systemPrompt);
+      started.push(sceneId);
+      initialRequests.push({ part: sceneId, userPrompt, systemPrompt });
+      if (started.filter((part) => part !== "plan").length === plan.scenes.length) release();
+      await allScenesStarted;
 
-      if (part === "bookends") {
-        return {
-          title: "Solar Power",
-          subtitle: "From light to electricity",
-          closingLine: "Separated charge becomes useful current.",
-        };
+      const duration = localDuration(systemPrompt);
+      const compact = systemPrompt.includes("SCENE ROLE: overview");
+      return {
+        mode: compact ? "direct-summary-timeline" : "direct-timeline",
+        name: compact ? "Solar power at a glance" : "Charge separation",
+        visualIntent: "Scene visuals.",
+        events: directEvents(duration, compact),
+      };
+    };
+
+    const result = await generateComposedVideo(
+      { prompt: "How does solar power work?", duration: 10 },
+      {
+        callModel,
+        onPhase: (phase) => phases.push(phase),
+        onPlan: (value) => {
+          planned = value;
+        },
+      },
+    );
+
+    expect(started[0]).toBe("plan");
+    expect(started.slice(1).sort()).toEqual(["cell", "overview", "panels"]);
+    expect(initialRequests.every(({ userPrompt }) => userPrompt === "How does solar power work?")).toBe(true);
+    expect(planned?.title).toBe("Solar Power");
+    expect(phases).toEqual(["planning", "generating-sections", "composing"]);
+
+    const visualContextOf = (part: string) =>
+      initialRequests.find((request) => request.part === part)
+        ?.systemPrompt.match(/VISUAL CONTEXT: (.+)/)?.[1];
+    expect(visualContextOf("plan")).toBeUndefined();
+    expect(visualContextOf("overview")).toBe(visualContextOf("cell"));
+    expect(visualContextOf("overview")).toContain('"palette"');
+    expect(initialRequests.find(({ part }) => part === "cell")!.systemPrompt)
+      .toContain("OTHER SCENES");
+
+    const windows = planSceneWindows(plan, 10);
+    for (const window of windows.scenes) {
+      expect(localDuration(
+        initialRequests.find(({ part }) => part === window.scene.id)!.systemPrompt,
+      )).toBe(window.duration);
+    }
+
+    expect(result.projectName).toBe("Solar Power");
+    expect(result.summary).toBe("How solar cells turn sunlight into current.");
+    expect(result.project.duration).toBe(10);
+    expect(result.project.events.every((event) => event.start >= 0 && event.end <= 10)).toBe(true);
+    expect(new Set(result.project.events.map((event) => event.id)).size).toBe(result.project.events.length);
+    expect(result.project.events.some((event) => event.id.startsWith("intro-"))).toBe(true);
+    expect(result.project.events.some((event) => event.id.startsWith("overview-"))).toBe(true);
+    expect(result.project.events.some((event) => event.id.startsWith("cell-"))).toBe(true);
+    expect(result.project.events.some((event) => event.id.startsWith("panels-"))).toBe(true);
+    expect(result.project.events.some((event) => event.id.startsWith("conclusion-"))).toBe(true);
+
+    expect(result.project.chapters).toEqual([
+      { name: "Introduction", time: 0 },
+      { name: "At a glance", time: windows.scenes[0].start },
+      { name: "Inside the cell", time: windows.scenes[1].start },
+      { name: "Panel types", time: windows.scenes[2].start },
+      { name: "Conclusion", time: windows.conclusion.start },
+    ]);
+
+    const shiftedSceneShape = result.project.events.find(
+      (event) => event.id === "cell-left-shape",
+    );
+    expect(shiftedSceneShape?.start).toBeCloseTo(windows.scenes[1].start + 0.1);
+    if (!shiftedSceneShape?.translateX || !("keyframes" in shiftedSceneShape.translateX)) {
+      throw new Error("Expected shifted scene keyframes");
+    }
+    expect(shiftedSceneShape.translateX.keyframes[0].time).toBeCloseTo(
+      windows.scenes[1].start + 0.1,
+    );
+  });
+
+  it("falls back to the default plan when the planner cannot complete", async () => {
+    let plannerCalls = 0;
+    const callModel: ComposedVideoModelCaller = async (systemPrompt) => {
+      if (systemPrompt.includes("PART: planner")) {
+        plannerCalls += 1;
+        throw new Error("OpenRouter HTTP 500");
       }
       const duration = localDuration(systemPrompt);
-      if (part === "summary") {
-        return {
-          mode: "direct-summary-timeline",
-          name: "Solar power at a glance",
-          visualIntent: "Introduce the cell, sunlight, and current as one compact overview.",
-          events: directEvents(duration, true),
-        };
-      }
+      const compact = systemPrompt.includes("SCENE ROLE: overview");
       return {
-        mode: "direct-timeline",
-        name: "Charge separation inside the cell",
-        visualIntent: "Show the field moving electrons and holes apart.",
-        events: directEvents(duration, false),
+        mode: compact ? "direct-summary-timeline" : "direct-timeline",
+        name: "Scene",
+        visualIntent: "Scene visuals.",
+        events: directEvents(duration, compact),
       };
     };
 
@@ -152,114 +222,58 @@ describe("composed video generation", () => {
       { prompt: "How does solar power work?", duration: 10 },
       { callModel },
     );
-
-    expect(started.sort()).toEqual(["bookends", "main-diagram", "summary"]);
-    expect(initialRequests.every(({ userPrompt }) => userPrompt === "How does solar power work?")).toBe(true);
-    const visualContextOf = (part: string) =>
-      initialRequests.find((request) => request.part === part)
-        ?.systemPrompt.match(/VISUAL CONTEXT: (.+)/)?.[1];
-    expect(visualContextOf("bookends")).toBeUndefined();
-    expect(visualContextOf("summary")).toBe(visualContextOf("main-diagram"));
-    expect(visualContextOf("summary")).toContain('"palette"');
-    const windowsForRequest = planCompositionWindows(10);
-    expect(localDuration(
-      initialRequests.find(({ part }) => part === "summary")!.systemPrompt,
-    )).toBe(windowsForRequest.summary.duration);
-    expect(localDuration(
-      initialRequests.find(({ part }) => part === "main-diagram")!.systemPrompt,
-    )).toBe(windowsForRequest.main.duration);
-    expect(result.projectName).toBe("Solar Power");
-    expect(result.summary).toBe("Solar power at a glance");
-    expect(result.project.duration).toBe(10);
-    expect(result.project.events.every((event) => event.start >= 0 && event.end <= 10)).toBe(true);
-    expect(new Set(result.project.events.map((event) => event.id)).size).toBe(result.project.events.length);
-    expect(result.project.events.some((event) => event.id.startsWith("intro-"))).toBe(true);
-    expect(result.project.events.some((event) => event.id.startsWith("summary-"))).toBe(true);
-    expect(result.project.events.some((event) => event.id.startsWith("main-"))).toBe(true);
-    expect(result.project.events.some((event) => event.id.startsWith("conclusion-"))).toBe(true);
-
-    const windows = planCompositionWindows(10);
-    const shiftedSummaryShape = result.project.events.find(
-      (event) => event.id === "summary-left-shape",
-    );
-    expect(shiftedSummaryShape?.start).toBeCloseTo(windows.summary.start + 0.1);
-    if (!shiftedSummaryShape?.translateX || !("keyframes" in shiftedSummaryShape.translateX)) {
-      throw new Error("Expected shifted summary keyframes");
-    }
-    expect(shiftedSummaryShape.translateX.keyframes[0].time).toBeCloseTo(
-      windows.summary.start + 0.1,
-    );
+    expect(plannerCalls).toBe(1);
+    expect(result.scenes.map((scene) => scene.scene.id)).toEqual(["overview", "details"]);
+    expect(result.project.events.some((event) => event.id.startsWith("overview-"))).toBe(true);
+    expect(result.project.events.some((event) => event.id.startsWith("details-"))).toBe(true);
   });
 
-  it("composes a renderer-safe fallback for an empty authored section", async () => {
-    const calls: string[] = [];
+  it("composes renderer-safe fallbacks for an empty authored scene", async () => {
     const callModel: ComposedVideoModelCaller = async (systemPrompt) => {
-      const part = systemPrompt.match(/PART: ([^\n]+)/)?.[1]?.trim() ?? "unknown";
-      calls.push(part);
-      if (part === "bookends") {
-        return { title: "Solar Power", closingLine: "Done." };
-      }
+      if (systemPrompt.includes("PART: planner")) return plan;
       const duration = localDuration(systemPrompt);
-      if (part === "summary") {
-        return {
-          mode: "direct-summary-timeline",
-          name: "Overview",
-          visualIntent: "A compact overview.",
-          events: directEvents(duration, true),
-        };
+      if (systemPrompt.includes("SCENE: cell")) {
+        return { mode: "direct-timeline", name: "Broken", visualIntent: "Broken", events: [] };
       }
-      return { mode: "direct-timeline", name: "Broken", visualIntent: "Broken", events: [] };
+      const compact = systemPrompt.includes("SCENE ROLE: overview");
+      return {
+        mode: compact ? "direct-summary-timeline" : "direct-timeline",
+        name: "Scene",
+        visualIntent: "Scene visuals.",
+        events: directEvents(duration, compact),
+      };
     };
 
     const result = await generateComposedVideo(
       { prompt: "How does solar power work?", duration: 10 },
       { callModel },
     );
-    expect(result.parts.mainDiagram.events).toEqual(expect.arrayContaining([
+    const cellScene = result.scenes.find((scene) => scene.scene.id === "cell");
+    expect(cellScene?.content.events).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: "background-fallback", type: "background" }),
       expect.objectContaining({ id: "label-fallback", type: "text" }),
       expect.objectContaining({ id: "shape-fallback-1", type: "shape" }),
     ]));
-    expect(calls.filter((part) => part === "main-diagram")).toHaveLength(1);
+    expect(result.project.events.some((event) => event.id === "cell-background-fallback")).toBe(true);
   });
 
-  it("repairs malformed bookend JSON once using the rejected content", async () => {
-    let bookendCalls = 0;
-    const userPrompts: string[] = [];
-    const callModel: ComposedVideoModelCaller = async (systemPrompt, userPrompt) => {
-      const part = systemPrompt.match(/PART: ([^\n]+)/)?.[1]?.trim() ?? "unknown";
-      if (part === "bookends") {
-        bookendCalls += 1;
-        userPrompts.push(userPrompt);
-        if (bookendCalls === 1) {
-          const error = new Error("malformed JSON") as Error & { content: string };
-          error.name = "OpenRouterJsonParseError";
-          error.content = '{"title":"Solar Power"';
-          throw error;
-        }
-        return { title: "Solar Power", closingLine: "Done." };
-      }
+  it("rejects when a scene generation fails hard", async () => {
+    const callModel: ComposedVideoModelCaller = async (systemPrompt) => {
+      if (systemPrompt.includes("PART: planner")) return plan;
+      if (systemPrompt.includes("SCENE: cell")) throw new Error("OpenRouter HTTP 500");
       const duration = localDuration(systemPrompt);
-      return part === "summary"
-        ? {
-            mode: "direct-summary-timeline",
-            name: "Overview",
-            visualIntent: "Compact overview.",
-            events: directEvents(duration, true),
-          }
-        : {
-            mode: "direct-timeline",
-            name: "Mechanism",
-            visualIntent: "Detailed mechanism.",
-            events: directEvents(duration, false),
-          };
+      const compact = systemPrompt.includes("SCENE ROLE: overview");
+      return {
+        mode: compact ? "direct-summary-timeline" : "direct-timeline",
+        name: "Scene",
+        visualIntent: "Scene visuals.",
+        events: directEvents(duration, compact),
+      };
     };
 
     await expect(generateComposedVideo(
-      { prompt: "Explain solar power", duration: 10 },
+      { prompt: "How does solar power work?", duration: 10 },
       { callModel },
-    )).resolves.toMatchObject({ projectName: "Solar Power" });
-    expect(bookendCalls).toBe(2);
-    expect(userPrompts[1]).toContain('{"title":"Solar Power"');
+    )).rejects.toThrow("cell generation failed");
   });
 });

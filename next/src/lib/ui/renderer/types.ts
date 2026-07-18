@@ -259,6 +259,12 @@ export type TimelineEvent =
   | ShapeEvent
   | ParticleEvent;
 
+/** Seekable section marker derived from the generation plan. */
+export type ProjectChapter = {
+  name: string;
+  time: number;
+};
+
 export type VideoProject = {
   id: string;
   name: string;
@@ -266,4 +272,5 @@ export type VideoProject = {
   height: number;
   duration: number;
   events: TimelineEvent[];
+  chapters?: ProjectChapter[];
 };

@@ -293,6 +293,11 @@ export const TimelineEventSchema = z.union([
 
 // ── VideoProject ──────────────────────────────────────────────────────────────
 
+export const ProjectChapterSchema = z.object({
+  name: z.string().min(1),
+  time: z.number().min(0),
+});
+
 export const VideoProjectSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
@@ -300,6 +305,7 @@ export const VideoProjectSchema = z.object({
   height: z.number().int().positive(),
   duration: z.number().positive(),
   events: z.array(TimelineEventSchema),
+  chapters: z.array(ProjectChapterSchema).optional(),
 });
 
 // ── Inferred types ────────────────────────────────────────────────────────────
@@ -321,4 +327,5 @@ export type TextEvent = z.infer<typeof TextEventSchema>;
 export type ShapeEvent = z.infer<typeof ShapeEventSchema>;
 export type ParticleEvent = z.infer<typeof ParticleEventSchema>;
 export type TimelineEvent = z.infer<typeof TimelineEventSchema>;
+export type ProjectChapter = z.infer<typeof ProjectChapterSchema>;
 export type VideoProject = z.infer<typeof VideoProjectSchema>;

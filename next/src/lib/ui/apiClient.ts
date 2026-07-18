@@ -70,6 +70,11 @@ export async function callApi(
 
 // ── callApiStream ─────────────────────────────────────────────────────────────
 
+export interface StreamPlan {
+  title: string;
+  scenes: Array<{ id: string; name: string; role: string }>;
+}
+
 export interface StreamCallbacks {
   onStarted: (requestId: string) => void;
   onProgress: (progress: {
@@ -81,6 +86,8 @@ export interface StreamCallbacks {
   onPartComplete: (part: GenerationPart, completionTokens?: number) => void;
   /** Called for each "phase" SSE event with the current pipeline phase. */
   onPhase: (phase: string) => void;
+  /** Called once the planner finishes with the dynamic scene list. */
+  onPlan?: (plan: StreamPlan) => void;
   /** Called when the stream ends with the complete API response. */
   onDone: (response: ApiResponse) => void;
   /** Called on any error (network, parse, API error). */
@@ -146,6 +153,8 @@ export async function callApiStream(
             requestId?: string;
             part?: GenerationPart;
             phase?: string;
+            title?: string;
+            scenes?: Array<{ id: string; name: string; role: string }>;
             characterCount?: number;
             estimatedTokens?: number;
             completionTokens?: number;
@@ -157,6 +166,11 @@ export async function callApiStream(
             callbacks.onStarted(event.requestId ?? "");
           } else if (event.type === "phase") {
             callbacks.onPhase(event.phase ?? "");
+          } else if (event.type === "plan") {
+            callbacks.onPlan?.({
+              title: event.title ?? "",
+              scenes: Array.isArray(event.scenes) ? event.scenes : [],
+            });
           } else if (event.type === "model-progress" && event.part) {
             callbacks.onProgress({
               part: event.part,

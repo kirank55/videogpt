@@ -11,6 +11,9 @@ type Chapter = {
 };
 
 function getChapters(project: VideoProject): Chapter[] {
+  if (project.chapters && project.chapters.length > 0) {
+    return [...project.chapters].sort((a, b) => a.time - b.time);
+  }
   const events = [...(project.events || [])].sort((a, b) => a.start - b.start);
   const authoredSections = [
     { prefix: "intro-", name: "Introduction" },

@@ -19,18 +19,20 @@ export type Session = {
   updatedAt: string;
 };
 
-export type GenerationPart = "bookends" | "summary" | "main-diagram";
+/** Planner id ("plan") or a planned scene id; the list is dynamic per video. */
+export type GenerationPart = string;
 
 export type GenerationPartProgress = {
   status: "waiting" | "streaming" | "complete";
   characterCount: number;
   estimatedTokens: number;
   completionTokens?: number;
+  label?: string;
 };
 
 export type GenerationOperation = {
   requestId: string;
-  status: "connecting" | "generating" | "composing" | "succeeded" | "failed" | "cancelled";
+  status: "connecting" | "planning" | "generating" | "composing" | "succeeded" | "failed" | "cancelled";
   parts: Record<GenerationPart, GenerationPartProgress>;
   characterCount: number;
   estimatedTokens: number;

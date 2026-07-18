@@ -1,26 +1,21 @@
 import { z } from "zod";
 import { callOpenRouter, type OpenRouterOptions, type Usage } from "@/lib/agent/ai/openrouter";
+import type { VideoPartModelCaller } from "@/lib/agent/videoParts/pipeline";
 import {
-  generateVideoPart,
-  type VideoPartModelCaller,
-} from "@/lib/agent/videoParts/pipeline";
+  planSceneWindows,
+  planVideoScenes,
+  type VideoPlan,
+} from "@/lib/agent/videoParts/planner";
 import { buildStandaloneVideoPartProject } from "@/lib/agent/videoParts/project";
 import {
-  buildBookendsSystemPrompt,
-  buildVideoPartRepairPrompt,
-} from "@/lib/agent/videoParts/prompts";
-import {
-  BookendsContentSchema,
-  type BookendsContent,
-  type MainDiagramPartContent,
-  type SummaryPartContent,
-} from "@/lib/agent/videoParts/schemas";
+  generateVideoScene,
+  type GeneratedVideoScene,
+} from "@/lib/agent/videoParts/scenes";
 import { resolveVideoPartTheme } from "@/lib/agent/videoParts/theme";
 import { DEFAULT_PALETTE, PALETTES } from "@/lib/others/catalog/palettes";
 import type { SupportedDuration } from "@/lib/others/schemas/duration";
 import { seededHash } from "@/lib/others/timeline/utils";
 import type { AnimatedValue, TimelineEvent, VideoProject } from "@/lib/ui/renderer";
-import { BOOKENDS_MAX_TOKENS } from "@/lib/agent/videoParts/budgets";
 
 export type ComposedVideoModelCaller = VideoPartModelCaller;
 
@@ -29,54 +24,32 @@ export type GenerateComposedVideoRequest = {
   duration: SupportedDuration;
 };
 
-export type CompositionWindow = {
-  start: number;
-  end: number;
-  duration: number;
-};
-
-export type CompositionWindows = {
-  intro: CompositionWindow;
-  summary: CompositionWindow;
-  main: CompositionWindow;
-  conclusion: CompositionWindow;
-};
-
 export type ComposedVideoResult = {
   project: VideoProject;
   projectName: string;
   summary: string;
-  parts: {
-    bookends: BookendsContent;
-    summary: SummaryPartContent;
-    mainDiagram: MainDiagramPartContent;
-  };
+  plan: VideoPlan;
+  scenes: GeneratedVideoScene[];
 };
 
 export type ComposedVideoDependencies = {
   callModel: ComposedVideoModelCaller;
-  onPhase?: (phase: "generating-sections" | "composing") => void;
+  onPhase?: (phase: "planning" | "generating-sections" | "composing") => void;
+  onPlan?: (plan: VideoPlan) => void;
   onModelProgress?: (
-    part: "bookends" | "summary" | "main-diagram",
+    part: string,
     progress: { characterCount: number },
   ) => void;
   onModelUsage?: (
-    part: "bookends" | "summary" | "main-diagram",
+    part: string,
     usage: Usage,
   ) => void;
-  onModelComplete?: (part: "bookends" | "summary" | "main-diagram") => void;
+  onModelComplete?: (part: string) => void;
   signal?: AbortSignal;
 };
 
 const DEFAULT_DEPENDENCIES: ComposedVideoDependencies = {
   callModel: callOpenRouter,
-};
-
-const BOOKEND_DURATION: Record<SupportedDuration, number> = {
-  5: 0.85,
-  10: 1.05,
-  15: 1.35,
-  20: 1.5,
 };
 
 const ANIMATED_FIELDS = [
@@ -101,33 +74,6 @@ function roundTime(value: number): number {
   return Number(value.toFixed(3));
 }
 
-export function planCompositionWindows(duration: SupportedDuration): CompositionWindows {
-  const bookend = BOOKEND_DURATION[duration];
-  const contentDuration = duration - bookend * 2;
-  const summaryDuration = roundTime(Math.min(4, Math.max(1, contentDuration * 0.3)));
-  const summaryStart = bookend;
-  const mainStart = roundTime(summaryStart + summaryDuration);
-  const conclusionStart = roundTime(duration - bookend);
-  return {
-    intro: { start: 0, end: bookend, duration: bookend },
-    summary: {
-      start: summaryStart,
-      end: mainStart,
-      duration: summaryDuration,
-    },
-    main: {
-      start: mainStart,
-      end: conclusionStart,
-      duration: roundTime(conclusionStart - mainStart),
-    },
-    conclusion: {
-      start: conclusionStart,
-      end: duration,
-      duration: bookend,
-    },
-  };
-}
-
 function validationMessage(error: unknown): string {
   if (error instanceof z.ZodError) {
     return error.issues
@@ -136,80 +82,6 @@ function validationMessage(error: unknown): string {
       .join("; ");
   }
   return error instanceof Error ? error.message : String(error);
-}
-
-function serializeOutput(raw: unknown): string {
-  try {
-    return JSON.stringify(raw, null, 2) ?? String(raw);
-  } catch {
-    return String(raw);
-  }
-}
-
-type RepairableModelOutputFailure = Error & {
-  name: "OpenRouterJsonParseError" | "OpenRouterLengthError";
-  content?: string;
-};
-
-function isRepairableModelOutputFailure(
-  error: unknown,
-): error is RepairableModelOutputFailure {
-  return error instanceof Error
-    && (error.name === "OpenRouterJsonParseError" || error.name === "OpenRouterLengthError");
-}
-
-async function generateBookends(
-  request: GenerateComposedVideoRequest,
-  callModel: ComposedVideoModelCaller,
-): Promise<BookendsContent> {
-  const systemPrompt = buildBookendsSystemPrompt(request.duration);
-  const repair = async (firstError: unknown, previousOutput?: string) => {
-    const repairPrompt = buildVideoPartRepairPrompt(
-      request.prompt,
-      validationMessage(firstError),
-      previousOutput,
-    );
-    let repaired: unknown;
-    try {
-      repaired = await callModel(systemPrompt, repairPrompt, {
-        maxTokens: BOOKENDS_MAX_TOKENS,
-        temperature: 0.2,
-        reasoning: { enabled: false },
-      });
-    } catch (repairCallError) {
-      if (!isRepairableModelOutputFailure(repairCallError)) throw repairCallError;
-      throw new ComposedVideoGenerationError(
-        `bookends remained invalid JSON after one repair attempt: ${validationMessage(repairCallError)}`,
-        { cause: repairCallError },
-      );
-    }
-    try {
-      return BookendsContentSchema.parse(repaired);
-    } catch (repairError) {
-      throw new ComposedVideoGenerationError(
-        `bookends could not be validated after one repair attempt: ${validationMessage(repairError)}`,
-        { cause: repairError },
-      );
-    }
-  };
-
-  let raw: unknown;
-  try {
-    raw = await callModel(systemPrompt, request.prompt, {
-      maxTokens: BOOKENDS_MAX_TOKENS,
-      temperature: 0.65,
-      reasoning: { enabled: false },
-    });
-  } catch (firstCallError) {
-    if (!isRepairableModelOutputFailure(firstCallError)) throw firstCallError;
-    return repair(firstCallError, firstCallError.content);
-  }
-
-  try {
-    return BookendsContentSchema.parse(raw);
-  } catch (firstError) {
-    return repair(firstError, serializeOutput(raw));
-  }
 }
 
 function shiftAnimatedValue(value: AnimatedValue | undefined, offset: number) {
@@ -259,7 +131,6 @@ export async function generateComposedVideo(
   request: GenerateComposedVideoRequest,
   dependencies: ComposedVideoDependencies = DEFAULT_DEPENDENCIES,
 ): Promise<ComposedVideoResult> {
-  const windows = planCompositionWindows(request.duration);
   const theme = resolveVideoPartTheme(request.prompt);
   const palette = PALETTES[theme.palette] ?? PALETTES[DEFAULT_PALETTE];
   const visualContext = JSON.stringify({
@@ -274,9 +145,7 @@ export async function generateComposedVideo(
     },
   });
 
-  const callForPart = (
-    part: "bookends" | "summary" | "main-diagram",
-  ): ComposedVideoModelCaller => (
+  const callForPart = (part: string): ComposedVideoModelCaller => (
     systemPrompt: string,
     userPrompt: string,
     options: OpenRouterOptions = {},
@@ -293,77 +162,85 @@ export async function generateComposedVideo(
     return dependencies.callModel(systemPrompt, userPrompt, nextOptions);
   };
 
-  const completePart = <T,>(
-    part: "bookends" | "summary" | "main-diagram",
-    promise: Promise<T>,
-  ) => promise.then((value) => {
+  const completePart = <T,>(part: string, promise: Promise<T>) => promise.then((value) => {
     dependencies.onModelComplete?.(part);
     return value;
   });
 
+  dependencies.onPhase?.("planning");
+  const plan = await completePart(
+    "plan",
+    planVideoScenes(request, { callModel: callForPart("plan") }),
+  );
+  dependencies.onPlan?.(plan);
+  const windows = planSceneWindows(plan, request.duration);
+
   dependencies.onPhase?.("generating-sections");
-  const results = await Promise.allSettled([
-    completePart("bookends", generateBookends(request, callForPart("bookends"))),
-    completePart("summary", generateVideoPart({
-      part: "summary",
-      prompt: request.prompt,
-      duration: windows.summary.duration,
-      visualContext,
-    }, { callModel: callForPart("summary") })),
-    completePart("main-diagram", generateVideoPart({
-      part: "main-diagram",
-      prompt: request.prompt,
-      duration: windows.main.duration,
-      visualContext,
-    }, { callModel: callForPart("main-diagram") })),
-  ]);
-
-  const sectionNames = ["bookends", "summary", "main-diagram"] as const;
+  const results = await Promise.allSettled(
+    windows.scenes.map((window) =>
+      completePart(window.scene.id, generateVideoScene({
+        plan,
+        scene: window.scene,
+        prompt: request.prompt,
+        duration: window.duration,
+        visualContext,
+      }, { callModel: callForPart(window.scene.id) }))
+    ),
+  );
   results.forEach((result, index) => {
-    if (result.status === "rejected") throw failedSectionMessage(sectionNames[index], result);
+    if (result.status === "rejected") {
+      throw failedSectionMessage(windows.scenes[index].scene.id, result);
+    }
   });
-
-  const bookends = (results[0] as PromiseFulfilledResult<BookendsContent>).value;
-  const summaryPart = (results[1] as PromiseFulfilledResult<Awaited<ReturnType<typeof generateVideoPart>>>).value;
-  const mainPart = (results[2] as PromiseFulfilledResult<Awaited<ReturnType<typeof generateVideoPart>>>).value;
-  if (summaryPart.part !== "summary" || mainPart.part !== "main-diagram") {
-    throw new ComposedVideoGenerationError("Generated sections returned the wrong contracts.");
-  }
+  const scenes = results.map(
+    (result) => (result as PromiseFulfilledResult<GeneratedVideoScene>).value,
+  );
 
   dependencies.onPhase?.("composing");
   const introProject = buildStandaloneVideoPartProject({
     part: "title",
-    content: { title: bookends.title, subtitle: bookends.subtitle },
+    content: { title: plan.title, subtitle: plan.subtitle },
   }, windows.intro.duration, theme);
   const conclusionProject = buildStandaloneVideoPartProject({
     part: "conclusion",
-    content: { closingLine: bookends.closingLine },
+    content: { closingLine: plan.closingLine },
   }, windows.conclusion.duration, theme);
 
   const events = [
     ...prefixProjectEvents(introProject, "intro", windows.intro.start),
-    ...prefixProjectEvents(summaryPart.project, "summary", windows.summary.start),
-    ...prefixProjectEvents(mainPart.project, "main", windows.main.start),
+    ...scenes.flatMap((generated, index) =>
+      prefixProjectEvents(generated.project, generated.scene.id, windows.scenes[index].start)
+    ),
     ...prefixProjectEvents(conclusionProject, "conclusion", windows.conclusion.start),
   ].sort((first, second) => (first.start - second.start) || (first.layer - second.layer));
-  const hash = seededHash(JSON.stringify({ request, bookends, summaryPart: summaryPart.content, mainPart: mainPart.content }));
+  const hash = seededHash(JSON.stringify({
+    request,
+    plan,
+    scenes: scenes.map((generated) => generated.content),
+  }));
+  const chapters = [
+    { name: "Introduction", time: windows.intro.start },
+    ...scenes.map((generated, index) => ({
+      name: generated.scene.name,
+      time: windows.scenes[index].start,
+    })),
+    { name: "Conclusion", time: windows.conclusion.start },
+  ];
   const project: VideoProject = {
     id: `composed-${hash.toString(16)}`,
-    name: bookends.title,
+    name: plan.title,
     width: 1920,
     height: 1080,
     duration: request.duration,
     events,
+    chapters,
   };
 
   return {
     project,
-    projectName: bookends.title,
-    summary: summaryPart.content.name,
-    parts: {
-      bookends,
-      summary: summaryPart.content,
-      mainDiagram: mainPart.content,
-    },
+    projectName: plan.title,
+    summary: plan.logline,
+    plan,
+    scenes,
   };
 }

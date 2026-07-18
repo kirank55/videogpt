@@ -10,7 +10,7 @@ export const defaultMessages: ChatMessage[] = [
     id: "intro",
     role: "assistant",
     content:
-      "Describe the animated explanation you want. I will generate coordinated bookends, a compact summary, and a deeper main diagram.",
+      "Describe the animated explanation you want. I will plan a sequence of scenes tailored to your topic, then generate them in parallel.",
   },
 ];
 

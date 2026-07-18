@@ -2,7 +2,6 @@ import { create } from "zustand";
 import type {
   ChatMessage,
   GenerationOperation,
-  GenerationPart,
   Session,
 } from "@/types/generate";
 import { persistToStorage } from "./persistence";
@@ -17,17 +16,11 @@ import {
 import { createSession } from "./factories";
 import { generateId } from "./ids";
 
-const GENERATION_PARTS: GenerationPart[] = ["bookends", "summary", "main-diagram"];
-
 function createOperation(): GenerationOperation {
   return {
     requestId: generateId("request"),
     status: "connecting",
-    parts: Object.fromEntries(GENERATION_PARTS.map((part) => [part, {
-      status: "waiting",
-      characterCount: 0,
-      estimatedTokens: 0,
-    }])) as GenerationOperation["parts"],
+    parts: {},
     characterCount: 0,
     estimatedTokens: 0,
   };
@@ -84,8 +77,22 @@ export const useStore = create<StoreState>((set, get) => {
     })),
     onPhase: (phase) => updateOperation(sessionId, (operation) => ({
       ...operation,
-      status: phase === "composing" ? "composing" : "generating",
+      status: phase === "composing"
+        ? "composing"
+        : phase === "planning"
+          ? "planning"
+          : "generating",
     })),
+    onPlan: (plan) => updateOperation(sessionId, (operation) => {
+      const parts = { ...operation.parts };
+      if (parts.plan) parts.plan = { ...parts.plan, label: "Plan" };
+      for (const scene of plan.scenes) {
+        parts[scene.id] = parts[scene.id]
+          ? { ...parts[scene.id], label: scene.name }
+          : { status: "waiting", characterCount: 0, estimatedTokens: 0, label: scene.name };
+      }
+      return { ...operation, parts };
+    }),
     onProgress: ({ part, characterCount, estimatedTokens, completionTokens }) => {
       updateOperation(sessionId, (operation) => {
         const parts = {
