@@ -1,4 +1,4 @@
-import { generateComposedVideo } from "../lib/agent/videoParts/composedVideo";
+import { generateComposedVideo } from "../lib/agent/rootGeneration/composedVideo";
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";

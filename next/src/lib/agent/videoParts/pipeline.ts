@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { callOpenRouter, type OpenRouterOptions } from "@/lib/agent/ai/openrouter";
+import { callOpenRouter, type OpenRouterOptions } from "@/lib/agent/videoParts/openrouter";
 import {
   validateDirectSummaryContent,
   validateDirectTimelineContent,

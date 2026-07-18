@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { callOpenRouter } from "@/lib/agent/ai/openrouter";
+import { callOpenRouter } from "@/lib/agent/videoParts/openrouter";
 
 describe("OpenRouter structured-output failures", () => {
   const originalApiKey = process.env.OPENROUTER_API_KEY;

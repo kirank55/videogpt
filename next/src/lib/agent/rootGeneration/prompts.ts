@@ -1,7 +1,12 @@
 import {
   type VideoPartKind,
-} from "@/lib/agent/videoParts/schemas";
-import { getVideoPartBudget } from "@/lib/agent/videoParts/budgets";
+} from "@/lib/agent/rootGeneration/schemas";
+import type {
+  VideoPlan,
+  VideoScene,
+  VideoSceneRole,
+} from "@/lib/agent/rootGeneration/planner";
+import { getVideoPartBudget } from "@/lib/agent/rootGeneration/budgets";
 
 const overviewRoleGuide = `Author a compact direct animated canvas timeline that introduces the topic and its essential structure. This scene is the visual introduction; the other planned scenes explain the details.
 Use one clear visual idea, no more than 6 short text events, and a small number of topic-specific shapes. Prefer a compact spatial overview, cutaway, relationship map, cycle, or simple flow only when the subject intrinsically calls for it. Avoid exhaustive steps, dense annotations, causal detail, generic card rows, and decorative complexity.
@@ -18,6 +23,16 @@ const roleGuides: Record<VideoPartKind, string> = {
   "main-diagram": `Author one direct animated canvas timeline that explains one underlying mechanism, causal relationship, spatial model, cutaway, state transition, or interaction from the topic. This is the detailed Main Diagram, not an introduction or recap.
 ${detailedTimelineRules}`,
   conclusion: "Write one concise closing line that resolves the explanation. Generate no title or scene content.",
+};
+
+const sceneRoleGuides: Record<VideoSceneRole, string> = {
+  overview: overviewRoleGuide,
+  mechanism: `Author one direct animated canvas timeline that explains one underlying mechanism, causal relationship, spatial model, cutaway, state transition, or interaction from the topic. This is a detailed scene, not an introduction or recap.
+${detailedTimelineRules}`,
+  example: `Author one direct animated canvas timeline that walks through one concrete, specific instance or worked example of the topic. Ground the scene in real values, named entities, or actual steps for that instance rather than abstract structure.
+${detailedTimelineRules}`,
+  comparison: `Author one direct animated canvas timeline that contrasts two or three alternatives, before/after states, or opposing approaches within the topic. Give each side a clear visual region and make the trade-off legible at a glance.
+${detailedTimelineRules}`,
 };
 
 const rendererContractFor = (mode: "direct-summary-timeline" | "direct-timeline") => `
@@ -72,6 +87,78 @@ ${budget.maxEvents ? `Use at most ${budget.maxEvents} events.` : ""}
   `.trim();
 }
 
+function sceneCountGuidance(duration: number): string {
+  if (duration <= 5) return "exactly 2 scenes";
+  if (duration <= 10) return "2 or 3 scenes";
+  if (duration <= 15) return "3 or 4 scenes";
+  return "3 to 5 scenes";
+}
+
+export function buildVideoPlannerSystemPrompt(duration: number): string {
+  return `
+You plan one animated infographic video as an ordered list of scenes.
+Return one JSON object that matches the contract exactly. Output compact minified JSON only: no markdown, prose, or pretty-printing.
+
+PART: planner
+TOTAL VIDEO DURATION: ${duration}s
+
+OUTPUT CONTRACT (only these keys):
+{"title":string,"subtitle"?:string,"closingLine":string,"logline":string,"scenes":[{"id":string,"role":"overview"|"mechanism"|"example"|"comparison","name":string,"goal":string,"share":number}]}
+- title: 80 chars max, names the topic concretely. subtitle: optional, 120 chars max.
+- closingLine: 100 chars max, resolves the explanation.
+- logline: 160 chars max, one sentence describing what the video explains.
+- scenes: ${sceneCountGuidance(duration)}. id is a unique lowercase slug ([a-z0-9-], 24 chars max, never "intro", "conclusion", or "plan"). name is a short chapter label, 40 chars max. goal is 300 chars max and states exactly what the scene must communicate. share is the scene's relative portion of scene time: a number greater than 0, and all shares sum to 1.
+
+SCENE ROLES:
+- overview: a compact visual introduction to the topic's essential structure. At most one per video; if present it must be the first scene and carry the smallest share.
+- mechanism: explains one underlying mechanism, causal relationship, spatial model, cutaway, state transition, or interaction in depth.
+- example: walks through one concrete, specific instance or worked example of the topic.
+- comparison: contrasts two or three alternatives, before/after states, or opposing approaches.
+
+PLANNING RULES:
+- Choose the scene roles that fit this topic; do not force every role into every video.
+- Every scene needs a distinct goal, and later scenes must not repeat earlier ones.
+- The plan must cover the topic end to end; no scene restates the title or the closing line.
+  `.trim();
+}
+
+export function buildVideoSceneSystemPrompt(
+  plan: VideoPlan,
+  scene: VideoScene,
+  duration: number,
+  visualContext?: string,
+): string {
+  const compact = scene.role === "overview";
+  const budget = getVideoPartBudget(compact ? "summary" : "main-diagram", duration);
+  const otherScenes = plan.scenes
+    .filter((candidate) => candidate.id !== scene.id)
+    .map((candidate) => `- ${candidate.name} (${candidate.role}): ${candidate.goal}`)
+    .join("\n");
+  return `
+You write one scene for an animated infographic video.
+Return one JSON object that matches the contract exactly. Output compact minified JSON only: no markdown, prose, or pretty-printing.
+
+${rendererContractFor(compact ? "direct-summary-timeline" : "direct-timeline")}
+
+VIDEO: ${plan.title}
+SCENE: ${scene.id}
+SCENE ROLE: ${scene.role}
+SCENE GOAL: ${scene.goal}
+SEGMENT DURATION: ${duration}s
+${visualContext ? `VISUAL CONTEXT: ${visualContext}` : ""}
+
+OTHER SCENES (already planned; do not repeat their content):
+${otherScenes}
+
+${sceneRoleGuides[scene.role]}
+
+${timelineOwnershipGuide}
+Use concise text that fits a 1920x1080 canvas.
+Every event id must be unique, and every animation must belong to an event in this response.
+${budget.maxEvents ? `Use at most ${budget.maxEvents} events.` : ""}
+  `.trim();
+}
+
 export function buildVideoPartRepairPrompt(
   originalPrompt: string,
   validationMessage: string,
@@ -91,3 +178,5 @@ ${validationMessage}
 Correct the previous output in place. Preserve valid content and event IDs where possible, changing only what the validation finding requires. Return one corrected JSON object only. Keep exactly the keys allowed by the schema.
   `.trim();
 }
+
+

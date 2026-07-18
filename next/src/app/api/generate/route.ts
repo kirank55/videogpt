@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateComposedVideo } from "@/lib/agent/videoParts/composedVideo";
-import { GenerateRequestSchema } from "@/lib/agent/schemas/api";
+import { generateComposedVideo } from "@/lib/agent/rootGeneration/composedVideo";
+import { GenerateRequestSchema } from "@/lib/agent/rootGeneration/request";
 import { resolveDuration } from "@/lib/others/schemas/duration";
 
 export async function POST(req: NextRequest) {

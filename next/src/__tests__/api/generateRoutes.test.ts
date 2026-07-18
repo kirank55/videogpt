@@ -30,7 +30,7 @@ const generated = {
 
 const generateComposedVideo = vi.fn();
 
-vi.mock("@/lib/agent/videoParts/composedVideo", () => ({
+vi.mock("@/lib/agent/rootGeneration/composedVideo", () => ({
   generateComposedVideo,
 }));
 

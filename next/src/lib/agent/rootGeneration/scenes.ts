@@ -1,18 +1,20 @@
-import { callOpenRouter } from "@/lib/agent/ai/openrouter";
-import { getVideoPartBudget } from "@/lib/agent/videoParts/budgets";
+import {
+  callOpenRouter,
+  type RootGenerationModelCaller,
+} from "@/lib/agent/rootGeneration/openrouter";
+import { getVideoPartBudget } from "@/lib/agent/rootGeneration/budgets";
 import {
   buildDirectSummaryProject,
   buildDirectTimelineProject,
   validateDirectSummaryContent,
   validateDirectTimelineContent,
-} from "@/lib/agent/videoParts/directTimeline";
-import type { VideoPartModelCaller } from "@/lib/agent/videoParts/pipeline";
-import type { VideoPlan, VideoScene } from "@/lib/agent/videoParts/planner";
-import { buildVideoSceneSystemPrompt } from "@/lib/agent/videoParts/prompts";
+} from "@/lib/agent/rootGeneration/directTimeline";
+import type { VideoPlan, VideoScene } from "@/lib/agent/rootGeneration/planner";
+import { buildVideoSceneSystemPrompt } from "@/lib/agent/rootGeneration/prompts";
 import type {
   MainDiagramPartContent,
   SummaryPartContent,
-} from "@/lib/agent/videoParts/schemas";
+} from "@/lib/agent/rootGeneration/schemas";
 import type { VideoProject } from "@/lib/ui/renderer";
 
 export type VideoSceneContent = SummaryPartContent | MainDiagramPartContent;
@@ -32,7 +34,7 @@ export type GenerateVideoSceneInput = {
 };
 
 export type VideoScenePipelineDependencies = {
-  callModel: VideoPartModelCaller;
+  callModel: RootGenerationModelCaller;
 };
 
 const DEFAULT_DEPENDENCIES: VideoScenePipelineDependencies = {
@@ -99,3 +101,4 @@ export async function generateVideoScene(
     return finalize(parseScene({}));
   }
 }
+

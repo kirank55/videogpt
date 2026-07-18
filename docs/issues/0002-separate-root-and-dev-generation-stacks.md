@@ -8,17 +8,16 @@ Duplication is intentional. The stacks may converge on the final renderer-facing
 
 ## Acceptance criteria
 
-- [ ] Dev generation owns its model caller, option types, streaming/JSON handling, and provider-error classification.
-- [ ] Dev generation owns its prompts, budgets, model-output schemas, normalization, project construction, pipeline, and API request handling.
-- [ ] Root generation owns separate transport behavior and separate generation modules for the same concerns.
-- [ ] Neither stack imports generation code or generation-owned types from the other.
-- [ ] Shared dependencies are limited to environment configuration, platform primitives, the final `VideoProject` contract, renderer/player, and generic UI.
-- [ ] Dev characterization tests from issue 0001 remain unchanged and pass.
-- [ ] Existing root route and composition tests pass without intentional behavior changes.
-- [ ] Both root and dev pages remain usable end to end.
-- [ ] Typecheck, changed-file lint, and relevant tests pass.
+- [x] Dev generation owns its model caller, option types, streaming/JSON handling, and provider-error classification.
+- [x] Dev generation owns its prompts, budgets, model-output schemas, normalization, project construction, pipeline, and API request handling.
+- [x] Root generation owns separate transport behavior and separate generation modules for the same concerns.
+- [x] Neither stack imports generation code or generation-owned types from the other.
+- [x] Shared dependencies are limited to environment configuration, platform primitives, the final `VideoProject` contract, renderer/player, and generic UI.
+- [x] Dev characterization tests from issue 0001 remain unchanged and pass.
+- [x] Existing root route and composition tests pass without intentional behavior changes.
+- [x] Both root and dev pages remain usable end to end.
+- [x] Typecheck, changed-file lint, and relevant tests pass.
 
 ## Blocked by
 
 - [Issue 0001](./0001-characterize-and-freeze-dev-generation.md)
-

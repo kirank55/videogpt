@@ -1,5 +1,5 @@
 #!/usr/bin/env tsx
-import { generateComposedVideo } from "@/lib/agent/videoParts/composedVideo";
+import { generateComposedVideo } from "@/lib/agent/rootGeneration/composedVideo";
 
 async function main() {
   const prompt = "a 15-second video about client-server architecture";

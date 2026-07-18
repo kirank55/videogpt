@@ -5,8 +5,8 @@ import {
   planVideoScenes,
   VideoPlanSchema,
   type VideoPlan,
-} from "@/lib/agent/videoParts/planner";
-import type { VideoPartModelCaller } from "@/lib/agent/videoParts/pipeline";
+} from "@/lib/agent/rootGeneration/planner";
+import type { RootGenerationModelCaller } from "@/lib/agent/rootGeneration/openrouter";
 
 const basePlan: VideoPlan = {
   title: "Solar Power",
@@ -91,7 +91,7 @@ describe("defaultVideoPlan", () => {
 
 describe("planVideoScenes", () => {
   it("returns the parsed plan and normalizes duplicate or reserved scene ids", async () => {
-    const callModel: VideoPartModelCaller = async () => ({
+    const callModel: RootGenerationModelCaller = async () => ({
       ...basePlan,
       scenes: [
         { ...basePlan.scenes[0], id: "intro" },
@@ -110,7 +110,7 @@ describe("planVideoScenes", () => {
   it("repairs invalid planner output once", async () => {
     const userPrompts: string[] = [];
     let calls = 0;
-    const callModel: VideoPartModelCaller = async (_systemPrompt, userPrompt) => {
+    const callModel: RootGenerationModelCaller = async (_systemPrompt, userPrompt) => {
       calls += 1;
       userPrompts.push(userPrompt as string);
       if (calls === 1) return { title: 42 };
@@ -126,7 +126,7 @@ describe("planVideoScenes", () => {
   });
 
   it("falls back to the default plan when repair also fails", async () => {
-    const callModel: VideoPartModelCaller = async () => ({ nope: true });
+    const callModel: RootGenerationModelCaller = async () => ({ nope: true });
     const plan = await planVideoScenes(
       { prompt: "How does solar power work?", duration: 10 },
       { callModel },
@@ -136,7 +136,7 @@ describe("planVideoScenes", () => {
 
   it("falls back to the default plan on provider failure", async () => {
     let calls = 0;
-    const callModel: VideoPartModelCaller = async () => {
+    const callModel: RootGenerationModelCaller = async () => {
       calls += 1;
       throw new Error("OpenRouter HTTP 500");
     };

@@ -1,23 +1,27 @@
 import { z } from "zod";
-import { callOpenRouter, type OpenRouterOptions, type Usage } from "@/lib/agent/ai/openrouter";
-import type { VideoPartModelCaller } from "@/lib/agent/videoParts/pipeline";
+import {
+  callOpenRouter,
+  type OpenRouterOptions,
+  type RootGenerationModelCaller,
+  type Usage,
+} from "@/lib/agent/rootGeneration/openrouter";
 import {
   planSceneWindows,
   planVideoScenes,
   type VideoPlan,
-} from "@/lib/agent/videoParts/planner";
-import { buildStandaloneVideoPartProject } from "@/lib/agent/videoParts/project";
+} from "@/lib/agent/rootGeneration/planner";
+import { buildStandaloneVideoPartProject } from "@/lib/agent/rootGeneration/project";
 import {
   generateVideoScene,
   type GeneratedVideoScene,
-} from "@/lib/agent/videoParts/scenes";
-import { resolveVideoPartTheme } from "@/lib/agent/videoParts/theme";
+} from "@/lib/agent/rootGeneration/scenes";
+import { resolveVideoPartTheme } from "@/lib/agent/rootGeneration/theme";
 import { DEFAULT_PALETTE, PALETTES } from "@/lib/others/catalog/palettes";
 import type { SupportedDuration } from "@/lib/others/schemas/duration";
 import { seededHash } from "@/lib/others/timeline/utils";
 import type { AnimatedValue, TimelineEvent, VideoProject } from "@/lib/ui/renderer";
 
-export type ComposedVideoModelCaller = VideoPartModelCaller;
+export type ComposedVideoModelCaller = RootGenerationModelCaller;
 
 export type GenerateComposedVideoRequest = {
   prompt: string;
@@ -244,3 +248,4 @@ export async function generateComposedVideo(
     scenes,
   };
 }
+

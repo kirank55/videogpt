@@ -16,6 +16,12 @@ export interface OpenRouterOptions {
   signal?: AbortSignal;
 }
 
+export type RootGenerationModelCaller = (
+  systemPrompt: string,
+  userPrompt: string,
+  options?: OpenRouterOptions,
+) => Promise<unknown>;
+
 /** A successful provider response whose assistant content was not valid JSON. */
 export class OpenRouterJsonParseError extends Error {
   readonly content: string;
@@ -188,3 +194,4 @@ export async function callOpenRouter(
 
   return parseAssistantJson(choice.message?.content ?? "", choice.finish_reason);
 }
+

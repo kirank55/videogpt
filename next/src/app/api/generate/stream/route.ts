@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
-import { GenerateRequestSchema } from "@/lib/agent/schemas/api";
-import { generateComposedVideo } from "@/lib/agent/videoParts/composedVideo";
+import { generateComposedVideo } from "@/lib/agent/rootGeneration/composedVideo";
+import { GenerateRequestSchema } from "@/lib/agent/rootGeneration/request";
 import { resolveDuration } from "@/lib/others/schemas/duration";
 
 function sseEvent(type: string, data: Record<string, unknown>): string {
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
         const result = await generateComposedVideo(
           { prompt: parsed.data.prompt, duration },
           {
-            callModel: (await import("@/lib/agent/ai/openrouter")).callOpenRouter,
+            callModel: (await import("@/lib/agent/rootGeneration/openrouter")).callOpenRouter,
             signal: req.signal,
             onPhase: (phase) => send("phase", { phase }),
             onPlan: (plan) => send("plan", {

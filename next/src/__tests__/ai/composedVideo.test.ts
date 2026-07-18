@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   generateComposedVideo,
   type ComposedVideoModelCaller,
-} from "@/lib/agent/videoParts/composedVideo";
-import { planSceneWindows, type VideoPlan } from "@/lib/agent/videoParts/planner";
+} from "@/lib/agent/rootGeneration/composedVideo";
+import { planSceneWindows, type VideoPlan } from "@/lib/agent/rootGeneration/planner";
 
 function localDuration(systemPrompt: string): number {
   const match = systemPrompt.match(/SEGMENT DURATION: ([\d.]+)s/);

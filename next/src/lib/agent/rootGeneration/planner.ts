@@ -1,10 +1,12 @@
 import { z } from "zod";
-import { callOpenRouter } from "@/lib/agent/ai/openrouter";
-import type { VideoPartModelCaller } from "@/lib/agent/videoParts/pipeline";
+import {
+  callOpenRouter,
+  type RootGenerationModelCaller,
+} from "@/lib/agent/rootGeneration/openrouter";
 import {
   buildVideoPartRepairPrompt,
   buildVideoPlannerSystemPrompt,
-} from "@/lib/agent/videoParts/prompts";
+} from "@/lib/agent/rootGeneration/prompts";
 import type { SupportedDuration } from "@/lib/others/schemas/duration";
 
 export const PLANNER_MAX_TOKENS = 768;
@@ -221,7 +223,7 @@ function isRepairableModelOutputFailure(
 }
 
 export type VideoPlannerDependencies = {
-  callModel: VideoPartModelCaller;
+  callModel: RootGenerationModelCaller;
 };
 
 const DEFAULT_DEPENDENCIES: VideoPlannerDependencies = {

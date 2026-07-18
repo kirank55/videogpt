@@ -5,7 +5,7 @@ import {
   validateDirectTimelineContent,
 } from "@/lib/agent/videoParts/directTimeline";
 import { generateVideoPart } from "@/lib/agent/videoParts/pipeline";
-import { OpenRouterJsonParseError } from "@/lib/agent/ai/openrouter";
+import { OpenRouterJsonParseError } from "@/lib/agent/videoParts/openrouter";
 import { buildStandaloneVideoPartProject } from "@/lib/agent/videoParts/project";
 import {
   BookendsContentSchema,
