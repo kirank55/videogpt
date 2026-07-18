@@ -10,15 +10,13 @@ import type {
   GenerateVideoPartResponse,
   VideoPartKind,
 } from "@/lib/agent/videoParts/schemas";
-import { saveDevGeneratedProject } from "@/lib/ui/devGeneratedProjects";
+import { generateAndSaveDevVideoPart } from "@/lib/ui/generateDevVideoPart";
 
 type VideoPartGeneratePageProps = {
   part: VideoPartKind;
   title: string;
   description: string;
 };
-
-type ErrorResponse = { error?: string };
 
 export function VideoPartGeneratePage({
   part,
@@ -38,21 +36,10 @@ export function VideoPartGeneratePage({
     setResult(null);
 
     try {
-      const response = await fetch("/api/dev/generate-part", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ part, prompt: submittedPrompt, duration }),
-      });
-      const data = (await response.json()) as GenerateVideoPartResponse | ErrorResponse;
-      if (!response.ok) {
-        throw new Error("error" in data && data.error ? data.error : `HTTP ${response.status}`);
-      }
-      const generated = data as GenerateVideoPartResponse;
-      saveDevGeneratedProject({
+      const generated = await generateAndSaveDevVideoPart({
         part,
         prompt: submittedPrompt,
-        project: generated.project,
-        content: generated.content,
+        duration,
       });
       setResult(generated);
     } catch (requestError) {
