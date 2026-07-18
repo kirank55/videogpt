@@ -4,10 +4,15 @@ import React, { useEffect, useRef, useState, Suspense } from "react";
 import Script from "next/script";
 import { renderProjectFrame, type VideoProject } from "@/lib/ui/renderer";
 
+declare global {
+  interface Window {
+    tempProject?: VideoProject;
+  }
+}
+
 function RendererContent() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [rendered, setRendered] = useState(false);
 
   useEffect(() => {
     // Read search params
@@ -17,7 +22,7 @@ function RendererContent() {
 
     let attempts = 0;
     const draw = () => {
-      const project = (window as any).tempProject as VideoProject | undefined;
+      const project = window.tempProject;
       if (!project) {
         attempts++;
         if (attempts > 500) { // Timeout after ~8 seconds
@@ -35,7 +40,6 @@ function RendererContent() {
 
       ctx.clearRect(0, 0, 1920, 1080);
       renderProjectFrame(ctx, project, time);
-      setRendered(true);
       document.documentElement.setAttribute("data-rendered", "true");
     };
 

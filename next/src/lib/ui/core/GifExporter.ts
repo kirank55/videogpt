@@ -99,5 +99,5 @@ export async function captureCanvasToGif({
   gif.finish();
 
   const bytes = gif.bytes();
-  return new Blob([bytes] as any, { type: "image/gif" });
+  return new Blob([new Uint8Array(bytes)], { type: "image/gif" });
 }

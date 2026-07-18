@@ -1,30 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+const DISMISSED_KEY = "firefox-warning-dismissed";
+const DISMISSED_EVENT = "firefox-warning-dismissed-change";
+
+function subscribe(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(DISMISSED_EVENT, callback);
+
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(DISMISSED_EVENT, callback);
+  };
+}
+
+function shouldShowWarning() {
+  const ua = navigator.userAgent.toLowerCase();
+  const isFirefox = ua.includes("firefox") && !ua.includes("seamonkey");
+  return isFirefox && localStorage.getItem(DISMISSED_KEY) !== "true";
+}
 
 export function FirefoxWarning() {
-  const [isFirefox, setIsFirefox] = useState(false);
-  const [dismissed, setDismissed] = useState(true); // Default to true for SSR
+  const showWarning = useSyncExternalStore(
+    subscribe,
+    shouldShowWarning,
+    () => false,
+  );
 
-  useEffect(() => {
-    // Check user agent
-    const ua = navigator.userAgent.toLowerCase();
-    const isFx = ua.includes("firefox") && !ua.includes("seamonkey");
-    setIsFirefox(isFx);
-    
-    if (isFx) {
-      const isDismissed = localStorage.getItem("firefox-warning-dismissed") === "true";
-      setDismissed(isDismissed);
-    }
-  }, []);
-
-  if (!isFirefox || dismissed) {
+  if (!showWarning) {
     return null;
   }
 
   const handleDismiss = () => {
-    localStorage.setItem("firefox-warning-dismissed", "true");
-    setDismissed(true);
+    localStorage.setItem(DISMISSED_KEY, "true");
+    window.dispatchEvent(new Event(DISMISSED_EVENT));
   };
 
   return (

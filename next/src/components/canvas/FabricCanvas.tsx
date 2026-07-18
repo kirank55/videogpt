@@ -9,6 +9,7 @@ import { drawText } from "@/lib/ui/renderer/text";
 import { drawShape } from "@/lib/ui/renderer/shape";
 import { drawBackground } from "@/lib/ui/renderer/background";
 import { getEventCenter } from "@/lib/ui/renderer/geometry";
+import type { Canvas as FabricJsCanvas, Rect as FabricRect } from "fabric";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,7 +79,7 @@ export function FabricCanvas({
   className,
 }: FabricCanvasProps) {
   const canvasElRef = useRef<HTMLCanvasElement | null>(null);
-  const fabricRef   = useRef<unknown>(null); // fabric.Canvas instance
+  const fabricRef   = useRef<FabricJsCanvas | null>(null);
   const eventsRef   = useRef<TimelineEvent[]>(project.events);
   const [objectCount, setObjectCount] = useState(0);
   const [fabricReady, setFabricReady] = useState(false);
@@ -110,7 +111,7 @@ export function FabricCanvas({
 
   // Dynamically update canvas zoom when container dimensions change
   useEffect(() => {
-    const fc = fabricRef.current as any;
+    const fc = fabricRef.current;
     if (!fc || !dimensions.width) return;
 
     let zoom = 1;
@@ -135,7 +136,7 @@ export function FabricCanvas({
     if (!dimensions.width) return;
 
     let active = true;
-    let fc: { dispose: () => void } | null = null;
+    let fc: FabricJsCanvas | null = null;
 
     async function initFabric() {
       const canvasEl = canvasElRef.current;
@@ -209,10 +210,9 @@ export function FabricCanvas({
             evented: false,
             objectCaching: false,
             data: { eventId: event.id },
-            _render: function(ctx: CanvasRenderingContext2D) {
-              const self = this as any;
+            _render: function(this: FabricRect, ctx: CanvasRenderingContext2D) {
               ctx.save();
-              const canvas = self.canvas;
+              const canvas = this.canvas;
               if (canvas && canvas.viewportTransform) {
                 const vpt = canvas.viewportTransform;
                 const retinaScale = canvas.getRetinaScaling ? canvas.getRetinaScaling() : 1;
@@ -327,12 +327,11 @@ export function FabricCanvas({
           selectable: editable,
           evented: editable,
           data: { eventId: event.id },
-          _render: function(ctx: CanvasRenderingContext2D) {
-            const self = this as any;
+          _render: function(this: FabricRect, ctx: CanvasRenderingContext2D) {
             ctx.save();
             
             // Bypass Fabric's object translation to render in absolute canvas coordinates
-            const canvas = self.canvas;
+            const canvas = this.canvas;
             if (canvas && canvas.viewportTransform) {
               const vpt = canvas.viewportTransform;
               const retinaScale = canvas.getRetinaScaling ? canvas.getRetinaScaling() : 1;
@@ -347,16 +346,16 @@ export function FabricCanvas({
             }
 
             // Translate by the current drag offset relative to the initial position
-            const dx = self.left - posX;
-            const dy = self.top - posY;
+            const dx = this.left - posX;
+            const dy = this.top - posY;
             ctx.translate(dx, dy);
 
             // Scale around the element center if scaled in editor
-            if (self.scaleX !== 1 || self.scaleY !== 1) {
+            if (this.scaleX !== 1 || this.scaleY !== 1) {
               const cx = posX + (originX === "center" ? 0 : width / 2);
               const cy = posY + (originY === "center" ? 0 : height / 2);
               ctx.translate(cx, cy);
-              ctx.scale(self.scaleX, self.scaleY);
+              ctx.scale(this.scaleX, this.scaleY);
               ctx.translate(-cx, -cy);
             }
 
@@ -423,7 +422,7 @@ export function FabricCanvas({
         });
       }
 
-      fc = fc_canvas as { dispose: () => void };
+      fc = fc_canvas;
     }
 
     initFabric();

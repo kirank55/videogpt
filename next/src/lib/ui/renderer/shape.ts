@@ -158,8 +158,8 @@ function drawLineShape(context: CanvasRenderingContext2D, event: ShapeEvent, tim
 
   const { drawProgress } = getAnimatedStyle(event, time);
 
-  const startPad = (event as any).startPadding ?? 0;
-  const endPad = (event as any).endPadding ?? 0;
+  const startPad = event.startPadding ?? 0;
+  const endPad = event.endPadding ?? 0;
 
   const dx = event.x2 - event.x1;
   const dy = event.y2 - event.y1;
