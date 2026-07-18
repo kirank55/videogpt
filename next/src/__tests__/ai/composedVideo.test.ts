@@ -156,12 +156,15 @@ describe("composed video generation", () => {
 
     const visualContextOf = (part: string) =>
       initialRequests.find((request) => request.part === part)
-        ?.systemPrompt.match(/VISUAL CONTEXT: (.+)/)?.[1];
+        ?.systemPrompt.match(/PALETTE ANCHORS: (.+)/)?.[1];
     expect(visualContextOf("plan")).toBeUndefined();
     expect(visualContextOf("overview")).toBe(visualContextOf("cell"));
     expect(visualContextOf("overview")).toContain('"palette"');
-    expect(initialRequests.find(({ part }) => part === "cell")!.systemPrompt)
-      .toContain("OTHER SCENES");
+    const cellPrompt = initialRequests.find(({ part }) => part === "cell")!.systemPrompt;
+    expect(cellPrompt).toContain("PRECEDING BOUNDARY: At a glance (overview)");
+    expect(cellPrompt).toContain("FOLLOWING BOUNDARY: Panel types (comparison)");
+    expect(cellPrompt).not.toContain(plan.scenes[0].goal);
+    expect(cellPrompt).not.toContain(plan.scenes[2].goal);
 
     const windows = planSceneWindows(plan, 15);
     for (const window of windows.scenes) {

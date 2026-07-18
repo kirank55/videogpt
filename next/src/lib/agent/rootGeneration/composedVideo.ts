@@ -139,14 +139,9 @@ export async function generateComposedVideo(
   const palette = PALETTES[theme.palette] ?? PALETTES[DEFAULT_PALETTE];
   const visualContext = JSON.stringify({
     palette: theme.palette,
-    colors: {
-      backgroundFrom: palette.bgFrom,
-      backgroundTo: palette.bgTo,
-      primary: palette.accent1,
-      secondary: palette.accent2,
-      text: palette.text,
-      muted: palette.muted,
-    },
+    background: { from: palette.bgFrom, to: palette.bgTo },
+    text: palette.text,
+    primaryAccent: palette.accent1,
   });
 
   const callForPart = (part: string): ComposedVideoModelCaller => (
@@ -248,4 +243,3 @@ export async function generateComposedVideo(
     scenes,
   };
 }
-

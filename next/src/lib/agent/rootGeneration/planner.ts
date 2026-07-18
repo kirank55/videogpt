@@ -70,7 +70,8 @@ const BOOKEND_DURATION: Record<SupportedDuration, number> = {
   20: 1.5,
 };
 
-const MIN_SCENE_DURATION = 0.8;
+const OVERVIEW_USEFUL_DURATION = 2;
+const SUBSTANTIVE_USEFUL_DURATION = 3.3;
 
 function selectScenesForDuration(
   scenes: VideoScene[],
@@ -80,9 +81,19 @@ function selectScenesForDuration(
   const substantive = scenes.filter((scene) => scene.role !== "overview");
   const overview = scenes.find((scene) => scene.role === "overview");
   const ordered = overview ? [overview, ...substantive] : substantive;
-  if (duration === 5) return substantive.slice(0, 1);
   if (ordered.length <= ceiling) return ordered;
-  if (substantive.length >= ceiling) return substantive.slice(0, ceiling);
+  if (substantive.length >= ceiling) {
+    const retained = new Set(
+      substantive
+        .map((scene, index) => ({ scene, index }))
+        .sort((first, second) =>
+          (second.scene.share - first.scene.share) || (first.index - second.index)
+        )
+        .slice(0, ceiling)
+        .map(({ scene }) => scene),
+    );
+    return substantive.filter((scene) => retained.has(scene));
+  }
   return overview ? [overview, ...substantive].slice(0, ceiling) : substantive;
 }
 
@@ -90,32 +101,76 @@ function roundTime(value: number): number {
   return Number(value.toFixed(3));
 }
 
+function usefulDurationFor(scene: VideoScene): number {
+  return scene.role === "overview"
+    ? OVERVIEW_USEFUL_DURATION
+    : SUBSTANTIVE_USEFUL_DURATION;
+}
+
+function usefulDurationTotal(scenes: VideoScene[]): number {
+  return scenes.reduce((total, scene) => total + usefulDurationFor(scene), 0);
+}
+
 /**
- * Splits `total` across shares proportionally, locking any under-allocated
- * scene to the minimum and redistributing the remainder across the rest.
+ * Keeps the most useful mix that can receive non-fragmentary windows.
+ * Overview is optional; further ties remove the later, lower-share scene.
  */
-function allocateDurations(shares: number[], total: number, minEach: number): number[] {
-  const minimum = Math.min(minEach, total / shares.length);
-  const result = new Array<number>(shares.length).fill(0);
-  const remaining = new Set(shares.map((_, index) => index));
-  let pool = total;
-  for (let pass = 0; pass <= shares.length && remaining.size > 0; pass += 1) {
-    const shareSum = [...remaining].reduce((sum, index) => sum + shares[index], 0);
-    let lockedAny = false;
-    for (const index of [...remaining]) {
-      if ((shares[index] / shareSum) * pool < minimum) {
-        result[index] = minimum;
-        pool -= minimum;
-        remaining.delete(index);
-        lockedAny = true;
-      }
+function retainScenesWithUsefulWindows(
+  selectedScenes: VideoScene[],
+  total: number,
+): VideoScene[] {
+  const scenes = [...selectedScenes];
+  while (scenes.length > 1 && usefulDurationTotal(scenes) > total) {
+    const overviewIndex = scenes.findIndex((scene) => scene.role === "overview");
+    if (overviewIndex >= 0) {
+      scenes.splice(overviewIndex, 1);
+      continue;
     }
-    if (!lockedAny) {
-      for (const index of remaining) result[index] = (shares[index] / shareSum) * pool;
-      remaining.clear();
-    }
+    const removableIndex = scenes.reduce((lowestIndex, scene, index) => {
+      if (index === 0) return 0;
+      const lowest = scenes[lowestIndex];
+      return scene.share <= lowest.share ? index : lowestIndex;
+    }, 0);
+    scenes.splice(removableIndex, 1);
   }
-  return result;
+  return scenes;
+}
+
+/**
+ * Reserves a useful floor for each scene, then treats planner shares as
+ * preferences for distributing only the remaining content time.
+ */
+function allocateDurations(scenes: VideoScene[], total: number): number[] {
+  const totalMilliseconds = Math.round(total * 1_000);
+  const floorMilliseconds = scenes.map((scene) =>
+    Math.round(usefulDurationFor(scene) * 1_000)
+  );
+  const floorTotal = floorMilliseconds.reduce((sum, floor) => sum + floor, 0);
+  const remaining = Math.max(0, totalMilliseconds - floorTotal);
+  const shareTotal = scenes.reduce((sum, scene) => sum + scene.share, 0);
+  const proportional = scenes.map((scene, index) => {
+    const exact = (scene.share / shareTotal) * remaining;
+    return {
+      index,
+      milliseconds: Math.floor(exact),
+      remainder: exact - Math.floor(exact),
+    };
+  });
+  const allocated = proportional.reduce(
+    (sum, allocation) => sum + allocation.milliseconds,
+    0,
+  );
+  const bonuses = new Set(
+    [...proportional]
+      .sort((first, second) =>
+        (second.remainder - first.remainder) || (second.index - first.index)
+      )
+      .slice(0, remaining - allocated)
+      .map(({ index }) => index),
+  );
+  return proportional.map(({ index, milliseconds }) =>
+    (floorMilliseconds[index] + milliseconds + (bonuses.has(index) ? 1 : 0)) / 1_000
+  );
 }
 
 /**
@@ -128,12 +183,11 @@ export function planSceneWindows(
 ): SceneWindows {
   const bookend = BOOKEND_DURATION[duration];
   const contentDuration = roundTime(duration - bookend * 2);
-  const scenes = selectScenesForDuration(plan.scenes, duration);
-  const durations = allocateDurations(
-    scenes.map((scene) => scene.share),
+  const scenes = retainScenesWithUsefulWindows(
+    selectScenesForDuration(plan.scenes, duration),
     contentDuration,
-    MIN_SCENE_DURATION,
   );
+  const durations = allocateDurations(scenes, contentDuration);
 
   let cursor = bookend;
   const windows = scenes.map((scene, index) => {

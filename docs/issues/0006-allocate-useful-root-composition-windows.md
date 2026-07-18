@@ -8,20 +8,19 @@ The allocation must continue to preserve exact total duration, contiguous window
 
 ## Acceptance criteria
 
-- [ ] Planner scene shares are treated as relative preferences rather than guaranteed percentages.
-- [ ] A selected overview receives approximately two seconds when the available content time permits it.
-- [ ] Every selected substantive scene receives at least 3.3 seconds.
-- [ ] Remaining time is distributed proportionally after useful-duration floors are satisfied.
-- [ ] When floors cannot fit, an overview is removed before a substantive scene whose goal is necessary to the plan.
-- [ ] Any further removal uses a deterministic lower-value rule and preserves at least one substantive scene.
-- [ ] Intro and conclusion durations remain unchanged.
-- [ ] All windows are contiguous, ordered, non-empty, and cover the exact selected duration.
-- [ ] Event times and absolute animation keyframes are shifted without rescaling.
-- [ ] Tests cover highly skewed shares, optional overview removal, equal shares, rounding boundaries, and all supported durations.
-- [ ] Dev generation code and characterization tests remain unchanged.
-- [ ] Typecheck, changed-file lint, and relevant tests pass.
+- [x] Planner scene shares are treated as relative preferences rather than guaranteed percentages.
+- [x] A selected overview receives approximately two seconds when the available content time permits it.
+- [x] Every selected substantive scene receives at least 3.3 seconds.
+- [x] Remaining time is distributed proportionally after useful-duration floors are satisfied.
+- [x] When floors cannot fit, an overview is removed before a substantive scene whose goal is necessary to the plan.
+- [x] Any further removal uses a deterministic lower-value rule and preserves at least one substantive scene.
+- [x] Intro and conclusion durations remain unchanged.
+- [x] All windows are contiguous, ordered, non-empty, and cover the exact selected duration.
+- [x] Event times and absolute animation keyframes are shifted without rescaling.
+- [x] Tests cover highly skewed shares, optional overview removal, equal shares, rounding boundaries, and all supported durations.
+- [x] Dev generation code and characterization tests remain unchanged.
+- [x] Typecheck, changed-file lint, and relevant tests pass.
 
 ## Blocked by
 
 - [Issue 0005](./0005-select-duration-appropriate-root-scenes.md)
-

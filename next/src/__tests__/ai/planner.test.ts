@@ -7,7 +7,10 @@ import {
   type VideoPlan,
 } from "@/lib/agent/rootGeneration/planner";
 import type { RootGenerationModelCaller } from "@/lib/agent/rootGeneration/openrouter";
-import { buildVideoPlannerSystemPrompt } from "@/lib/agent/rootGeneration/prompts";
+import {
+  buildVideoPlannerSystemPrompt,
+  buildVideoSceneSystemPrompt,
+} from "@/lib/agent/rootGeneration/prompts";
 
 const basePlan: VideoPlan = {
   title: "Solar Power",
@@ -42,12 +45,22 @@ describe("planSceneWindows", () => {
     });
   });
 
-  it("sizes scenes proportionally to their shares", () => {
+  it("applies useful-duration floors before distributing remaining time by share", () => {
     const windows = planSceneWindows(basePlan, 15);
-    expect(windows.scenes.map((window) => window.duration)).toEqual([3.075, 6.15, 3.075]);
+    expect(windows.scenes.map((window) => window.duration)).toEqual([2.925, 5.15, 4.225]);
   });
 
-  it("boosts degenerate tiny shares to a watchable minimum", () => {
+  it("distributes remaining time evenly when planner shares are equal", () => {
+    const equalShares: VideoPlan = {
+      ...basePlan,
+      scenes: basePlan.scenes.map((scene) => ({ ...scene, share: 1 / 3 })),
+    };
+    const windows = planSceneWindows(equalShares, 15);
+
+    expect(windows.scenes.map((window) => window.duration)).toEqual([3.233, 4.533, 4.534]);
+  });
+
+  it("treats highly skewed shares as preferences without fragmenting scenes", () => {
     const skewed: VideoPlan = {
       ...basePlan,
       scenes: [
@@ -57,9 +70,57 @@ describe("planSceneWindows", () => {
       ],
     };
     const windows = planSceneWindows(skewed, 15);
-    expect(windows.scenes[0].duration).toBeGreaterThanOrEqual(0.8);
-    expect(windows.scenes[2].duration).toBeGreaterThanOrEqual(0.8);
+    expect(windows.scenes[0].duration).toBeGreaterThanOrEqual(2);
+    expect(windows.scenes[1].duration).toBeGreaterThanOrEqual(3.3);
+    expect(windows.scenes[2].duration).toBeGreaterThanOrEqual(3.3);
     expect(windows.scenes[2].end).toBeCloseTo(windows.conclusion.start, 3);
+  });
+
+  it("removes an overview before the substantive scene in a five-second video", () => {
+    const windows = planSceneWindows({
+      ...basePlan,
+      scenes: [basePlan.scenes[0], basePlan.scenes[1]],
+    }, 5);
+
+    expect(windows.scenes.map((window) => window.scene.role)).toEqual(["mechanism"]);
+    expect(windows.scenes[0].duration).toBe(3.3);
+  });
+
+  it.each([5, 10, 15, 20] as const)(
+    "keeps every substantive window useful at the %s-second rounding boundary",
+    (duration) => {
+      const windows = planSceneWindows(basePlan, duration);
+      expect(windows.scenes.filter(({ scene }) => scene.role !== "overview"))
+        .toEqual(expect.arrayContaining([
+          expect.objectContaining({ duration: expect.any(Number) }),
+        ]));
+      for (const window of windows.scenes) {
+        if (window.scene.role !== "overview") {
+          expect(window.duration).toBeGreaterThanOrEqual(3.3);
+        }
+      }
+      expect(windows.scenes.at(-1)?.end).toBe(windows.conclusion.start);
+    },
+  );
+
+  it("preserves the substantive floor across accumulated millisecond rounding", () => {
+    const roundingBoundary: VideoPlan = {
+      ...basePlan,
+      scenes: [
+        { ...basePlan.scenes[1], id: "first", share: 0.3683471 },
+        { ...basePlan.scenes[2], id: "second", share: 0.5025017 },
+        { id: "third", role: "example", name: "Third", goal: "Third.", share: 0.1291448 },
+        { ...basePlan.scenes[1], id: "last", share: 0.0000064 },
+      ],
+    };
+    const windows = planSceneWindows(roundingBoundary, 20);
+
+    expect(windows.scenes.map(({ duration }) => duration))
+      .toEqual(expect.arrayContaining([
+        expect.any(Number),
+      ]));
+    expect(Math.min(...windows.scenes.map(({ duration }) => duration))).toBeGreaterThanOrEqual(3.3);
+    expect(windows.scenes.at(-1)?.end).toBe(windows.conclusion.start);
   });
 
   it("slices scenes beyond the duration ceiling", () => {
@@ -75,6 +136,20 @@ describe("planSceneWindows", () => {
     expect(planSceneWindows(crowded, 10).scenes).toHaveLength(2);
     expect(planSceneWindows(crowded, 15).scenes).toHaveLength(3);
     expect(planSceneWindows(crowded, 20).scenes).toHaveLength(4);
+  });
+
+  it("removes lower-share substantive scenes deterministically", () => {
+    const crowded: VideoPlan = {
+      ...basePlan,
+      scenes: [
+        { ...basePlan.scenes[1], id: "low", share: 0.1 },
+        { ...basePlan.scenes[2], id: "high", share: 0.7 },
+        { id: "medium", role: "example", name: "Worked", goal: "Show it.", share: 0.2 },
+      ],
+    };
+
+    expect(planSceneWindows(crowded, 10).scenes.map(({ scene }) => scene.id))
+      .toEqual(["high", "medium"]);
   });
 });
 
@@ -110,6 +185,99 @@ describe("buildVideoPlannerSystemPrompt", () => {
     expect(prompt).toContain("1 to 2 content scenes");
     expect(prompt).toContain("two complementary substantive scenes");
     expect(prompt).toContain("Every plan must include at least one substantive scene");
+  });
+});
+
+describe("buildVideoSceneSystemPrompt", () => {
+  const paletteAnchors = JSON.stringify({
+    palette: "midnight",
+    background: { from: "#07111f", to: "#10243d" },
+    text: "#ffffff",
+    primaryAccent: "#38bdf8",
+  });
+
+  it.each([
+    ["mechanism", "underlying mechanism"],
+    ["example", "concrete, specific instance"],
+    ["comparison", "contrasts two or three alternatives"],
+  ] as const)("focuses %s authorship on role-specific composition", (role, guidance) => {
+    const scene = {
+      ...basePlan.scenes[1],
+      id: role,
+      role,
+      goal: `Author the ${role} scene.`,
+    };
+    const prompt = buildVideoSceneSystemPrompt(
+      { ...basePlan, scenes: [basePlan.scenes[0], scene, basePlan.scenes[2]] },
+      scene,
+      4.125,
+      paletteAnchors,
+    );
+
+    expect(prompt).toContain("VIDEO: Solar Power");
+    expect(prompt).toContain(`SCENE ROLE: ${role}`);
+    expect(prompt).toContain(`SCENE GOAL: Author the ${role} scene.`);
+    expect(prompt).toContain("SEGMENT DURATION: 4.125s");
+    expect(prompt).toContain(guidance);
+    expect(prompt).toContain("subject-shaped geometry");
+    expect(prompt).toContain("visible motion or staggered reveals");
+    expect(prompt).toContain("readable label placement");
+    expect(prompt).toContain("generic card rows");
+  });
+
+  it("includes only concise immediate-neighbor boundaries", () => {
+    const prompt = buildVideoSceneSystemPrompt(
+      basePlan,
+      basePlan.scenes[1],
+      5.15,
+      paletteAnchors,
+    );
+
+    expect(prompt).toContain("PRECEDING BOUNDARY: At a glance (overview)");
+    expect(prompt).toContain("FOLLOWING BOUNDARY: Panel types (comparison)");
+    expect(prompt).not.toContain("OTHER SCENES");
+    expect(prompt).not.toContain(basePlan.scenes[0].goal);
+    expect(prompt).not.toContain(basePlan.scenes[2].goal);
+  });
+
+  it("handles an optional overview boundary without inventing a predecessor", () => {
+    const prompt = buildVideoSceneSystemPrompt(
+      basePlan,
+      basePlan.scenes[0],
+      2.5,
+      paletteAnchors,
+    );
+
+    expect(prompt).toContain("PRECEDING BOUNDARY: video introduction");
+    expect(prompt).toContain("FOLLOWING BOUNDARY: Inside the cell (mechanism)");
+  });
+
+  it("starts an overview-free substantive plan at the video introduction", () => {
+    const scenes = [basePlan.scenes[1], basePlan.scenes[2]];
+    const prompt = buildVideoSceneSystemPrompt(
+      { ...basePlan, scenes },
+      scenes[0],
+      4.167,
+      paletteAnchors,
+    );
+
+    expect(prompt).toContain("PRECEDING BOUNDARY: video introduction");
+    expect(prompt).toContain("FOLLOWING BOUNDARY: Panel types (comparison)");
+    expect(prompt).not.toContain("overview");
+  });
+
+  it("describes shared colors as anchors and permits semantic colors", () => {
+    const prompt = buildVideoSceneSystemPrompt(
+      basePlan,
+      basePlan.scenes[1],
+      5.15,
+      paletteAnchors,
+    );
+
+    expect(prompt).toContain("PALETTE ANCHORS");
+    expect(prompt).toContain("background, text, and primary-accent anchors");
+    expect(prompt).toContain("not an exclusive color list");
+    expect(prompt).toContain("subject-specific semantic colors");
   });
 });
 

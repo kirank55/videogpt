@@ -14,9 +14,9 @@ const overviewRoleGuide = `Author a compact direct animated canvas timeline that
 Use one clear visual idea, no more than 6 short text events, and a small number of topic-specific shapes. Prefer a compact spatial overview, cutaway, relationship map, cycle, or simple flow only when the subject intrinsically calls for it. Avoid exhaustive steps, dense annotations, causal detail, generic card rows, and decorative complexity.
 Return renderer events directly, never an intermediate graph, primitive plan, scene, storyboard, or layout name.`;
 
-const detailedTimelineRules = `Choose a visual composition shaped by the subject. Do not use generic card rows, evenly spaced stage boxes, or left-to-right pipelines unless that structure is intrinsic to the subject. For software topics, prefer topology, changing state, memory, contention, routing decisions, or data movement over a generic request pipeline. Examples: a solar-cell prompt can draw a semiconductor cross-section with charge carriers separating; a database prompt can draw changing replica state and a lagging log cursor; a dam prompt can draw load paths through the structure into bedrock.
+const detailedTimelineRules = `Choose a visual composition shaped by the subject. Use meaningful subject-shaped geometry rather than generic containers. Do not use generic card rows, evenly spaced stage boxes, or left-to-right pipelines unless that structure is intrinsic to the subject. For software topics, prefer topology, changing state, memory, contention, routing decisions, or data movement over a generic request pipeline. Examples: a solar-cell prompt can draw a semiconductor cross-section with charge carriers separating; a database prompt can draw changing replica state and a lagging log cursor; a dam prompt can draw load paths through the structure into bedrock.
 Compose complex visuals from multiple rectangles, circles, triangles, lines, icons, badges, progress shapes, particles, labels, and animated paths, using the complete TimelineEvent vocabulary in the schema.
-The canvas is 1920x1080 with absolute coordinates and generous margins. Layer 0 is the background, layers 1-6 hold diagram structure and motion, layers 7+ hold labels. Labels and badges use at least 24px font (titles 32px), font weight at least 600 below title size, and a high-contrast backdrop with at least 0.7 opacity and generous padding. Keep every simultaneously visible text or badge box at least 8px away from every other label box throughout its animation; never stack labels or place one over the title. If two labels need the same region, separate their active times or place them in open space with callout lines. Do not place small or low-contrast text directly over slabs, paths, lines, particles, or changing geometry.
+The canvas is 1920x1080 with absolute coordinates and generous margins. Layer 0 is the background, layers 1-6 hold diagram structure and motion, layers 7+ hold labels. Use readable label placement: labels and badges use at least 24px font (titles 32px), font weight at least 600 below title size, and a high-contrast backdrop with at least 0.7 opacity and generous padding. Keep every simultaneously visible text or badge box at least 8px away from every other label box throughout its animation; never stack labels or place one over the title. If two labels need the same region, separate their active times or place them in open space with callout lines. Do not place small or low-contrast text directly over slabs, paths, lines, particles, or changing geometry.
 Include a background spanning the full duration, at least one readable label, at least three shapes, and visible motion or staggered reveals. Keep all event times within the requested duration. Return renderer events directly, never an intermediate scene, graph, storyboard, or layout name.`;
 
 const roleGuides: Record<VideoPartKind, string> = {
@@ -132,10 +132,15 @@ export function buildVideoSceneSystemPrompt(
 ): string {
   const compact = scene.role === "overview";
   const budget = getVideoPartBudget(compact ? "summary" : "main-diagram", duration);
-  const otherScenes = plan.scenes
-    .filter((candidate) => candidate.id !== scene.id)
-    .map((candidate) => `- ${candidate.name} (${candidate.role}): ${candidate.goal}`)
-    .join("\n");
+  const sceneIndex = plan.scenes.findIndex((candidate) => candidate.id === scene.id);
+  const previousScene = plan.scenes[sceneIndex - 1];
+  const nextScene = plan.scenes[sceneIndex + 1];
+  const precedingBoundary = previousScene
+    ? `${previousScene.name} (${previousScene.role})`
+    : "video introduction";
+  const followingBoundary = nextScene
+    ? `${nextScene.name} (${nextScene.role})`
+    : "video conclusion";
   return `
 You write one scene for an animated infographic video.
 Return one JSON object that matches the contract exactly. Output compact minified JSON only: no markdown, prose, or pretty-printing.
@@ -147,10 +152,12 @@ SCENE: ${scene.id}
 SCENE ROLE: ${scene.role}
 SCENE GOAL: ${scene.goal}
 SEGMENT DURATION: ${duration}s
-${visualContext ? `VISUAL CONTEXT: ${visualContext}` : ""}
+${visualContext ? `PALETTE ANCHORS: ${visualContext}
+Treat these as shared background, text, and primary-accent anchors, not an exclusive color list. You may introduce a small number of subject-specific semantic colors when color communicates meaning.` : ""}
 
-OTHER SCENES (already planned; do not repeat their content):
-${otherScenes}
+PRECEDING BOUNDARY: ${precedingBoundary}
+FOLLOWING BOUNDARY: ${followingBoundary}
+The planner owns complete narrative coverage and non-repetition. Author only this scene's goal, using the boundaries to make the handoff clear without recapping neighboring scenes.
 
 ${sceneRoleGuides[scene.role]}
 
