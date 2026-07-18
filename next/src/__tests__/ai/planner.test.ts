@@ -7,6 +7,7 @@ import {
   type VideoPlan,
 } from "@/lib/agent/rootGeneration/planner";
 import type { RootGenerationModelCaller } from "@/lib/agent/rootGeneration/openrouter";
+import { buildVideoPlannerSystemPrompt } from "@/lib/agent/rootGeneration/prompts";
 
 const basePlan: VideoPlan = {
   title: "Solar Power",
@@ -42,8 +43,8 @@ describe("planSceneWindows", () => {
   });
 
   it("sizes scenes proportionally to their shares", () => {
-    const windows = planSceneWindows(basePlan, 10);
-    expect(windows.scenes.map((window) => window.duration)).toEqual([1.975, 3.95, 1.975]);
+    const windows = planSceneWindows(basePlan, 15);
+    expect(windows.scenes.map((window) => window.duration)).toEqual([3.075, 6.15, 3.075]);
   });
 
   it("boosts degenerate tiny shares to a watchable minimum", () => {
@@ -55,7 +56,7 @@ describe("planSceneWindows", () => {
         { ...basePlan.scenes[2], share: 0.01 },
       ],
     };
-    const windows = planSceneWindows(skewed, 10);
+    const windows = planSceneWindows(skewed, 15);
     expect(windows.scenes[0].duration).toBeGreaterThanOrEqual(0.8);
     expect(windows.scenes[2].duration).toBeGreaterThanOrEqual(0.8);
     expect(windows.scenes[2].end).toBeCloseTo(windows.conclusion.start, 3);
@@ -70,26 +71,60 @@ describe("planSceneWindows", () => {
         { id: "extra-2", role: "example", name: "Extra 2", goal: "Extra.", share: 0.1 },
       ],
     };
-    expect(planSceneWindows(crowded, 5).scenes).toHaveLength(3);
-    expect(planSceneWindows(crowded, 20).scenes).toHaveLength(5);
+    expect(planSceneWindows(crowded, 5).scenes).toHaveLength(1);
+    expect(planSceneWindows(crowded, 10).scenes).toHaveLength(2);
+    expect(planSceneWindows(crowded, 15).scenes).toHaveLength(3);
+    expect(planSceneWindows(crowded, 20).scenes).toHaveLength(4);
   });
 });
 
 describe("defaultVideoPlan", () => {
-  it("produces a schema-valid two-scene plan", () => {
-    const plan = defaultVideoPlan("How do solar panels work?");
+  it.each([
+    [5, ["mechanism"]],
+    [10, ["mechanism", "example"]],
+    [15, ["mechanism", "example", "comparison"]],
+    [20, ["mechanism", "example", "comparison", "mechanism"]],
+  ] as const)("produces a schema-valid substantive fallback for %ss", (duration, roles) => {
+    const plan = defaultVideoPlan("How do solar panels work?", duration);
     expect(VideoPlanSchema.parse(plan)).toBeTruthy();
-    expect(plan.scenes.map((scene) => scene.role)).toEqual(["overview", "mechanism"]);
+    expect(plan.scenes.map((scene) => scene.role)).toEqual(roles);
   });
 
   it("truncates long prompts into a bounded title", () => {
-    const plan = defaultVideoPlan("Explain ".repeat(30).trim());
+    const plan = defaultVideoPlan("Explain ".repeat(30).trim(), 10);
     expect(plan.title.length).toBeLessThanOrEqual(80);
     expect(VideoPlanSchema.parse(plan)).toBeTruthy();
   });
 });
 
+describe("buildVideoPlannerSystemPrompt", () => {
+  it("makes overview optional and gives five-second videos one substantive scene", () => {
+    const prompt = buildVideoPlannerSystemPrompt(5);
+    expect(prompt).toContain("exactly 1 content scene");
+    expect(prompt).toContain("must be substantive");
+    expect(prompt).toContain("Overview is optional");
+  });
+
+  it("permits two complementary substantive scenes at ten seconds", () => {
+    const prompt = buildVideoPlannerSystemPrompt(10);
+    expect(prompt).toContain("1 to 2 content scenes");
+    expect(prompt).toContain("two complementary substantive scenes");
+    expect(prompt).toContain("Every plan must include at least one substantive scene");
+  });
+});
+
 describe("planVideoScenes", () => {
+  it("selects exactly one substantive content scene for a five-second video", async () => {
+    const callModel: RootGenerationModelCaller = async () => basePlan;
+    const plan = await planVideoScenes(
+      { prompt: "How does solar power work?", duration: 5 },
+      { callModel },
+    );
+
+    expect(plan.scenes).toHaveLength(1);
+    expect(plan.scenes[0].role).not.toBe("overview");
+  });
+
   it("returns the parsed plan and normalizes duplicate or reserved scene ids", async () => {
     const callModel: RootGenerationModelCaller = async () => ({
       ...basePlan,
@@ -100,11 +135,32 @@ describe("planVideoScenes", () => {
       ],
     });
     const plan = await planVideoScenes(
-      { prompt: "How does solar power work?", duration: 10 },
+      { prompt: "How does solar power work?", duration: 15 },
       { callModel },
     );
     expect(plan.title).toBe("Solar Power");
     expect(plan.scenes.map((scene) => scene.id)).toEqual(["scene-intro", "cell", "cell-2"]);
+  });
+
+  it("keeps normalized duplicate ids within the planner schema limit", async () => {
+    const longId = "abcdefghijklmnopqrstuvwx";
+    const callModel: RootGenerationModelCaller = async () => ({
+      ...basePlan,
+      scenes: [
+        { ...basePlan.scenes[1], id: longId },
+        { ...basePlan.scenes[2], id: longId },
+      ],
+    });
+    const plan = await planVideoScenes(
+      { prompt: "How does solar power work?", duration: 10 },
+      { callModel },
+    );
+
+    expect(plan.scenes.map((scene) => scene.id)).toEqual([
+      longId,
+      "abcdefghijklmnopqrstuv-2",
+    ]);
+    expect(VideoPlanSchema.parse(plan)).toBeTruthy();
   });
 
   it("repairs invalid planner output once", async () => {
@@ -117,12 +173,29 @@ describe("planVideoScenes", () => {
       return basePlan;
     };
     const plan = await planVideoScenes(
-      { prompt: "How does solar power work?", duration: 10 },
+      { prompt: "How does solar power work?", duration: 15 },
       { callModel },
     );
     expect(plan.scenes).toHaveLength(3);
     expect(calls).toBe(2);
     expect(userPrompts[1]).toContain("did not match the required part schema");
+  });
+
+  it("does not accept overview as the only content scene", async () => {
+    let calls = 0;
+    const callModel: RootGenerationModelCaller = async () => {
+      calls += 1;
+      return calls === 1
+        ? { ...basePlan, scenes: [basePlan.scenes[0]] }
+        : { ...basePlan, scenes: [basePlan.scenes[1]] };
+    };
+    const plan = await planVideoScenes(
+      { prompt: "How does solar power work?", duration: 10 },
+      { callModel },
+    );
+
+    expect(calls).toBe(2);
+    expect(plan.scenes.map((scene) => scene.role)).toEqual(["mechanism"]);
   });
 
   it("falls back to the default plan when repair also fails", async () => {
@@ -131,7 +204,7 @@ describe("planVideoScenes", () => {
       { prompt: "How does solar power work?", duration: 10 },
       { callModel },
     );
-    expect(plan.scenes.map((scene) => scene.id)).toEqual(["overview", "details"]);
+    expect(plan.scenes.map((scene) => scene.role)).toEqual(["mechanism", "example"]);
   });
 
   it("falls back to the default plan on provider failure", async () => {
@@ -145,6 +218,58 @@ describe("planVideoScenes", () => {
       { callModel },
     );
     expect(calls).toBe(1);
-    expect(plan.scenes.map((scene) => scene.id)).toEqual(["overview", "details"]);
+    expect(plan.scenes.map((scene) => scene.role)).toEqual(["mechanism", "example"]);
+  });
+
+  it("preserves an overview-free plan below the duration ceiling", async () => {
+    const scenes = [
+      { ...basePlan.scenes[1], id: "mechanism" },
+      { ...basePlan.scenes[2], id: "comparison" },
+    ];
+    const callModel: RootGenerationModelCaller = async () => ({ ...basePlan, scenes });
+    const plan = await planVideoScenes(
+      { prompt: "How does solar power work?", duration: 20 },
+      { callModel },
+    );
+    expect(plan.scenes).toEqual(scenes);
+  });
+
+  it("drops an overview before substantive scenes from an over-limit response", async () => {
+    const callModel: RootGenerationModelCaller = async () => ({
+      ...basePlan,
+      scenes: [
+        basePlan.scenes[0],
+        basePlan.scenes[1],
+        basePlan.scenes[2],
+        { id: "worked", role: "example", name: "Worked example", goal: "Show the numbers.", share: 0.2 },
+      ],
+    });
+    const plan = await planVideoScenes(
+      { prompt: "How does solar power work?", duration: 10 },
+      { callModel },
+    );
+    expect(plan.scenes.map((scene) => scene.role)).toEqual(["mechanism", "comparison"]);
+  });
+
+  it("keeps at most one overview and places it before substantive scenes", async () => {
+    const callModel: RootGenerationModelCaller = async () => ({
+      ...basePlan,
+      scenes: [
+        basePlan.scenes[1],
+        basePlan.scenes[0],
+        { ...basePlan.scenes[0], id: "second-overview" },
+        basePlan.scenes[2],
+      ],
+    });
+    const plan = await planVideoScenes(
+      { prompt: "How does solar power work?", duration: 20 },
+      { callModel },
+    );
+
+    expect(plan.scenes.map((scene) => scene.role)).toEqual([
+      "overview",
+      "mechanism",
+      "comparison",
+    ]);
   });
 });

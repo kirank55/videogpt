@@ -26,7 +26,7 @@ flowchart LR
 
 `next/src/lib/agent/rootGeneration/composedVideo.ts` is the root generation module. It requests a topic-specific scene plan, allocates intro, scene, and conclusion windows, resolves one deterministic palette, then authors every planned scene concurrently with `Promise.allSettled`. A rejected scene fails the generation with that scene named in the error.
 
-The planner chooses two to five overview, mechanism, example, or comparison scenes according to the duration. Deterministic intro and conclusion windows surround content windows sized from normalized scene shares.
+The planner chooses one to four overview, mechanism, example, or comparison scenes according to the duration. Five-second videos use exactly one substantive scene; longer videos may stay below their duration-specific ceiling, and overview is optional. Deterministic intro and conclusion windows surround content windows sized from normalized scene shares.
 
 ## Authorship contracts
 

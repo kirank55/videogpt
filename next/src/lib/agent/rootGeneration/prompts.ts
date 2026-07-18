@@ -7,6 +7,8 @@ import type {
   VideoSceneRole,
 } from "@/lib/agent/rootGeneration/planner";
 import { getVideoPartBudget } from "@/lib/agent/rootGeneration/budgets";
+import { contentSceneCountGuidance } from "@/lib/agent/rootGeneration/planningPolicy";
+import type { SupportedDuration } from "@/lib/others/schemas/duration";
 
 const overviewRoleGuide = `Author a compact direct animated canvas timeline that introduces the topic and its essential structure. This scene is the visual introduction; the other planned scenes explain the details.
 Use one clear visual idea, no more than 6 short text events, and a small number of topic-specific shapes. Prefer a compact spatial overview, cutaway, relationship map, cycle, or simple flow only when the subject intrinsically calls for it. Avoid exhaustive steps, dense annotations, causal detail, generic card rows, and decorative complexity.
@@ -87,14 +89,9 @@ ${budget.maxEvents ? `Use at most ${budget.maxEvents} events.` : ""}
   `.trim();
 }
 
-function sceneCountGuidance(duration: number): string {
-  if (duration <= 5) return "exactly 2 scenes";
-  if (duration <= 10) return "2 or 3 scenes";
-  if (duration <= 15) return "3 or 4 scenes";
-  return "3 to 5 scenes";
-}
-
-export function buildVideoPlannerSystemPrompt(duration: number): string {
+export function buildVideoPlannerSystemPrompt(
+  duration: SupportedDuration,
+): string {
   return `
 You plan one animated infographic video as an ordered list of scenes.
 Return one JSON object that matches the contract exactly. Output compact minified JSON only: no markdown, prose, or pretty-printing.
@@ -107,16 +104,21 @@ OUTPUT CONTRACT (only these keys):
 - title: 80 chars max, names the topic concretely. subtitle: optional, 120 chars max.
 - closingLine: 100 chars max, resolves the explanation.
 - logline: 160 chars max, one sentence describing what the video explains.
-- scenes: ${sceneCountGuidance(duration)}. id is a unique lowercase slug ([a-z0-9-], 24 chars max, never "intro", "conclusion", or "plan"). name is a short chapter label, 40 chars max. goal is 300 chars max and states exactly what the scene must communicate. share is the scene's relative portion of scene time: a number greater than 0, and all shares sum to 1.
+- scenes: ${contentSceneCountGuidance(duration)}. id is a unique lowercase slug ([a-z0-9-], 24 chars max, never "intro", "conclusion", or "plan"). name is a short chapter label, 40 chars max. goal is 300 chars max and states exactly what the scene must communicate. share is the scene's relative portion of scene time: a number greater than 0, and all shares sum to 1.
 
 SCENE ROLES:
-- overview: a compact visual introduction to the topic's essential structure. At most one per video; if present it must be the first scene and carry the smallest share.
+- overview: a compact visual introduction to the topic's essential structure. At most one per video; if present it must be the first scene.
 - mechanism: explains one underlying mechanism, causal relationship, spatial model, cutaway, state transition, or interaction in depth.
 - example: walks through one concrete, specific instance or worked example of the topic.
 - comparison: contrasts two or three alternatives, before/after states, or opposing approaches.
 
 PLANNING RULES:
 - Choose the scene roles that fit this topic; do not force every role into every video.
+- Overview is optional at every duration. Omit it whenever it would displace a more valuable substantive mechanism, example, or comparison scene.
+- Every plan must include at least one substantive scene; overview can never be the only content scene.
+- A five-second video has one content scene and it must be substantive, never overview.
+- At ten seconds, two complementary substantive scenes are valid when both add distinct explanatory value.
+- You may choose fewer content scenes than the duration ceiling when depth is more useful than breadth, but always choose at least one.
 - Every scene needs a distinct goal, and later scenes must not repeat earlier ones.
 - The plan must cover the topic end to end; no scene restates the title or the closing line.
   `.trim();
@@ -178,5 +180,3 @@ ${validationMessage}
 Correct the previous output in place. Preserve valid content and event IDs where possible, changing only what the validation finding requires. Return one corrected JSON object only. Keep exactly the keys allowed by the schema.
   `.trim();
 }
-
-

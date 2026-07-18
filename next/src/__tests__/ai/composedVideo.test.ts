@@ -138,7 +138,7 @@ describe("composed video generation", () => {
     };
 
     const result = await generateComposedVideo(
-      { prompt: "How does solar power work?", duration: 10 },
+      { prompt: "How does solar power work?", duration: 15 },
       {
         callModel,
         onPhase: (phase) => phases.push(phase),
@@ -163,7 +163,7 @@ describe("composed video generation", () => {
     expect(initialRequests.find(({ part }) => part === "cell")!.systemPrompt)
       .toContain("OTHER SCENES");
 
-    const windows = planSceneWindows(plan, 10);
+    const windows = planSceneWindows(plan, 15);
     for (const window of windows.scenes) {
       expect(localDuration(
         initialRequests.find(({ part }) => part === window.scene.id)!.systemPrompt,
@@ -172,8 +172,8 @@ describe("composed video generation", () => {
 
     expect(result.projectName).toBe("Solar Power");
     expect(result.summary).toBe("How solar cells turn sunlight into current.");
-    expect(result.project.duration).toBe(10);
-    expect(result.project.events.every((event) => event.start >= 0 && event.end <= 10)).toBe(true);
+    expect(result.project.duration).toBe(15);
+    expect(result.project.events.every((event) => event.start >= 0 && event.end <= 15)).toBe(true);
     expect(new Set(result.project.events.map((event) => event.id)).size).toBe(result.project.events.length);
     expect(result.project.events.some((event) => event.id.startsWith("intro-"))).toBe(true);
     expect(result.project.events.some((event) => event.id.startsWith("overview-"))).toBe(true);
@@ -223,10 +223,43 @@ describe("composed video generation", () => {
       { callModel },
     );
     expect(plannerCalls).toBe(1);
-    expect(result.scenes.map((scene) => scene.scene.id)).toEqual(["overview", "details"]);
-    expect(result.project.events.some((event) => event.id.startsWith("overview-"))).toBe(true);
-    expect(result.project.events.some((event) => event.id.startsWith("details-"))).toBe(true);
+    expect(result.scenes.map((scene) => scene.scene.id)).toEqual(["mechanism", "worked-example"]);
+    expect(result.project.events.some((event) => event.id.startsWith("mechanism-"))).toBe(true);
+    expect(result.project.events.some((event) => event.id.startsWith("worked-example-"))).toBe(true);
   });
+
+  it.each([5, 10, 15, 20] as const)(
+    "preserves a %s-second duration with background coverage across every interval",
+    async (duration) => {
+      const callModel: ComposedVideoModelCaller = async (systemPrompt) => {
+        if (systemPrompt.includes("PART: planner")) return plan;
+        const sceneDuration = localDuration(systemPrompt);
+        const compact = systemPrompt.includes("SCENE ROLE: overview");
+        return {
+          mode: compact ? "direct-summary-timeline" : "direct-timeline",
+          name: "Scene",
+          visualIntent: "Scene visuals.",
+          events: directEvents(sceneDuration, compact),
+        };
+      };
+
+      const result = await generateComposedVideo(
+        { prompt: "How does solar power work?", duration },
+        { callModel },
+      );
+      const backgrounds = result.project.events
+        .filter((event) => event.type === "background")
+        .sort((first, second) => first.start - second.start);
+
+      expect(result.project.duration).toBe(duration);
+      expect(backgrounds[0].start).toBe(0);
+      expect(backgrounds.at(-1)?.end).toBe(duration);
+      backgrounds.forEach((event, index) => {
+        const next = backgrounds[index + 1];
+        if (next) expect(event.end).toBe(next.start);
+      });
+    },
+  );
 
   it("composes renderer-safe fallbacks for an empty authored scene", async () => {
     const callModel: ComposedVideoModelCaller = async (systemPrompt) => {
