@@ -15,6 +15,8 @@ export const metadata: Metadata = {
   title: "VideoGPT - Free Video Generator",
   description:
     "Text to short-form visuals and animated previews in one AI-powered Video Generation Platform.",
+  verification: { google: "YrRtlcIIyAEyp5m2_Wx9bRMRu9ahGe61FNC0hbwzO5M" }
+
 };
 
 export default function RootLayout({
